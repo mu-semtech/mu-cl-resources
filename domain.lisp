@@ -23,30 +23,27 @@
        :ld-properties ,properties
        :ld-resource-base ,resource-base))
 
-(defgeneric support-creation (path resource)
-  (:documentation "implements a POST request to create instances of RESOURCE.")
-  (:method ((path string) (resource resource))
-    (specify-call :method :post
-                  :components (list path)
-                  :callback (lambda (properties)
-                              (declare (ignore properties))
-                              (let ((json-input (jsown:parse (post-body))))
-                                (insert *repository* ()
-                                  (s+ 
-                                   "GRAPH <http://mu.semte.ch/application/> { "
-                                   "  <~A> a <~A>;~{~&~4t~{<~A>~,^/~} \"~A\"~,^;~}."
-                                   "}")
-                                  (clean-url (s+ (ld-resource-base resource)
-                                                 (princ-to-string (uuid:make-v4-uuid))))
-                                  (clean-url (ld-class resource))
-                                  (loop for (property . path)
-                                     in (ld-properties resource)
-                                     append (list (mapcar #'clean-url path)
-                                                  (jsown:filter json-input
-                                                                "data"
-                                                                (string-downcase
-                                                                 (string property)))))))
-                              (jsown:new-js ("success" :true))))))
+(defgeneric create-call (resource)
+  (:documentation "implementation of the POST request which
+    handles the creation of a resource.")
+  (:method ((resource resource))
+    (let ((json-input (jsown:parse (post-body))))
+      (insert *repository* ()
+        (s+
+         "GRAPH <http://mu.semte.ch/application/> { "
+         "  <~A> a <~A>;~{~&~4t~{<~A>~,^/~} \"~A\"~,^;~}."
+         "}")
+        (clean-url (s+ (ld-resource-base resource)
+                       (princ-to-string (uuid:make-v4-uuid))))
+        (clean-url (ld-class resource))
+        (loop for (property . path)
+           in (ld-properties resource)
+           append (list (mapcar #'clean-url path)
+                        (jsown:filter json-input
+                                      "data"
+                                      (string-downcase
+                                       (string property)))))))
+    (jsown:new-js ("success" :true))))
 
 (define-resource product-groups ()
   :class "http://veeakker.com/vocabulary/shop/ProductGroup"
@@ -54,8 +51,6 @@
                 (:color "productGroup:color")
                 (:code "productGroup:code"))
   :resource-base "http://veeakker.com/api/product-groups/")
-
-(support-creation "product-groups" (gethash 'product-groups *resources*))
 
 ;;;; LIST request
 
@@ -65,6 +60,8 @@
 
 ;;;; POST request
 ;; create a new resource
+(defcall :post (:product-groups)
+  (create-call (gethash 'product-groups *resources*)))
 
 ;;;; DELETE request
 
