@@ -50,7 +50,9 @@
 
 (define-resource product-groups ()
   :class "http://veeakker.com/vocabulary/shop/ProductGroup"
-  :properties '((:name . ("http://veeakker.com/vocabulary/shop/product-groups/name")))
+  :properties '((:name . ("http://veeakker.com/vocabulary/shop/product-groups/name"))
+                (:color . ("http://veeakker.com/vocabulary/shop/product-groups/color"))
+                (:code . ("http://veeakker.com/vocabulary/shop/product-groups/code")))
   :resource-base "http://veeakker.com/api/product-groups/")
 
 (support-creation "product-groups" (gethash 'product-groups *resources*))
