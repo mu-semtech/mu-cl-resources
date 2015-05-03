@@ -26,6 +26,8 @@
 (defgeneric create-call (resource)
   (:documentation "implementation of the POST request which
     handles the creation of a resource.")
+  (:method ((resource-symbol symbol))
+    (create-call (gethash resource-symbol *resources*)))
   (:method ((resource resource))
     (let ((json-input (jsown:parse (post-body))))
       (insert *repository* ()
@@ -61,7 +63,7 @@
 ;;;; POST request
 ;; create a new resource
 (defcall :post (:product-groups)
-  (create-call (gethash 'product-groups *resources*)))
+  (create-call 'product-groups))
 
 ;;;; DELETE request
 
