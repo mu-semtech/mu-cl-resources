@@ -25,15 +25,16 @@
 
 (defun property-paths-format-component (resource)
   (declare (ignore resource))
-  "~{~&~4t~{~A~,^/~} \"~A\"~,^;~}.")
+  "~{~&~4t~{~A~,^/~} ~A~,^;~}.")
 (defun property-paths-content-component (resource json-input)
   (loop for (property . path)
      in (ld-properties resource)
-     append (list (mapcar #'clean-url path)
-                  (jsown:filter json-input
-                                "data"
-                                (string-downcase
-                                 (string property))))))
+     append (list path
+                  (s-str
+                   (jsown:filter json-input
+                                 "data"
+                                 (string-downcase
+                                  (string property)))))))
 
 (defgeneric create-call (resource)
   (:documentation "implementation of the POST request which
@@ -46,13 +47,15 @@
       (insert *repository* ()
         (s+
          "GRAPH <http://mu.semte.ch/application/> { "
-         "  <~A> a <~A>;"
-         "  ~&~4tmu:uuid \"~A\";"
+         "  ~A a ~A;"
+         "  ~&~4tmu:uuid ~A;"
          (property-paths-format-component resource)
          "}")
-        (clean-url (s+ (ld-resource-base resource) uuid))
-        (clean-url (ld-class resource))
-        uuid
+        (s-url (format nil "~A~A"
+                       (raw-content (ld-resource-base resource))
+                       uuid))
+        (ld-class resource)
+        (s-str uuid)
         (property-paths-content-component resource json-input)))
     (jsown:new-js ("success" :true))))
 
@@ -70,32 +73,31 @@
                (s+
                 "DELETE WHERE {"
                 "  GRAPH <http://mu.semte.ch/application/> { "
-                "    ?s mu:uuid \"~A\"; "
-                "    ~{~&~8t~{~A~,^/~} ?~A~,^;~}."
+                "    ?s mu:uuid ~A; "
+                "    ~{~&~8t~{~A~,^/~} ~A~,^;~}."
                 "  }"
                 "}")
-               (clean-string uuid)
+               (s-str uuid)
                (loop for (property . path)
                   in (ld-properties resource)
                   for i from 0
-                  append (list (mapcar #'clean-url path)
-                               (format nil "gensym~A" i)))))
+                  append (list path (s-var (format nil "gensym~A" i))))))
       (insert *repository* ()
         (s+
          "GRAPH <http://mu.semte.ch/application/> { "
-         "  <~A> mu:uuid \"~A\"; "
+         "  ~A mu:uuid ~A; "
          (property-paths-format-component resource)
          "}")
-        (clean-url (s+ (ld-resource-base resource) (clean-string uuid)))
-        (clean-string uuid)
+        (s-url (s+ (raw-content (ld-resource-base resource)) uuid))
+        (s-str uuid)
         (property-paths-content-component resource json-input)))))
 
 (define-resource product-groups ()
-  :class "http://veeakker.com/vocabulary/shop/ProductGroup"
-  :properties '((:name "productGroup:name")
-                (:color "productGroup:color")
-                (:code "productGroup:code"))
-  :resource-base "http://veeakker.com/api/product-groups/")
+  :class (s-url "http://veeakker.com/vocabulary/shop/ProductGroup")
+  :properties `((:name ,(s-prefix "productGroup:name"))
+                (:color ,(s-prefix "productGroup:color"))
+                (:code ,(s-prefix "productGroup:code")))
+  :resource-base (s-url "http://veeakker.com/api/product-groups/"))
 
 ;;;; LIST request
 
