@@ -34,10 +34,11 @@
                                 (insert *repository* ()
                                   (s+ 
                                    "GRAPH <http://mu.semte.ch/application/> { "
-                                   "  <~A> ~{~{<~A>~,^/~} \"~A\"~,^,~}."
+                                   "  <~A> a <~A>;~{~&~4t~{<~A>~,^/~} \"~A\"~,^;~}."
                                    "}")
                                   (clean-url (s+ (ld-resource-base resource)
                                                  (princ-to-string (uuid:make-v4-uuid))))
+                                  (clean-url (ld-class resource))
                                   (loop for (property . path)
                                      in (ld-properties resource)
                                      append (list (mapcar #'clean-url path)
