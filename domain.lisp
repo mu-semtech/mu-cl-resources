@@ -90,7 +90,9 @@
          "}")
         (s-url (s+ (raw-content (ld-resource-base resource)) uuid))
         (s-str uuid)
-        (property-paths-content-component resource json-input)))))
+        (property-paths-content-component resource json-input)))
+    (jsown:new-js
+      ("success" :true))))
 
 (define-resource product-groups ()
   :class (s-url "http://veeakker.com/vocabulary/shop/ProductGroup")
