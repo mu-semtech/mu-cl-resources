@@ -56,8 +56,8 @@
                        uuid))
         (ld-class resource)
         (s-str uuid)
-        (property-paths-content-component resource json-input)))
-    (jsown:new-js ("success" :true))))
+        (property-paths-content-component resource json-input))
+      (show-call resource uuid))))
 
 (defgeneric update-call (resource uuid)
   (:documentation "implementation of the PUT request which
