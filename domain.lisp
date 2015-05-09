@@ -1,5 +1,18 @@
 (in-package :product-groups)
 
+(defun symbol-to-camelcase (content &key (cap-first nil))
+  "builds a javascript variable from anything string-like"
+  (format nil "~{~A~}"
+          (let ((cap-next cap-first))
+            (loop for char across (string-downcase (string content))
+               if (char= char #\-)
+               do (setf cap-next t)
+               else collect (prog1
+                                (if cap-next
+                                    (char-upcase char)
+                                    char)
+                              (setf cap-next nil))))))
+
 (defclass resource ()
   ((ld-class :initarg :ld-class :reader ld-class)
    (ld-properties :initarg :ld-properties :reader ld-properties)
