@@ -94,6 +94,33 @@
     (jsown:new-js
       ("success" :true))))
 
+(defgeneric show-call (resource uuid)
+  (:documentation "implementation of the GET request which
+    handles the displaying of a single resource.")
+  (:method ((resource-symbol symbol) uuid)
+    (show-call (gethash resource-symbol *resources*) uuid))
+  (:method ((resource resource) (uuid string))
+    (flet ((property-var-string (property-description)
+             "returns a string for the json property"
+             (string-downcase (string property-description))))
+      (let* ((solutions
+              (query *repository*
+                     (format nil
+                             (s+ "SELECT * WHERE {"
+                                 "  GRAPH <http://mu.semte.ch/application/> {"
+                                 "    ?s mu:uuid ~A; "
+                                 "    ~{~&~8t~{~A~,^/~} ~A~,^;~}."
+                                 "  }"
+                                 "}")
+                             (s-str uuid)
+                             (loop for (property . path) in (ld-properties resource)
+                                append (list path (s-var (property-var-string property)))))))
+             (result (jsown:empty-object)))
+        (dolist (var (mapcar (alexandria:compose #'property-var-string #'car)
+                             (ld-properties resource)))
+          (setf (jsown:val result var)
+                (jsown:filter (first solutions) var "value")))
+        result))))
 (define-resource product-groups ()
   :class (s-url "http://veeakker.com/vocabulary/shop/ProductGroup")
   :properties `((:name ,(s-prefix "productGroup:name"))
@@ -101,9 +128,13 @@
                 (:code ,(s-prefix "productGroup:code")))
   :resource-base (s-url "http://veeakker.com/api/product-groups/"))
 
+
+
 ;;;; LIST request
 
 ;;;; GET request
+(defcall :get (:product-groups uuid)
+  (show-call 'product-groups uuid))
 
 ;;;; PUT request
 (defcall :put (:product-groups uuid)
