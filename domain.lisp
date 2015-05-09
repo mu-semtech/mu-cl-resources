@@ -94,6 +94,27 @@
     (jsown:new-js
       ("success" :true))))
 
+(defgeneric list-call (resource)
+  (:documentation "implementation of the GET request which
+   handles listing the whole resource")
+  (:method ((resource-symbol symbol))
+    (list-call (gethash resource-symbol *resources*)))
+  (:method ((resource resource))
+    (let ((uuids (jsown:filter
+                  (query *repository*
+                         (format nil
+                                 (s+ "SELECT * WHERE {"
+                                     "  GRAPH <http://mu.semte.ch/application/> {"
+                                     "    ?s mu:uuid ?uuid;"
+                                     "       a ~A."
+                                     "  }"
+                                     "}")
+                                 (ld-class resource)))
+                  map "uuid" "value")))
+      (jsown:new-js ("data" (loop for uuid in uuids
+                                     collect (jsown:val (show-call resource uuid)
+                                                        "data")))))))
+
 (defgeneric show-call (resource uuid)
   (:documentation "implementation of the GET request which
     handles the displaying of a single resource.")
@@ -159,6 +180,8 @@
 
 
 ;;;; LIST request
+(defcall :get (:product-groups)
+  (list-call 'product-groups))
 
 ;;;; GET request
 (defcall :get (:product-groups uuid)
