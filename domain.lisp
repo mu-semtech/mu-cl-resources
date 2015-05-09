@@ -121,6 +121,33 @@
           (setf (jsown:val result var)
                 (jsown:filter (first solutions) var "value")))
         result))))
+
+(defgeneric delete-call (resource uuid)
+  (:documentation "implementation of the DELETE request which
+   handles the deletion of a single resource")
+  (:method ((resource-symbol symbol) uuid)
+    (delete-call (gethash resource-symbol *resources*) uuid))
+  (:method ((resource resource) (uuid string))
+    (query *repository*
+           (format nil
+                   (s+ "DELETE WHERE {"
+                       "  GRAPH <http://mu.semte.ch/application/> {"
+                       "    ?s mu:uuid ~A;"
+                       "       a ~A;"
+                       "       ~{~&~8t~{~A~,^/~} ~A~,^;~}."
+                       "  }"
+                       "}")
+                   (s-str uuid)
+                   (ld-class resource)
+                   (loop for (property . path)
+                      in (ld-properties resource)
+                      append (list path
+                                   (funcall (alexandria:compose
+                                             #'s-var
+                                             #'string-downcase
+                                             #'string)
+                                            property)))))))
+
 (define-resource product-groups ()
   :class (s-url "http://veeakker.com/vocabulary/shop/ProductGroup")
   :properties `((:name ,(s-prefix "productGroup:name"))
@@ -146,4 +173,5 @@
   (create-call 'product-groups))
 
 ;;;; DELETE request
-
+(defcall :delete (:product-groups uuid)
+  (delete-call 'product-groups uuid))
