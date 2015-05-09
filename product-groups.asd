@@ -9,6 +9,7 @@
   :depends-on (mu-support)
   :components ((:file "packages")
                (:file "repository")
+               (:file "framework")
                (:file "support")
                (:file "domain")
                (:file "product-groups")))
