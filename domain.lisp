@@ -115,12 +115,13 @@
                              (s-str uuid)
                              (loop for (property . path) in (ld-properties resource)
                                 append (list path (s-var (property-var-string property)))))))
-             (result (jsown:empty-object)))
+             (content (jsown:empty-object)))
         (dolist (var (mapcar (alexandria:compose #'property-var-string #'car)
                              (ld-properties resource)))
-          (setf (jsown:val result var)
+          (setf (jsown:val content var)
                 (jsown:filter (first solutions) var "value")))
-        result))))
+        (setf (jsown:val content "id") uuid)
+        (jsown:new-js ("data" content))))))
 
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
