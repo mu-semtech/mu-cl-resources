@@ -16,7 +16,8 @@
 (defclass resource ()
   ((ld-class :initarg :ld-class :reader ld-class)
    (ld-properties :initarg :ld-properties :reader ld-properties)
-   (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)))
+   (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)
+   (json-type :initarg :json-type :reader json-type)))
 
 (defparameter *resources* (make-hash-table)
   "contains all currently known resources")
@@ -26,7 +27,8 @@
   (let ((resource (make-instance 'resource
                                  :ld-class ld-class
                                  :ld-properties ld-properties
-                                 :ld-resource-base ld-resource-base)))
+                                 :ld-resource-base ld-resource-base
+                                 :json-type (symbol-to-camelcase name :cap-first t))))
     (setf (gethash name *resources*) resource)))
 
 (defmacro define-resource (name options &key class properties resource-base)
