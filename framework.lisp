@@ -123,14 +123,13 @@
   (declare (ignore resource))
   "~{~&~4t~{~A~,^/~} ~A~,^;~}.")
 (defun property-paths-content-component (resource json-input)
-  (loop for (property . path)
+  (loop for slot
      in (ld-properties resource)
-     append (list path
+     append (list (ld-property-list slot)
                   (s-from-json
                    (jsown:filter json-input
                                  "data"
-                                 (string-downcase
-                                  (string property)))))))
+                                 (json-property-name slot))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
@@ -178,10 +177,11 @@
                 "  }"
                 "}")
                (s-str uuid)
-               (loop for (property . path)
+               (loop for slot
                   in (ld-properties resource)
                   for i from 0
-                  append (list path (s-var (format nil "gensym~A" i))))))
+                  append (list (ld-property-list slot)
+                               (s-var (format nil "gensym~A" i))))))
       (insert *repository* ()
         (s+
          "GRAPH <http://mu.semte.ch/application/> { "
@@ -221,32 +221,30 @@
   (:method ((resource-symbol symbol) uuid)
     (show-call (gethash resource-symbol *resources*) uuid))
   (:method ((resource resource) (uuid string))
-    (flet ((property-var-string (property-description)
-             "returns a string for the json property"
-             (string-downcase (string property-description))))
-      (let* ((solution
-              (first
-               (query *repository*
-                      (format nil
-                              (s+ "SELECT * WHERE {"
-                                  "  GRAPH <http://mu.semte.ch/application/> {"
-                                  "    ?s mu:uuid ~A; "
-                                  "    ~{~&~8t~{~A~,^/~} ~A~,^;~}."
-                                  "  }"
-                                  "}")
-                              (s-str uuid)
-                              (loop for (property . path) in (ld-properties resource)
-                                 append (list path (s-var (property-var-string property))))))))
-             (attributes (jsown:empty-object)))
-        (dolist (var (mapcar (alexandria:compose #'property-var-string #'car)
-                             (ld-properties resource)))
-          (setf (jsown:val attributes (symbol-to-camelcase var))
-                (from-sparql (jsown:val solution var))))
-        (jsown:new-js
-          ("data" (jsown:new-js
-                    ("attributes" attributes)
-                    ("id" uuid)
-                    ("type" (json-type resource)))))))))
+    (let* ((solution
+            (first
+             (query *repository*
+                    (format nil
+                            (s+ "SELECT * WHERE {"
+                                "  GRAPH <http://mu.semte.ch/application/> {"
+                                "    ?s mu:uuid ~A; "
+                                "    ~{~&~8t~{~A~,^/~} ~A~,^;~}."
+                                "  }"
+                                "}")
+                            (s-str uuid)
+                            (loop for slot in (ld-properties resource)
+                               append (list (ld-property-list slot)
+                                            (s-var (json-property-name slot))))))))
+           (attributes (jsown:empty-object)))
+      (dolist (var (mapcar #'json-property-name
+                           (ld-properties resource)))
+        (setf (jsown:val attributes (symbol-to-camelcase var))
+              (from-sparql (jsown:val solution var))))
+      (jsown:new-js
+        ("data" (jsown:new-js
+                  ("attributes" attributes)
+                  ("id" uuid)
+                  ("type" (json-type resource))))))))
 
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
@@ -265,12 +263,7 @@
                        "}")
                    (s-str uuid)
                    (ld-class resource)
-                   (loop for (property . path)
-                      in (ld-properties resource)
-                      append (list path
-                                   (funcall (alexandria:compose
-                                             #'s-var
-                                             #'string-downcase
-                                             #'string)
-                                            property)))))))
+                   (loop for slot in (ld-properties resource)
+                      append (list (ld-property-list slot)
+                                   (s-var (json-property-name slot))))))))
  
