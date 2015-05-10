@@ -13,6 +13,54 @@
                                     char)
                               (setf cap-next nil))))))
 
+(defun from-sparql (object)
+  "Converts the supplied sparql value specification into a lisp value."
+  (break "Importing ~A" object)
+  (let ((type (intern (string-upcase (jsown:val object "type"))
+                      :keyword))
+        (value (jsown:val object "value")))
+    (import-value-from-sparql-result type value object)))
+
+(defgeneric import-value-from-sparql-result (type value object)
+  (:documentation "imports the value from 'object' given its 'value'
+   and 'type' to dispatch on.")
+  (:method ((type (eql :uri)) value object)
+    (declare (ignore object))
+    value)
+  (:method ((type (eql :literal)) value object)
+    (declare (ignore object))
+    value)
+  (:method ((type (eql :typed-literal)) value object)
+    (import-typed-literal-value-from-sparql-result
+     (jsown:val object "datatype")
+     value
+     object)))
+
+(defparameter *typed-literal-importers* (make-hash-table :test 'equal :synchronized t)
+  "contains all convertors for typed-literal values coming from the database.")
+
+(defmacro define-typed-literal-importer (type (&rest variables) &body body)
+  "defines a new typed literal importer.  should receive value, object
+   as variables."
+  `(setf (gethash ,type *typed-literal-importers*)
+         (lambda (,@variables)
+           ,@body)))
+
+(defun import-typed-literal-value-from-sparql-result (type value object)
+  "imports a typed-literal-value from a sparql result."
+  (funcall (gethash type *typed-literal-importers*)
+           value object))
+
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#decimal"
+    (value object)
+  (declare (ignore object))
+  (read-from-string value))
+
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#integer"
+    (value object)
+  (declare (ignore object))
+  (parse-integer value))
+
 (defclass resource ()
   ((ld-class :initarg :ld-class :reader ld-class)
    (ld-properties :initarg :ld-properties :reader ld-properties)
