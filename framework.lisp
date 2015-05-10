@@ -103,7 +103,7 @@
   (let* ((properties (loop for (key type prop) in ld-properties
                         collect (make-instance 'resource-slot
                                                :json-key key
-                                               :resource-type prop
+                                               :resource-type type
                                                :ld-property prop)))
          (resource (make-instance 'resource
                                   :ld-class ld-class
