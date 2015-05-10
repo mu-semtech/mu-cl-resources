@@ -132,6 +132,27 @@
                                  (json-property-name slot))))))
 
 
+;;;;;;;;;;;;;;;;;;;;;;;
+;;;; parsing user input
+
+(defgeneric interpret-json-value (slot value)
+  (:documentation "Interprets the supplied json value <value>
+   given that it should be used for the supplied slot.  Yields a
+   value which can be used in a query.")
+  (:method ((slot resource-slot) value)
+    (interpret-json-value-by-type slot (resource-type slot) value)))
+
+(defgeneric interpret-json-value-by-type (slot type value)
+  (:documentation "Interprets the supplied json value <value>
+   given that it should be used for the supplied slot.  The type
+   of the slot is supplied is the second parameter to dispatch on.")
+  (:method ((slot resource-slot) type value)
+    ;; (declare (ignore type))
+    (s-from-json value))
+  (:method ((slot resource-slot) (type (eql :url)) value)
+    (s-url value)))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; call implementation
 
