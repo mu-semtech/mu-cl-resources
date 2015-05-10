@@ -126,7 +126,8 @@
   (loop for slot
      in (ld-properties resource)
      append (list (ld-property-list slot)
-                  (s-from-json
+                  (interpret-json-value
+                   slot
                    (jsown:filter json-input
                                  "data"
                                  (json-property-name slot))))))
