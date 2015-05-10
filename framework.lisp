@@ -189,23 +189,24 @@
     (flet ((property-var-string (property-description)
              "returns a string for the json property"
              (string-downcase (string property-description))))
-      (let* ((solutions
-              (query *repository*
-                     (format nil
-                             (s+ "SELECT * WHERE {"
-                                 "  GRAPH <http://mu.semte.ch/application/> {"
-                                 "    ?s mu:uuid ~A; "
-                                 "    ~{~&~8t~{~A~,^/~} ~A~,^;~}."
-                                 "  }"
-                                 "}")
-                             (s-str uuid)
-                             (loop for (property . path) in (ld-properties resource)
-                                append (list path (s-var (property-var-string property)))))))
+      (let* ((solution
+              (first
+               (query *repository*
+                      (format nil
+                              (s+ "SELECT * WHERE {"
+                                  "  GRAPH <http://mu.semte.ch/application/> {"
+                                  "    ?s mu:uuid ~A; "
+                                  "    ~{~&~8t~{~A~,^/~} ~A~,^;~}."
+                                  "  }"
+                                  "}")
+                              (s-str uuid)
+                              (loop for (property . path) in (ld-properties resource)
+                                 append (list path (s-var (property-var-string property))))))))
              (attributes (jsown:empty-object)))
         (dolist (var (mapcar (alexandria:compose #'property-var-string #'car)
                              (ld-properties resource)))
           (setf (jsown:val attributes (symbol-to-camelcase var))
-                (jsown:filter (first solutions) var "value")))
+                (from-sparql (jsown:val solution var))))
         (jsown:new-js
           ("data" (jsown:new-js
                     ("attributes" attributes)
