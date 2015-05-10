@@ -71,6 +71,24 @@
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; defining resources
 
+(defclass resource-slot ()
+  ((json-key :initarg :json-key :reader json-key)
+   (ld-property :initarg :ld-property :reader ld-property)
+   (resource-type :initarg :resource-type :reader resource-type))
+  (:documentation "Describes a single property of a resource."))
+
+(defgeneric json-property-name (resource-slot)
+  (:documentation "retrieves the name of the json property of the
+   supplied resource-slot")
+  (:method ((slot resource-slot))
+    (symbol-to-camelcase (json-key slot))))
+
+(defgeneric ld-property-list (slot)
+  (:documentation "yields the ld-property as a list from the
+   resource-slot")
+  (:method ((slot resource-slot))
+    (list (ld-property slot))))
+
 (defclass resource ()
   ((ld-class :initarg :ld-class :reader ld-class)
    (ld-properties :initarg :ld-properties :reader ld-properties)
@@ -82,11 +100,16 @@
 
 (defun define-resource* (name &key ld-class ld-properties ld-resource-base)
   "defines a resource for which get and set requests exist"
-  (let ((resource (make-instance 'resource
-                                 :ld-class ld-class
-                                 :ld-properties ld-properties
-                                 :ld-resource-base ld-resource-base
-                                 :json-type (symbol-to-camelcase name :cap-first t))))
+  (let* ((properties (loop for (key type prop) in ld-properties
+                        collect (make-instance 'resource-slot
+                                               :json-key key
+                                               :resource-type prop
+                                               :ld-property prop)))
+         (resource (make-instance 'resource
+                                  :ld-class ld-class
+                                  :ld-properties properties
+                                  :ld-resource-base ld-resource-base
+                                  :json-type (symbol-to-camelcase name :cap-first t))))
     (setf (gethash name *resources*) resource)))
 
 (defmacro define-resource (name options &key class properties resource-base)
