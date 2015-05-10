@@ -22,7 +22,6 @@
 
 (defun from-sparql (object)
   "Converts the supplied sparql value specification into a lisp value."
-  (break "Importing ~A" object)
   (let ((type (intern (string-upcase (jsown:val object "type"))
                       :keyword))
         (value (jsown:val object "value")))
@@ -126,7 +125,6 @@
         (s+
          "GRAPH <http://mu.semte.ch/application/> { "
          "  ~A a ~A;"
-         "     mu:number 1337.3;"
          "  ~&~4tmu:uuid ~A;"
          (property-paths-format-component resource)
          "}")
@@ -165,7 +163,6 @@
         (s+
          "GRAPH <http://mu.semte.ch/application/> { "
          "  ~A mu:uuid ~A; "
-         "     mu:number 1337.12; "
          (property-paths-format-component resource)
          "}")
         (s-url (s+ (raw-content (ld-resource-base resource)) uuid))
