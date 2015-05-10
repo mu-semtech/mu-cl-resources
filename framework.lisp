@@ -93,7 +93,7 @@
   (loop for (property . path)
      in (ld-properties resource)
      append (list path
-                  (s-str
+                  (s-from-json
                    (jsown:filter json-input
                                  "data"
                                  (string-downcase
