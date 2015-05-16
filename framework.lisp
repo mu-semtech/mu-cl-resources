@@ -13,6 +13,10 @@
    (resource :initarg :resource :reader resource))
   (:documentation "Indicates the resource could not be found"))
 
+(define-condition incorrect-accept-header (error)
+  ((description :initarg :description :reader description))
+  (:documentation "Indicates a necessary accept header was not found."))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;;;; Supporting code
 
@@ -59,6 +63,25 @@
   (merge-jsown-objects (jsown:new-js ("data" :null))
                        (or jsown-object (jsown:empty-object))))
 
+(defun respond-not-acceptable (&optional jsown-object)
+  "Returns a not-acceptable response.  The supplied jsown-object
+   is merged with the response if it is supplied.  This allows
+   you to extend the the response and tailor it to your needs."
+  (setf (hunchentoot:return-code*) hunchentoot:+http-not-acceptable+)
+  (merge-jsown-objects (jsown:new-js
+                         ("errors" (jsown:new-js
+                                     ("status" "Not Acceptable")
+                                     ("code" "406"))))
+                       (or jsown-object (jsown:empty-object))))
+
+(defun verify-json-api-request-accept-header ()
+  "Returns a 406 Not Acceptable status from the request (and
+   returns nil) if the Accept header did not include the
+   correct application/vnd.api+json Accept header."
+  (unless (search "application/vnd.api+json"
+                  (hunchentoot:header-in* :accept))
+    (error 'incorrect-accept-header
+           :description "application/vnd.api+json not found in Accept header")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing query results
@@ -369,11 +392,17 @@
 
 (defcall :get (base-path id)
   (handler-case
-      (show-call (find-resource-by-path base-path) id)
+      (progn
+        (verify-json-api-request-accept-header)
+        (show-call (find-resource-by-path base-path) id))
     (no-such-resource ()
       (respond-not-found))
     (no-such-instance ()
-      (respond-not-found))))
+      (respond-not-found))
+    (incorrect-accept-header (condition)
+      (respond-not-acceptable (jsown:new-js
+                                ("errors" (jsown:new-js
+                                            ("title" (description condition)))))))))
 
 (defcall :put (base-path id)
   (update-call (find-resource-by-path base-path) id))
