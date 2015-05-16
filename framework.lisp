@@ -17,6 +17,10 @@
   ((description :initarg :description :reader description))
   (:documentation "Indicates a necessary accept header was not found."))
 
+(define-condition incorrect-content-type (error)
+  ((description :initarg :description :reader description))
+  (:documentation "Indicates a necessary content-type header was not found."))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;;;; Supporting code
 
@@ -73,6 +77,16 @@
                                      ("status" "Not Acceptable")
                                      ("code" "406"))))
                        (or jsown-object (jsown:empty-object))))
+
+(defun verify-json-api-content-type ()
+  "Throws an error if the Content Type is not the required
+   application/vnd.api+json Accept header."
+  ;; NOTE: I'm not convinced that the server is required to check this
+  ;;       this constraint.  It is not explicited in the spec.
+  (unless (search "application/vnd.api+json"
+                  (hunchentoot:header-in* :content-type))
+    (error 'incorrect-content-type
+           :description "application/vnd.api+json not found in Content-Type header")))
 
 (defun verify-json-api-request-accept-header ()
   "Returns a 406 Not Acceptable status from the request (and
@@ -404,11 +418,23 @@
                                 ("errors" (jsown:new-js
                                             ("title" (description condition)))))))))
 
+(defcall :post (base-path)
+  (handler-case
+      (progn
+        (verify-json-api-request-accept-header)
+        (verify-json-api-content-type)
+        (create-call (find-resource-by-path base-path)))
+    (incorrect-accept-header (condition)
+      (respond-not-acceptable (jsown:new-js
+                                ("errors" (jsown:new-js
+                                            ("title" (description condition)))))))
+    (incorrect-content-type (condition)
+      (respond-not-acceptable (jsown:new-js
+                                ("errors" (jsown:new-js
+                                            ("title" (description condition)))))))))
+
 (defcall :put (base-path id)
   (update-call (find-resource-by-path base-path) id))
-
-(defcall :post (base-path)
-  (create-call (find-resource-by-path base-path)))
 
 (defcall :delete (base-path id)
   (delete-call (find-resource-by-path base-path) id))
