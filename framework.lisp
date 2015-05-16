@@ -1,5 +1,13 @@
 (in-package :product-groups)
 
+;;;;;;;;;;;;;;;;
+;;;; error codes
+(define-condition no-such-resource (error)
+  ((type :initarg :type :reader target-type)
+   (id :initarg :id :reader target-id)
+   (resource :initarg :resource :reader resource))
+  (:documentation "Indicates the resource could not be found"))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;;;; Supporting code
 
@@ -280,6 +288,11 @@
                                append (list (ld-property-list slot)
                                             (s-var (json-property-name slot))))))))
            (attributes (jsown:empty-object)))
+      (unless solution
+        (error 'no-such-resource
+               :resource resource
+               :id uuid
+               :type (json-type resource)))
       (dolist (var (mapcar #'json-property-name
                            (ld-properties resource)))
         (setf (jsown:val attributes (symbol-to-camelcase var))
@@ -318,7 +331,13 @@
   (list-call (find-resource-by-path base-path)))
 
 (defcall :get (base-path id)
-  (show-call (find-resource-by-path base-path) id))
+  (block request
+    (handler-case
+        (show-call (find-resource-by-path base-path) id)
+      (no-such-resource ()
+        (setf (hunchentoot:return-code*) hunchentoot:+http-not-found+
+              (hunchentoot:content-type*) "application/json")
+        (return-from request (jsown:new-js ("data" :null)))))))
 
 (defcall :put (base-path id)
   (update-call (find-resource-by-path base-path) id))
