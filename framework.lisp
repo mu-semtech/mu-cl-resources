@@ -26,6 +26,10 @@
   ()
   (:documentation "Indicates a necessary content-type header was not found."))
 
+(define-condition no-type-in-data (error)
+  ()
+  (:documentation "Indicates no type property was found in the primary data"))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;;;; Supporting code
 
@@ -83,6 +87,17 @@
                                      ("code" "406"))))
                        (or jsown-object (jsown:empty-object))))
 
+(defun respond-conflict (&optional jsown-object)
+  "Returns a 409 Conflict response.  The supplied jsown-object
+   is merged with the response if it is supplied.  This allows
+   you to extend the the response and tailor it to your needs."
+  (setf (hunchentoot:return-code*) hunchentoot:+http-conflict+)
+  (merge-jsown-objects (jsown:new-js
+                         ("errors" (jsown:new-js
+                                     ("status" "Conflict")
+                                     ("code" "409"))))
+                       (or jsown-object (jsown:empty-object))))
+
 (defun verify-json-api-content-type ()
   "Throws an error if the Content Type is not the required
    application/vnd.api+json Accept header."
@@ -101,6 +116,12 @@
                   (hunchentoot:header-in* :accept))
     (error 'incorrect-accept-header
            :description "application/vnd.api+json not found in Accept header")))
+
+(defun verify-request-contains-type (obj)
+  "Throws an error if the request does not contain a type."
+  (unless (and (jsown:keyp obj "data")
+               (jsown:keyp (jsown:val obj "data") "type"))
+    (error 'no-type-in-data)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing query results
@@ -424,19 +445,25 @@
                                             ("title" (description condition)))))))))
 
 (defcall :post (base-path)
-  (handler-case
-      (progn
-        (verify-json-api-request-accept-header)
-        (verify-json-api-content-type)
-        (create-call (find-resource-by-path base-path)))
-    (incorrect-accept-header (condition)
-      (respond-not-acceptable (jsown:new-js
-                                ("errors" (jsown:new-js
-                                            ("title" (description condition)))))))
-    (incorrect-content-type (condition)
-      (respond-not-acceptable (jsown:new-js
-                                ("errors" (jsown:new-js
-                                            ("title" (description condition)))))))))
+  (let ((body (jsown:parse (post-body))))
+    (handler-case
+        (progn
+          (verify-json-api-request-accept-header)
+          (verify-json-api-content-type)
+          (verify-request-contains-type body)
+          (create-call (find-resource-by-path base-path)))
+      (incorrect-accept-header (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition)))))))
+      (incorrect-content-type (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition)))))))
+      (no-type-in-data ()
+        (respond-conflict (jsown:new-js
+                            ("errors" (jsown:new-js
+                                        ("title" "No type found in primary data.")))))))))
 
 (defcall :put (base-path id)
   (update-call (find-resource-by-path base-path) id))
