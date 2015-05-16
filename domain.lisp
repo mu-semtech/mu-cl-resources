@@ -1,31 +1,21 @@
 (in-package :product-groups)
 
+;;;;; product groups
+
 ;;;; define the resource
 (define-resource product-group ()
   :class (s-url "http://veeakker.com/vocabulary/shop/ProductGroup")
   :properties `((:name :string ,(s-prefix "productGroup:name"))
                 (:color :url ,(s-prefix "productGroup:color"))
                 (:code :number ,(s-prefix "productGroup:code")))
-  :resource-base (s-url "http://veeakker.com/api/product-groups/"))
+  :resource-base (s-url "http://veeakker.com/api/product-groups/")
+  :has-many `((product :via (s-url "http://veeakker.com/vocabulary/shop/hasProduct")
+                       :as "products"))
+  :on-path "product-groups")
 
-
-;;;; LIST request
-(defcall :get (:product-groups)
-  (list-call 'product-group))
-
-;;;; GET request
-(defcall :get (:product-groups uuid)
-  (show-call 'product-group uuid))
-
-;;;; PUT request
-(defcall :put (:product-groups uuid)
-  (update-call 'product-group uuid))
-
-;;;; POST request
-;; create a new resource
-(defcall :post (:product-groups)
-  (create-call 'product-group))
-
-;;;; DELETE request
-(defcall :delete (:product-groups uuid)
-  (delete-call 'product-group uuid))
+(define-resource product ()
+  :class (s-url "http://veeakker.com/vocabulary/shop/Product")
+  :properties `((:name :string ,(s-prefix "product:name"))
+                (:price :number ,(s-prefix "product:price")))
+  :resource-base (s-url "http://veeakker.com/api/products/")
+  :on-path "products")

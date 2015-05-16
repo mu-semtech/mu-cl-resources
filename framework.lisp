@@ -89,35 +89,57 @@
   (:method ((slot resource-slot))
     (list (ld-property slot))))
 
+(defclass has-many-link ()
+  ((json-key :initarg :json-key :reader json-key)
+   (resource :initarg :resource :reader ld-resource)
+   (ld-link :initarg :via :reader ld-link))
+  (:documentation "Describes a has-many link to another resource"))
+
 (defclass resource ()
   ((ld-class :initarg :ld-class :reader ld-class)
    (ld-properties :initarg :ld-properties :reader ld-properties)
    (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)
-   (json-type :initarg :json-type :reader json-type)))
+   (json-type :initarg :json-type :reader json-type)
+   (has-many-links :initarg :has-many :reader has-many-links)
+   (request-path :initarg :request-path :reader request-path)))
 
 (defparameter *resources* (make-hash-table)
   "contains all currently known resources")
 
-(defun define-resource* (name &key ld-class ld-properties ld-resource-base)
+(defun find-resource-by-path (path)
+  "finds a resource based on the supplied request path"
+  (maphash (lambda (name resource)
+             (declare (ignore name))
+             (when (string= (request-path resource) path)
+               (return-from find-resource-by-path resource)))
+           *resources*))
+
+(defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many on-path)
   "defines a resource for which get and set requests exist"
   (let* ((properties (loop for (key type prop) in ld-properties
                         collect (make-instance 'resource-slot
                                                :json-key key
                                                :resource-type type
                                                :ld-property prop)))
+         (has-many-links (mapcar (alexandria:curry #'make-instance 'has-many-link :resource)
+                                 has-many))
          (resource (make-instance 'resource
                                   :ld-class ld-class
                                   :ld-properties properties
                                   :ld-resource-base ld-resource-base
-                                  :json-type (symbol-to-camelcase name :cap-first t))))
+                                  :has-many has-many-links
+                                  :json-type (symbol-to-camelcase name :cap-first t)
+                                  :request-path on-path)))
     (setf (gethash name *resources*) resource)))
 
-(defmacro define-resource (name options &key class properties resource-base)
+(defmacro define-resource (name options &key class properties resource-base has-many on-path)
   (declare (ignore options))
   `(define-resource* ',name
        :ld-class ,class
        :ld-properties ,properties
-       :ld-resource-base ,resource-base))
+       :ld-resource-base ,resource-base
+       :has-many ,has-many
+       :on-path ,on-path))
 
 (defun property-paths-format-component (resource)
   (declare (ignore resource))
@@ -289,3 +311,20 @@
                       append (list (ld-property-list slot)
                                    (s-var (json-property-name slot))))))))
  
+
+;;;;;;;;;;;;;;;;;;;
+;;;; standard calls
+(defcall :get (base-path)
+  (list-call (find-resource-by-path base-path)))
+
+(defcall :get (base-path id)
+  (show-call (find-resource-by-path base-path) id))
+
+(defcall :put (base-path id)
+  (update-call (find-resource-by-path base-path) id))
+
+(defcall :post (base-path)
+  (create-call (find-resource-by-path base-path)))
+
+(defcall :delete (base-path id)
+  (delete-call (find-resource-by-path base-path) id))
