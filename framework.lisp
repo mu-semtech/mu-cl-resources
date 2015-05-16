@@ -30,6 +30,11 @@
   ()
   (:documentation "Indicates no type property was found in the primary data"))
 
+(define-condition id-in-data (error)
+  ()
+  (:documentation "Indicates an id property was found in the
+    primary data whilst it was not expected."))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;;;; Supporting code
 
@@ -122,6 +127,12 @@
   (unless (and (jsown:keyp obj "data")
                (jsown:keyp (jsown:val obj "data") "type"))
     (error 'no-type-in-data)))
+
+(defun verify-request-contains-no-id (obj)
+  "Throws an error if the request does not contain an id."
+  (unless (and (jsown:keyp obj "data")
+               (not (jsown:keyp (jsown:val obj "data") "id")))
+    (error 'id-in-data)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing query results
@@ -451,6 +462,7 @@
           (verify-json-api-request-accept-header)
           (verify-json-api-content-type)
           (verify-request-contains-type body)
+          (verify-request-contains-no-id body)
           (create-call (find-resource-by-path base-path)))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
@@ -463,7 +475,11 @@
       (no-type-in-data ()
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
-                                        ("title" "No type found in primary data.")))))))))
+                                        ("title" "No type found in primary data."))))))
+      (id-in-data ()
+        (respond-conflict (jsown:new-js
+                            ("errors" (jsown:new-js
+                                        ("title" "Not allow to supply id in primary data.")))))))))
 
 (defcall :put (base-path id)
   (update-call (find-resource-by-path base-path) id))
