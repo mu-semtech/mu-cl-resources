@@ -51,6 +51,15 @@
                                      (jsown:val b key)))))))
     result))
 
+(defun respond-not-found (&optional jsown-object)
+  "Returns a not-found response.  The supplied jsown-object is
+   merged with the response if it is supplied.  This allows you
+   to extend the response and tailor it to your needs."
+  (setf (hunchentoot:return-code*) hunchentoot:+http-not-found+)
+  (merge-jsown-objects (jsown:new-js ("data" :null))
+                       (or jsown-object (jsown:empty-object))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing query results
 
@@ -362,11 +371,9 @@
   (handler-case
       (show-call (find-resource-by-path base-path) id)
     (no-such-resource ()
-      (setf (hunchentoot:return-code*) hunchentoot:+http-not-found+)
-      (jsown:new-js ("data" :null)))
+      (respond-not-found))
     (no-such-instance ()
-      (setf (hunchentoot:return-code*) hunchentoot:+http-not-found+)
-      (jsown:new-js ("data" :null)))))
+      (respond-not-found))))
 
 (defcall :put (base-path id)
   (update-call (find-resource-by-path base-path) id))
