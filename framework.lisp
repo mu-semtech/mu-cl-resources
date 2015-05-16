@@ -13,12 +13,17 @@
    (resource :initarg :resource :reader resource))
   (:documentation "Indicates the resource could not be found"))
 
-(define-condition incorrect-accept-header (error)
+(define-condition simple-described-condition (error)
   ((description :initarg :description :reader description))
+  (:documentation "Indicates an exception which should mainly be
+    handled by its type and a base description."))
+
+(define-condition incorrect-accept-header (simple-described-condition)
+  ()
   (:documentation "Indicates a necessary accept header was not found."))
 
-(define-condition incorrect-content-type (error)
-  ((description :initarg :description :reader description))
+(define-condition incorrect-content-type (simple-described-condition)
+  ()
   (:documentation "Indicates a necessary content-type header was not found."))
 
 ;;;;;;;;;;;;;;;;;;;;
