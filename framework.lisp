@@ -2,7 +2,12 @@
 
 ;;;;;;;;;;;;;;;;
 ;;;; error codes
+
 (define-condition no-such-resource (error)
+  ((description :initarg :description :reader description))
+  (:documentation "Indicates the resource could not be found"))
+
+(define-condition no-such-instance (error)
   ((type :initarg :type :reader target-type)
    (id :initarg :id :reader target-id)
    (resource :initarg :resource :reader resource))
@@ -120,7 +125,9 @@
              (declare (ignore name))
              (when (string= (request-path resource) path)
                (return-from find-resource-by-path resource)))
-           *resources*))
+           *resources*)
+  (error 'no-such-resource
+         :description (format nil "Path: ~A" path)))
 
 (defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many on-path)
   "defines a resource for which get and set requests exist"
@@ -289,7 +296,7 @@
                                             (s-var (json-property-name slot))))))))
            (attributes (jsown:empty-object)))
       (unless solution
-        (error 'no-such-resource
+        (error 'no-such-instance
                :resource resource
                :id uuid
                :type (json-type resource)))
@@ -331,13 +338,14 @@
   (list-call (find-resource-by-path base-path)))
 
 (defcall :get (base-path id)
-  (block request
-    (handler-case
-        (show-call (find-resource-by-path base-path) id)
-      (no-such-resource ()
-        (setf (hunchentoot:return-code*) hunchentoot:+http-not-found+
-              (hunchentoot:content-type*) "application/json")
-        (return-from request (jsown:new-js ("data" :null)))))))
+  (handler-case
+      (show-call (find-resource-by-path base-path) id)
+    (no-such-resource ()
+      (setf (hunchentoot:return-code*) hunchentoot:+http-not-found+)
+      (jsown:new-js ("data" :null)))
+    (no-such-instance ()
+      (setf (hunchentoot:return-code*) hunchentoot:+http-not-found+)
+      (jsown:new-js ("data" :null)))))
 
 (defcall :put (base-path id)
   (update-call (find-resource-by-path base-path) id))
