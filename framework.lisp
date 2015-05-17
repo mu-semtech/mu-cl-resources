@@ -140,7 +140,7 @@
     (error 'no-type-in-data)))
 
 (defun verify-request-contains-no-id (obj)
-  "Throws an error if the request does not contain an id."
+  "Throws an error if the request contains an id."
   (unless (and (jsown:keyp obj "data")
                (not (jsown:keyp (jsown:val obj "data") "id")))
     (error 'id-in-data)))
