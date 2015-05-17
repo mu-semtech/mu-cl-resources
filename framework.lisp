@@ -46,6 +46,12 @@
   (:documentation "Indicates the type in the request does not match the type
     of the supplied content."))
 
+(define-condition request-id-mismatch (error)
+  ((path-defined-id :initarg :path-defined-id :reader path-defined-id)
+   (content-defined-id :initarg :content-defined-id :reader content-defined-id))
+  (:documentation "Indicates the id in the request does not match
+    the id of the supplied content."))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;;;; Supporting code
 
@@ -160,6 +166,15 @@
       (error 'request-type-mismatch
              :content-defined-type supplied-type
              :path-defined-type path-type))))
+
+(defun verify-request-id-matches-path (path-id obj)
+  "Throws an error if the request id supplied in id does not
+   match the id specified as an id on obj."
+  (let ((supplied-id (jsown:filter obj "data" "id")))
+    (unless (string= path-id supplied-id)
+      (error 'request-id-mismatch
+             :content-defined-id supplied-id
+             :path-defined-id path-id))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing query results
@@ -541,6 +556,7 @@
           (verify-request-contains-type body)
           (verify-request-contains-id body)
           (verify-request-type-matches-path base-path body)
+          (verify-request-id-matches-path id body)
           (update-call (find-resource-by-path base-path) id))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
@@ -565,7 +581,13 @@
                        ("title" (format nil "Supplied type (~A) did not match type for path (~A)."
                                         (content-defined-type condition)
                                         (path-defined-type condition))))))))
-      )))
+      (request-id-mismatch (condition)
+        (respond-conflict
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (format nil "id in data (~A) did ot match id in path (~A)."
+                                        (content-defined-id condition)
+                                        (path-defined-id condition)))))))))))
 
 (defcall :put (base-path id)
   (update-call (find-resource-by-path base-path) id))
