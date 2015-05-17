@@ -289,6 +289,13 @@
                                  "data"
                                  (json-property-name slot))))))
 
+(defgeneric construct-resource-item-path (resource identifier)
+  (:documentation "Constructs the path on which information can
+   be fetched for a specific instance of a resource.")
+  (:method ((resource resource) identifier)
+    (format nil "/~A/~A"
+            (request-path resource) identifier)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing user input
@@ -337,7 +344,7 @@
         (property-paths-content-component resource json-input))
       (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
       (setf (hunchentoot:header-out :location)
-            (format nil "/~A/~A" (request-path resource) uuid))
+            (construct-resource-item-path resource uuid))
       (show-call resource uuid))))
 
 (defgeneric update-call (resource uuid)
@@ -433,9 +440,7 @@
                   ("id" uuid)
                   ("type" (json-type resource))))
         ("links" (jsown:new-js
-                   ("self" (format nil "/~A/~A"
-                                   (request-path resource)
-                                   uuid))))))))
+                   ("self" (construct-resource-item-path resource uuid))))))))
 
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
