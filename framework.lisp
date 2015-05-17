@@ -335,6 +335,7 @@
         (ld-class resource)
         (s-str uuid)
         (property-paths-content-component resource json-input))
+      (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
       (show-call resource uuid))))
 
 (defgeneric update-call (resource uuid)
