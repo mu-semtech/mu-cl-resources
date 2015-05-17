@@ -388,35 +388,48 @@
   (:method ((resource-symbol symbol) uuid)
     (update-call (gethash resource-symbol *resources*) uuid))
   (:method ((resource resource) (uuid string))
-    ;; ideally, we'd be a lot more prudent with deleting content
-    (let ((json-input (jsown:parse (post-body))))
+    (let* ((json-input (jsown:parse (post-body)))
+           (attributes (jsown:filter json-input "data" "attributes"))
+           (uri (s-url
+                 (jsown:filter
+                  (first
+                   (fuseki:query *repository*
+                                 (format nil
+                                         (s+ "SELECT ?s WHERE { "
+                                             "  GRAPH <http://mu.semte.ch/application/> { "
+                                             "    ?s mu:uuid ~A."
+                                             "  }"
+                                             "}")
+                                         (s-str uuid))))
+                  "s" "value"))))
       (fuseki:query
        *repository*
        (format nil
-               (s+
-                "DELETE WHERE {"
-                "  GRAPH <http://mu.semte.ch/application/> { "
-                "    ?s mu:uuid ~A; "
-                "    ~{~&~8t~{~A~,^/~} ~A~,^;~}."
-                "  }"
-                "}")
-               (s-str uuid)
-               (loop for slot
-                  in (ld-properties resource)
+               (s+ "DELETE WHERE { "
+                   "  GRAPH <http://mu.semte.ch/application/> { "
+                   "    ~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
+                   "  }"
+                   "}"
+                   "INSERT DATA {"
+                   "  GRAPH <http://mu.semte.ch/application/> { "
+                   "    ~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
+                   "  }"
+                   "}")
+               ;; delete
+               uri
+               (loop for key in (jsown:keywords attributes)
+                  for slot = (resource-slot-by-json-key resource key)
                   for i from 0
                   append (list (ld-property-list slot)
-                               (s-var (format nil "gensym~A" i))))))
-      (insert *repository* ()
-        (s+
-         "GRAPH <http://mu.semte.ch/application/> { "
-         "  ~A mu:uuid ~A; "
-         (property-paths-format-component resource)
-         "}")
-        (s-url (s+ (raw-content (ld-resource-base resource)) uuid))
-        (s-str uuid)
-        (property-paths-content-component resource json-input)))
-    (jsown:new-js
-      ("success" :true))))
+                               (s-var (format nil "gensym~A" i))))
+               ;; insert
+               uri
+               (loop for key in (jsown:keywords attributes)
+                  for slot = (resource-slot-by-json-key resource key)
+                  append (list (ld-property-list slot)
+                               (interpret-json-value slot
+                                                     (jsown:val attributes key)))))))
+    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
