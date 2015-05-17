@@ -521,6 +521,36 @@
                                         (content-defined-type condition)
                                         (path-defined-type condition)))))))))))
 
+(defcall :patch (base-path id)
+  (let ((body (jsown:parse (post-body))))
+    (handler-case
+        (progn
+          (verify-json-api-request-accept-header)
+          (verify-json-api-content-type)
+          (verify-request-contains-type body)
+          (verify-request-type-matches-path base-path body)
+          (update-call (find-resource-by-path base-path) id))
+      (incorrect-accept-header (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition)))))))
+      (incorrect-content-type (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition)))))))
+      (no-type-in-data ()
+        (respond-conflict (jsown:new-js
+                            ("errors" (jsown:new-js
+                                        ("title" "No type found in primary data."))))))
+      (request-type-mismatch (condition)
+        (respond-conflict
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (format nil "Supplied type (~A) did not match type for path (~A)."
+                                        (content-defined-type condition)
+                                        (path-defined-type condition))))))))
+      )))
+
 (defcall :put (base-path id)
   (update-call (find-resource-by-path base-path) id))
 
