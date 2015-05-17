@@ -52,6 +52,11 @@
   (:documentation "Indicates the id in the request does not match
     the id of the supplied content."))
 
+(define-condition missing-attributes (error)
+  ((missing-slots :initarg :missing-slots :reader missing-slots))
+  (:documentation "Indicates some attirbutes were missing in the
+    request."))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;;;; Supporting code
 
@@ -131,6 +136,18 @@
                                      ("code" "409"))))
                        (or jsown-object (jsown:empty-object))))
 
+(defun respond-unprocessable-entity (&optional jsown-object)
+  "Returns a 422 Unprocessable Entity response.  The supplied
+   jsown-object is merged with the response if it is supplied.
+   This allows you to extend the response and tailor it to your
+   needs."
+  (setf (hunchentoot:return-code*) 422)
+  (merge-jsown-objects (jsown:new-js
+                         ("errors" (jsown:new-js
+                                     ("status" "Unprocessable Entity")
+                                     ("code" "422"))))
+                       (or jsown-object (jsown:empty-object))))
+
 (defun verify-json-api-content-type ()
   "Throws an error if the Content Type is not the required
    application/vnd.api+json Accept header."
@@ -186,6 +203,20 @@
       (error 'request-id-mismatch
              :content-defined-id supplied-id
              :path-defined-id path-id))))
+
+(defun verify-all-attributes-are-available (path obj)
+  "Throws an error if not all slots have a matching attribute in
+   the attributes section of obj."
+  (let* ((supplied-attributes (jsown:keywords
+                               (jsown:filter obj "data" "attributes")))
+         (slots (ld-properties (find-resource-by-path path)))
+         (missing-slots
+          (set-difference slots supplied-attributes
+                          :test (lambda (slot name)
+                                  (string= (json-property-name slot) name)))))
+    (when missing-slots
+      (error 'missing-attributes
+             :missing-slots missing-slots))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing query results
@@ -552,6 +583,7 @@
           (verify-request-contains-type body)
           (verify-request-contains-no-id body)
           (verify-request-type-matches-path base-path body)
+          (verify-all-attributes-are-available base-path body)
           (create-call (find-resource-by-path base-path)))
       (no-such-resource ()
         (respond-forbidden (jsown:new-js
@@ -581,7 +613,14 @@
            ("errors" (jsown:new-js
                        ("title" (format nil "Supplied type (~A) did not match type for path (~A)."
                                         (content-defined-type condition)
-                                        (path-defined-type condition)))))))))))
+                                        (path-defined-type condition))))))))
+      (missing-attributes (condition)
+        ;; not sure if forbidden is the correct response in this case
+        (respond-unprocessable-entity
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (format nil "Supplied attributes missed keys (~{~A~^, ~})"
+                                        (mapcar #'json-property-name (missing-slots condition))))))))))))
 
 (defcall :patch (base-path id)
   (let ((body (jsown:parse (post-body))))
