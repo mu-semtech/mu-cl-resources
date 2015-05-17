@@ -336,6 +336,8 @@
         (s-str uuid)
         (property-paths-content-component resource json-input))
       (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
+      (setf (hunchentoot:header-out :location)
+            (format nil "/~A/~A" (request-path resource) uuid))
       (show-call resource uuid))))
 
 (defgeneric update-call (resource uuid)
@@ -429,7 +431,11 @@
         ("data" (jsown:new-js
                   ("attributes" attributes)
                   ("id" uuid)
-                  ("type" (json-type resource))))))))
+                  ("type" (json-type resource))))
+        ("links" (jsown:new-js
+                   ("self" (format nil "/~A/~A"
+                                   (request-path resource)
+                                   uuid))))))))
 
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
