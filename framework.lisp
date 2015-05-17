@@ -493,6 +493,10 @@
           (verify-request-contains-no-id body)
           (verify-request-type-matches-path base-path body)
           (create-call (find-resource-by-path base-path)))
+      (no-such-resource ()
+        ;; TODO is this the correct response in case of an
+        ;;   unknown resource?
+        (respond-not-found))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
