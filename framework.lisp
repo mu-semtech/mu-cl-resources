@@ -35,6 +35,11 @@
   (:documentation "Indicates an id property was found in the
     primary data whilst it was not expected."))
 
+(define-condition no-id-in-data (error)
+  ()
+  (:documentation "Indicates no id property was found in the
+    primary data whilst it was expected."))
+
 (define-condition request-type-mismatch (error)
   ((path-defined-type :initarg :path-defined-type :reader path-defined-type)
    (content-defined-type :initarg :content-defined-type :reader content-defined-type))
@@ -139,6 +144,12 @@
   (unless (and (jsown:keyp obj "data")
                (not (jsown:keyp (jsown:val obj "data") "id")))
     (error 'id-in-data)))
+
+(defun verify-request-contains-id (obj)
+  "Throws an error if the request does not contain an id."
+  (unless (and (jsown:keyp obj "data")
+               (jsown:keyp (jsown:val obj "data") "id"))
+    (error 'no-id-in-data)))
 
 (defun verify-request-type-matches-path (path obj)
   "Throws an error if the request type for path does not match
@@ -528,6 +539,7 @@
           (verify-json-api-request-accept-header)
           (verify-json-api-content-type)
           (verify-request-contains-type body)
+          (verify-request-contains-id body)
           (verify-request-type-matches-path base-path body)
           (update-call (find-resource-by-path base-path) id))
       (incorrect-accept-header (condition)
@@ -542,6 +554,10 @@
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "No type found in primary data."))))))
+      (no-id-in-data ()
+        (respond-conflict (jsown:new-js
+                            ("errors" (jsown:new-js
+                                        ("title" "Must supply id in primary data."))))))
       (request-type-mismatch (condition)
         (respond-conflict
          (jsown:new-js
