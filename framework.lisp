@@ -109,6 +109,17 @@
                                      ("code" "406"))))
                        (or jsown-object (jsown:empty-object))))
 
+(defun respond-forbidden (&optional jsown-object)
+  "Returns a 403 Forbidden response.  The supplied jsown-object
+   is merged with the response if it is supplied.  This allows
+   you to extend the the response and tailor it to your needs."
+  (setf (hunchentoot:return-code*) hunchentoot:+http-forbidden+)
+  (merge-jsown-objects (jsown:new-js
+                         ("errors" (jsown:new-js
+                                     ("status" "forbidden")
+                                     ("code" "403"))))
+                       (or jsown-object (jsown:empty-object))))
+
 (defun respond-conflict (&optional jsown-object)
   "Returns a 409 Conflict response.  The supplied jsown-object
    is merged with the response if it is supplied.  This allows
@@ -543,9 +554,11 @@
           (verify-request-type-matches-path base-path body)
           (create-call (find-resource-by-path base-path)))
       (no-such-resource ()
-        ;; TODO is this the correct response in case of an
-        ;;   unknown resource?
-        (respond-not-found))
+        (respond-forbidden (jsown:new-js
+                             ("errors" (jsown:new-js
+                                         ("title" (format nil
+                                                          "Resource for path (~A) not found"
+                                                          base-path)))))))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
