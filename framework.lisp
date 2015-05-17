@@ -35,6 +35,12 @@
   (:documentation "Indicates an id property was found in the
     primary data whilst it was not expected."))
 
+(define-condition request-type-mismatch (error)
+  ((path-defined-type :initarg :path-defined-type :reader path-defined-type)
+   (content-defined-type :initarg :content-defined-type :reader content-defined-type))
+  (:documentation "Indicates the type in the request does not match the type
+    of the supplied content."))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;;;; Supporting code
 
@@ -133,6 +139,16 @@
   (unless (and (jsown:keyp obj "data")
                (not (jsown:keyp (jsown:val obj "data") "id")))
     (error 'id-in-data)))
+
+(defun verify-request-type-matches-path (path obj)
+  "Throws an error if the request type for path does not match
+   the id specified as a type on obj."
+  (let ((supplied-type (jsown:filter obj "data" "type"))
+        (path-type (json-type (find-resource-by-path path))))
+    (unless (string= supplied-type path-type)
+      (error 'request-type-mismatch
+             :content-defined-type supplied-type
+             :path-defined-type path-type))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing query results
@@ -463,6 +479,7 @@
           (verify-json-api-content-type)
           (verify-request-contains-type body)
           (verify-request-contains-no-id body)
+          (verify-request-type-matches-path base-path body)
           (create-call (find-resource-by-path base-path)))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
@@ -479,7 +496,14 @@
       (id-in-data ()
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
-                                        ("title" "Not allow to supply id in primary data.")))))))))
+                                        ("title" "Not allow to supply id in primary data."))))))
+      (request-type-mismatch (condition)
+        (respond-conflict
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (format nil "Supplied type (~A) did not match type for path (~A)."
+                                        (content-defined-type condition)
+                                        (path-defined-type condition)))))))))))
 
 (defcall :put (base-path id)
   (update-call (find-resource-by-path base-path) id))
