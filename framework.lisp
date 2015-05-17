@@ -322,6 +322,7 @@
                    slot
                    (jsown:filter json-input
                                  "data"
+                                 "attributes"
                                  (json-property-name slot))))))
 
 (defgeneric construct-resource-item-path (resource identifier)
