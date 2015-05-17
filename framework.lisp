@@ -611,8 +611,5 @@
                                         (content-defined-id condition)
                                         (path-defined-id condition)))))))))))
 
-(defcall :put (base-path id)
-  (update-call (find-resource-by-path base-path) id))
-
 (defcall :delete (base-path id)
   (delete-call (find-resource-by-path base-path) id))
