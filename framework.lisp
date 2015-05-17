@@ -262,6 +262,15 @@
    (has-many-links :initarg :has-many :reader has-many-links)
    (request-path :initarg :request-path :reader request-path)))
 
+(defgeneric resource-slot-by-json-key (resource key)
+  (:documentation "Returns the slot which should be communicated
+    with the json format through the use of the key attribute.")
+  (:method ((resource resource) key)
+    (loop for slot in (ld-properties resource)
+       when (string= (symbol-to-camelcase (json-key slot))
+                     key)
+       return slot)))
+
 (defparameter *resources* (make-hash-table)
   "contains all currently known resources")
 
