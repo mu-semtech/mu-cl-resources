@@ -340,7 +340,7 @@
                                   :ld-properties properties
                                   :ld-resource-base ld-resource-base
                                   :has-many has-many-links
-                                  :json-type (symbol-to-camelcase name :cap-first t)
+                                  :json-type on-path ; (symbol-to-camelcase name :cap-first t)
                                   :request-path on-path)))
     (setf (gethash name *resources*) resource)))
 
