@@ -491,8 +491,11 @@
                                  (ld-class resource)))
                   map "uuid" "value")))
       (jsown:new-js ("data" (loop for uuid in uuids
-                                     collect (jsown:val (show-call resource uuid)
-                                                        "data")))))))
+                               for shown = (handler-case
+                                               (show-call resource uuid)
+                                             (no-such-instance () nil))
+                               when shown
+                               collect (jsown:val shown "data")))))))
 
 (defgeneric show-call (resource uuid)
   (:documentation "implementation of the GET request which
