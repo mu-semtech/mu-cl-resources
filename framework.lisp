@@ -552,7 +552,8 @@
                    (ld-class resource)
                    (loop for slot in (ld-properties resource)
                       append (list (ld-property-list slot)
-                                   (s-var (json-property-name slot))))))))
+                                   (s-var (json-property-name slot))))))
+    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
  
 
 ;;;;;;;;;;;;;;;;;;;
