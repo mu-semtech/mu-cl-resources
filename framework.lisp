@@ -557,8 +557,18 @@
 
 ;;;;;;;;;;;;;;;;;;;
 ;;;; standard calls
+
 (defcall :get (base-path)
-  (list-call (find-resource-by-path base-path)))
+  (handler-case
+      (progn
+        (verify-json-api-request-accept-header)
+        (list-call (find-resource-by-path base-path)))
+    (no-such-resource ()
+      (respond-not-found))
+    (incorrect-accept-header (condition)
+      (respond-not-acceptable (jsown:new-js
+                                ("errors" (jsown:new-js
+                                            ("title" (description condition)))))))))
 
 (defcall :get (base-path id)
   (handler-case
