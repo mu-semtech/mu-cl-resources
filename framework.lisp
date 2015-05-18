@@ -390,7 +390,6 @@
    given that it should be used for the supplied slot.  The type
    of the slot is supplied is the second parameter to dispatch on.")
   (:method ((slot resource-slot) type value)
-    ;; (declare (ignore type))
     (s-from-json value))
   (:method ((slot resource-slot) (type (eql :url)) value)
     (s-url value)))
@@ -676,4 +675,12 @@
                                         (path-defined-id condition)))))))))))
 
 (defcall :delete (base-path id)
-  (delete-call (find-resource-by-path base-path) id))
+  (handler-case
+      (delete-call (find-resource-by-path base-path) id)
+    (no-such-resource ()
+      (respond-forbidden (jsown:new-js
+                           ("errors" (jsown:new-js
+                                       ("title" (format nil
+                                                        "Resource for path (~A) not found"
+                                                        base-path)))))))))
+
