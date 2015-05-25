@@ -553,13 +553,33 @@
                            (ld-properties resource)))
         (setf (jsown:val attributes (symbol-to-camelcase var))
               (from-sparql (jsown:val solution var))))
-      (jsown:new-js
-        ("data" (jsown:new-js
-                  ("attributes" attributes)
-                  ("id" uuid)
-                  ("type" (json-type resource))))
-        ("links" (jsown:new-js
-                   ("self" (construct-resource-item-path resource uuid))))))))
+      (let ((resp-data (jsown:new-js
+                         ("attributes" attributes)
+                         ("id" uuid)
+                         ("type" (json-type resource))))
+            (links (let ((base (jsown:new-js
+                                 ("self" (construct-resource-item-path resource uuid)))))
+                     (loop for link in (all-links resource)
+                        do
+                          (setf (jsown:val base (json-key link))
+                                (build-links-object resource uuid link)))
+                     base)))
+        (jsown:new-js
+          ("data" resp-data)
+          ("links" links))))))
+
+(defgeneric build-links-object (resource identifier link)
+  (:documentation "Builds the json object which represents the link
+    in a json object.")
+  (:method ((resource resource) identifier (link has-link))
+    (jsown:new-js ("self" (format nil "/~A/~A/~A"
+                                  (request-path resource)
+                                  identifier
+                                  (request-path link)))
+                  ("related" (format nil "/~A/~A/links/~A"
+                                  (request-path resource)
+                                  identifier
+                                  (request-path link))))))
 
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
