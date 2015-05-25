@@ -319,7 +319,7 @@
     (list (ld-property slot))))
 
 (defclass has-link ()
-  ((resource :initarg :resource :reader ld-resource)
+  ((resource-name :initarg :resource :reader resource-name)
    (ld-link :initarg :via :reader ld-link)
    (inverse :initarg :inverse :reader inverse-p :initform nil)
    (request-path :initarg :as :reader request-path))
