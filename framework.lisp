@@ -13,6 +13,12 @@
    (resource :initarg :resource :reader resource))
   (:documentation "Indicates the resource could not be found"))
 
+(define-condition no-such-link (error)
+  ((resource :initarg :resource :reader resource)
+   (path :initarg :path :reader path))
+  (:documentation "Indicates the specified link does not exist
+    for the supplied resource."))
+
 (define-condition simple-described-condition (error)
   ((description :initarg :description :reader description))
   (:documentation "Indicates an exception which should mainly be
@@ -345,6 +351,19 @@
            *resources*)
   (error 'no-such-resource
          :description (format nil "Path: ~A" path)))
+
+(defgeneric find-resource-link-by-path (resource path)
+  (:documentation "Finds the link object corresponding to the specified
+    resource and the specified path.")
+  (:method ((resource resource) path)
+    (let ((link (find path (all-links resource)
+                      :test (lambda (path link)
+                              (string= path (request-path link))))))
+      (unless link
+        (error 'no-such-link
+               :resource resource
+               :path path))
+      link)))
 
 (defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path)
   "defines a resource for which get and set requests exist"
@@ -739,8 +758,7 @@
           (verify-json-api-content-type)
           (verify-request-contains-type body)
           (verify-request-contains-id body)
-          (find-resource-by-path base-path)
-          ;; [verify we have the correct relationship]
+          (find-resource-link-by-path (find-resource-by-path base-path) relation)
           ;; [update the relationship]
           (jsown:new-js ("error" "not supported yet")))
       (incorrect-accept-header (condition)
@@ -760,5 +778,12 @@
                             ("errors" (jsown:new-js
                                         ("title" "Must supply id in primary data."))))))
       (no-such-resource ()
-        (respond-not-found)))))
+        (respond-not-found))
+      (no-such-link (condition)
+        (let ((message
+               (format nil "Could not find link (~A) on resource (~A)."
+                       (path condition) (json-type (resource condition)))))
+          (respond-not-acceptable (jsown:new-js
+                                    ("errors" (jsown:new-js
+                                                ("title" message))))))))))
 
