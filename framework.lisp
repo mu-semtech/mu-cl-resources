@@ -355,9 +355,9 @@
                                                :json-key key
                                                :resource-type type
                                                :ld-property prop)))
-         (has-many-links (mapcar (alexandria:curry #'make-instance 'has-many-link :resource)
+         (has-many-links (mapcar (alexandria:curry #'apply #'make-instance 'has-many-link :resource)
                                  has-many))
-         (has-one-links (mapcar (alexandria:curry #'make-instance 'has-one-link :resource)
+         (has-one-links (mapcar (alexandria:curry #'apply #'make-instance 'has-one-link :resource)
                                 has-one))
          (resource (make-instance 'resource
                                   :ld-class ld-class
