@@ -320,6 +320,12 @@
    (has-one-links :initarg :has-one :reader has-one-links)
    (request-path :initarg :request-path :reader request-path)))
 
+(defgeneric all-links (resource)
+  (:documentation "Retrieves all links for the supplied resource.
+    Both the has-many-links and has-one-links.")
+  (:method ((resource resource))
+    (append (has-many-links resource) (has-one-links resource))))
+
 (defgeneric resource-slot-by-json-key (resource key)
   (:documentation "Returns the slot which should be communicated
     with the json format through the use of the key attribute.")
