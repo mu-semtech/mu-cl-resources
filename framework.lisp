@@ -693,7 +693,8 @@
             ;; delete content
             (fuseki:query *repository*
                           (delete-query (s-url resource-uri)
-                                        (ld-link link))))))))
+                                        (ld-link link))))))
+    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 ;;;;;;;;;;;;;;;;;;;
 ;;;; standard calls
@@ -833,8 +834,7 @@
           (let* ((resource (find-resource-by-path base-path))
                  (link (find-resource-link-by-path resource relation)))
             (verify-link-patch-body-format link body)
-            (patch-relation-call resource id link))
-          (jsown:new-js ("error" "not supported yet")))
+            (patch-relation-call resource id link)))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
