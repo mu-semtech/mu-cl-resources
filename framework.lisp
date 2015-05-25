@@ -652,7 +652,36 @@
                       append (list (ld-property-list slot)
                                    (s-var (json-property-name slot))))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
- 
+
+(defgeneric patch-relation-call (resource id link)
+  (:documentation "implementation of the PATCH request which
+    handles the updating of a relation.")
+  (:method ((resource-symbol symbol) id link)
+    (patch-relation-call (find-resource-by-name resource-symbol) id link))
+  (:method ((resource resource) id (link has-one-link))
+    (let* ((body (jsown:parse (post-body)))
+           (linked-resource (find-resource-by-name (resource-name link)))
+           (resource-uri (find-resource-for-uuid resource id))
+           (new-linked-uuid (jsown:filter body "data" "id"))
+           (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
+      ;; TODO: add support for inverse relations
+      (fuseki:query *repository*
+                    (format nil
+                            (s+ "DELETE WHERE { "
+                                "  GRAPH <http://mu.semte.ch/application/> { "
+                                "    ~A ~A ?s."
+                                "  }"
+                                "}"
+                                "INSERT DATA { "
+                                "  GRAPH <http://mu.semte.ch/application/> { "
+                                "    ~A ~A ~A."
+                                "  }"
+                                "}")
+                            (s-url resource-uri)
+                            (ld-link link)
+                            (s-url resource-uri)
+                            (ld-link link)
+                            (s-url new-linked-uri))))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;;;; standard calls
@@ -791,8 +820,8 @@
           (verify-json-api-content-type)
           (let* ((resource (find-resource-by-path base-path))
                  (link (find-resource-link-by-path resource relation)))
-            (verify-link-patch-body-format link body))
-          ;; [update the relationship]
+            (verify-link-patch-body-format link body)
+            (patch-relation-call resource id link))
           (jsown:new-js ("error" "not supported yet")))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
@@ -822,6 +851,11 @@
       (invalid-link-patch-body-format (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
-                                              ("title" (description condition))))))))))
-
-
+                                              ("title" (description condition)))))))
+      (no-such-instance (condition)
+        (respond-not-acceptable
+         (jsown:new-js ("errors"
+                        (jsown:new-js
+                          ("title" (format nil "No resource found for supplied type (~A) and id (~A)"
+                                           (target-type condition)
+                                           (target-id condition)))))))))))
