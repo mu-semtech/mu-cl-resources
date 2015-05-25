@@ -294,8 +294,6 @@
   ((resource :initarg :resource :reader ld-resource)
    (ld-link :initarg :via :reader ld-link)
    (inverse :initarg :inverse :reader inverse-p :initform nil)
-   (inline :initarg :inline :reader inline-p :initform nil
-           :documentation "Indicates that we want to support linkage")
    (request-path :initarg :as :reader request-path))
   (:documentation "Describes a link to another resource.
    You should use one of its subclasses."))
