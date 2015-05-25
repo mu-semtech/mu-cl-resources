@@ -364,6 +364,10 @@
 (defparameter *resources* (make-hash-table)
   "contains all currently known resources")
 
+(defun find-resource-by-name (symbol)
+  "retrieves the resource with name symbol."
+  (gethash symbol *resources*))
+
 (defun find-resource-by-path (path)
   "finds a resource based on the supplied request path"
   (maphash (lambda (name resource)
@@ -467,7 +471,7 @@
   (:documentation "implementation of the POST request which
     handles the creation of a resource.")
   (:method ((resource-symbol symbol))
-    (create-call (gethash resource-symbol *resources*)))
+    (create-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
     (let ((json-input (jsown:parse (post-body)))
           (uuid (princ-to-string (uuid:make-v4-uuid))))
@@ -511,7 +515,7 @@
   (:documentation "implementation of the PUT request which
     handles the updating of a resource.")
   (:method ((resource-symbol symbol) uuid)
-    (update-call (gethash resource-symbol *resources*) uuid))
+    (update-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
     (let* ((json-input (jsown:parse (post-body)))
            (attributes (jsown:filter json-input "data" "attributes"))
@@ -549,7 +553,7 @@
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
   (:method ((resource-symbol symbol))
-    (list-call (gethash resource-symbol *resources*)))
+    (list-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
     (let ((uuids (jsown:filter
                   (query *repository*
@@ -573,7 +577,7 @@
   (:documentation "implementation of the GET request which
     handles the displaying of a single resource.")
   (:method ((resource-symbol symbol) uuid)
-    (show-call (gethash resource-symbol *resources*) uuid))
+    (show-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
     (let* ((solution
             (first
@@ -631,7 +635,7 @@
   (:documentation "implementation of the DELETE request which
    handles the deletion of a single resource")
   (:method ((resource-symbol symbol) uuid)
-    (delete-call (gethash resource-symbol *resources*) uuid))
+    (delete-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
     (query *repository*
            (format nil
