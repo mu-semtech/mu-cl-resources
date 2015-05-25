@@ -32,6 +32,10 @@
   ()
   (:documentation "Indicates a necessary content-type header was not found."))
 
+(define-condition invalid-link-patch-body-format (simple-described-condition)
+  ()
+  (:documentation "Indicates the patch body for a link update was not correct."))
+
 (define-condition no-type-in-data (error)
   ()
   (:documentation "Indicates no type property was found in the primary data"))
@@ -223,6 +227,24 @@
     (when missing-slots
       (error 'missing-attributes
              :missing-slots missing-slots))))
+
+(defgeneric verify-link-patch-body-format (link obj)
+  (:documentation "Throws an error if the supplied obj does not have a
+    valid format for the supplied link object.")
+  (:method ((link has-one-link) obj)
+    (unless (jsown:keyp obj "data")
+      (error 'invalid-link-patch-body-format
+             :description "Top level key (data) missing."))
+    (when (jsown:val obj "data")
+      ;; only check if data is not null (we allow any falsy value)
+      (let ((missing-keys (loop for k in '("id" "type")
+                             unless (jsown:keyp (jsown:val obj "data") k)
+                             collect k)))
+        (when missing-keys
+          (error 'invalid-link-patch-body-format
+                 :description (format nil
+                                      "Obligatory content (~{~A~,^, ~}) of data object was not found."
+                                      missing-keys)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing query results
@@ -756,9 +778,9 @@
         (progn
           (verify-json-api-request-accept-header)
           (verify-json-api-content-type)
-          (verify-request-contains-type body)
-          (verify-request-contains-id body)
-          (find-resource-link-by-path (find-resource-by-path base-path) relation)
+          (let* ((resource (find-resource-by-path base-path))
+                 (link (find-resource-link-by-path resource relation)))
+            (verify-link-patch-body-format link body))
           ;; [update the relationship]
           (jsown:new-js ("error" "not supported yet")))
       (incorrect-accept-header (condition)
@@ -785,5 +807,10 @@
                        (path condition) (json-type (resource condition)))))
           (respond-not-acceptable (jsown:new-js
                                     ("errors" (jsown:new-js
-                                                ("title" message))))))))))
+                                                ("title" message)))))))
+      (invalid-link-patch-body-format (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition))))))))))
+
 
