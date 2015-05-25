@@ -659,29 +659,41 @@
   (:method ((resource-symbol symbol) id link)
     (patch-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
-    (let* ((body (jsown:parse (post-body)))
-           (linked-resource (find-resource-by-name (resource-name link)))
-           (resource-uri (find-resource-for-uuid resource id))
-           (new-linked-uuid (jsown:filter body "data" "id"))
-           (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
-      ;; TODO: add support for inverse relations
-      (fuseki:query *repository*
-                    (format nil
-                            (s+ "DELETE WHERE { "
-                                "  GRAPH <http://mu.semte.ch/application/> { "
-                                "    ~A ~A ?s."
-                                "  }"
-                                "}"
-                                "INSERT DATA { "
-                                "  GRAPH <http://mu.semte.ch/application/> { "
-                                "    ~A ~A ~A."
-                                "  }"
-                                "}")
-                            (s-url resource-uri)
-                            (ld-link link)
-                            (s-url resource-uri)
-                            (ld-link link)
-                            (s-url new-linked-uri))))))
+    (flet ((delete-query (resource-uri link-uri)
+             (format nil
+                     (s+ 
+                      "DELETE WHERE { "
+                      "  GRAPH <http://mu.semte.ch/application/> { "
+                      "    ~A ~A ?s."
+                      "  }"
+                      "}")
+                     resource-uri link-uri))
+           (insert-query (resource-uri link-uri new-linked-uri)
+             (format nil
+                     (s+
+                      "INSERT DATA { "
+                      "  GRAPH <http://mu.semte.ch/application/> { "
+                      "    ~A ~A ~A."
+                      "  }"
+                      "}")
+                     resource-uri link-uri new-linked-uri)))
+      (let ((body (jsown:parse (post-body)))
+            (linked-resource (find-resource-by-name (resource-name link)))
+            (resource-uri (find-resource-for-uuid resource id)))
+        (if (jsown:val body "data")
+            ;; update content
+            (let* ((new-linked-uuid (jsown:filter body "data" "id"))
+                   (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
+              (fuseki:query *repository*
+                            (s+ (delete-query (s-url resource-uri)
+                                              (ld-link link))
+                                (insert-query (s-url resource-uri)
+                                              (ld-link link)
+                                              (s-url new-linked-uri)))))
+            ;; delete content
+            (fuseki:query *repository*
+                          (delete-query (s-url resource-uri)
+                                        (ld-link link))))))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;;;; standard calls
