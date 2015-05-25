@@ -825,6 +825,27 @@
                                                         "Resource for path (~A) not found"
                                                         base-path)))))))))
 
+(defcall :get (base-path id relation)
+  (handler-case
+      (progn
+        (verify-json-api-request-accept-header)
+        (let* ((resource (find-resource-by-path base-path))
+               (link (find-resource-link-by-path resource relation)))
+          (jsown:new-js ("error" "not supported"))))
+    (incorrect-accept-header (condition)
+      (respond-not-acceptable (jsown:new-js
+                                ("errors" (jsown:new-js
+                                            ("title" (description condition)))))))
+    (no-such-resource ()
+      (respond-not-found))
+    (no-such-link (condition)
+      (let ((message
+             (format nil "Could not find link (~A) on resource (~A)."
+                     (path condition) (json-type (resource condition)))))
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" message)))))))))
+
 (defcall :patch (base-path id :links relation)
   (let ((body (jsown:parse (post-body))))
     (handler-case
