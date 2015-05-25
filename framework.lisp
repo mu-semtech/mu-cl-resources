@@ -489,6 +489,24 @@
             (construct-resource-item-path resource uuid))
       (show-call resource uuid))))
 
+(defun find-resource-for-uuid (resource uuid)
+  "Retrieves the resource hich specifies the supplied UUID in the database."
+  (let ((result (fuseki:query
+                 *repository*
+                 (format nil
+                         (s+ "SELECT ?s WHERE { "
+                             "  GRAPH <http://mu.semte.ch/application/> { "
+                             "    ?s mu:uuid ~A."
+                             "  }"
+                             "}")
+                         (s-str uuid)))))
+    (unless result
+      (error 'no-such-instance
+             :resource resource
+             :id uuid
+             :type (json-type resource)))
+    (jsown:filter (first result) "s" "value")))
+
 (defgeneric update-call (resource uuid)
   (:documentation "implementation of the PUT request which
     handles the updating of a resource.")
@@ -497,18 +515,7 @@
   (:method ((resource resource) (uuid string))
     (let* ((json-input (jsown:parse (post-body)))
            (attributes (jsown:filter json-input "data" "attributes"))
-           (uri (s-url
-                 (jsown:filter
-                  (first
-                   (fuseki:query *repository*
-                                 (format nil
-                                         (s+ "SELECT ?s WHERE { "
-                                             "  GRAPH <http://mu.semte.ch/application/> { "
-                                             "    ?s mu:uuid ~A."
-                                             "  }"
-                                             "}")
-                                         (s-str uuid))))
-                  "s" "value"))))
+           (uri (s-url (find-resource-for-uuid resource uuid))))
       (fuseki:query
        *repository*
        (format nil
