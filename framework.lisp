@@ -291,12 +291,12 @@
     (list (ld-property slot))))
 
 (defclass has-link ()
-  ((json-key :initarg :json-key :reader json-key)
-   (resource :initarg :resource :reader ld-resource)
+  ((resource :initarg :resource :reader ld-resource)
    (ld-link :initarg :via :reader ld-link)
    (inverse :initarg :inverse :reader inverse-p :initform nil)
    (inline :initarg :inline :reader inline-p :initform nil
-           :documentation "Indicates that we want to support linkage"))
+           :documentation "Indicates that we want to support linkage")
+   (request-path :initarg :as :reader request-path))
   (:documentation "Describes a link to another resource.
    You should use one of its subclasses."))
 
@@ -307,6 +307,9 @@
 (defclass has-one-link (has-link)
   ()
   (:documentation "Describes a has-one link to another resource"))
+
+(defmethod json-key ((link has-link))
+  (request-path link))
 
 (defclass resource ()
   ((ld-class :initarg :ld-class :reader ld-class)
