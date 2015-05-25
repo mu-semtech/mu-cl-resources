@@ -290,11 +290,23 @@
   (:method ((slot resource-slot))
     (list (ld-property slot))))
 
-(defclass has-many-link ()
+(defclass has-link ()
   ((json-key :initarg :json-key :reader json-key)
    (resource :initarg :resource :reader ld-resource)
-   (ld-link :initarg :via :reader ld-link))
+   (ld-link :initarg :via :reader ld-link)
+   (inverse :initarg :inverse :reader inverse-p :initform nil)
+   (inline :initarg :inline :reader inline-p :initform nil
+           :documentation "Indicates that we want to support linkage"))
+  (:documentation "Describes a link to another resource.
+   You should use one of its subclasses."))
+
+(defclass has-many-link (has-link)
+  ()
   (:documentation "Describes a has-many link to another resource"))
+
+(defclass has-one-link (has-link)
+  ()
+  (:documentation "Describes a has-one link to another resource"))
 
 (defclass resource ()
   ((ld-class :initarg :ld-class :reader ld-class)
@@ -302,6 +314,7 @@
    (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)
    (json-type :initarg :json-type :reader json-type)
    (has-many-links :initarg :has-many :reader has-many-links)
+   (has-one-links :initarg :has-one :reader has-one-links)
    (request-path :initarg :request-path :reader request-path)))
 
 (defgeneric resource-slot-by-json-key (resource key)
@@ -326,7 +339,7 @@
   (error 'no-such-resource
          :description (format nil "Path: ~A" path)))
 
-(defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many on-path)
+(defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path)
   "defines a resource for which get and set requests exist"
   (let* ((properties (loop for (key type prop) in ld-properties
                         collect (make-instance 'resource-slot
@@ -335,22 +348,26 @@
                                                :ld-property prop)))
          (has-many-links (mapcar (alexandria:curry #'make-instance 'has-many-link :resource)
                                  has-many))
+         (has-one-links (mapcar (alexandria:curry #'make-instance 'has-one-link :resource)
+                                has-one))
          (resource (make-instance 'resource
                                   :ld-class ld-class
                                   :ld-properties properties
                                   :ld-resource-base ld-resource-base
                                   :has-many has-many-links
+                                  :has-one has-one-links
                                   :json-type on-path ; (symbol-to-camelcase name :cap-first t)
                                   :request-path on-path)))
     (setf (gethash name *resources*) resource)))
 
-(defmacro define-resource (name options &key class properties resource-base has-many on-path)
+(defmacro define-resource (name options &key class properties resource-base has-many has-one on-path)
   (declare (ignore options))
   `(define-resource* ',name
        :ld-class ,class
        :ld-properties ,properties
        :ld-resource-base ,resource-base
        :has-many ,has-many
+       :has-one ,has-one
        :on-path ,on-path))
 
 (defun property-paths-format-component (resource)
