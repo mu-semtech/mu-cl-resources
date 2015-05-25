@@ -854,6 +854,9 @@
                                                         "Resource for path (~A) not found"
                                                         base-path)))))))))
 
+;;;;;;;;;;;;;;;
+;;;; link calls
+
 (defcall :get (base-path id relation)
   (handler-case
       (progn
