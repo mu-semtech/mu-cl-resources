@@ -18,4 +18,7 @@
   :properties `((:name :string ,(s-prefix "product:name"))
                 (:price :number ,(s-prefix "product:price")))
   :resource-base (s-url "http://veeakker.com/api/products/")
+  :has-one `((product-group :via (s-url "http://veeakker.com/vocabulary/shop/hasProduct")
+                            :inverse t
+                            :as "product-group"))
   :on-path "products")
