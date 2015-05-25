@@ -653,6 +653,35 @@
                                    (s-var (json-property-name slot))))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
+(defgeneric show-relation-call (resource id link)
+  (:documentation "implementation of the GET request which handles
+    the listing of a relation.")
+  (:method ((resource-symbol symbol) id link)
+    (show-relation-call (find-resource-by-name resource-symbol) id link))
+  (:method ((resource resource) id (link has-one-link))
+    (let ((query-results
+           (fuseki:query
+            *repository*
+            (format nil
+                    (s+ "SELECT ?uuid WHERE { "
+                        "  GRAPH <http://mu.semte.ch/application/> {"
+                        "    ~A ~A ?resource. "
+                        "    ?resource mu:uuid ?uuid. "
+                        "  }"
+                        "}")
+                    (s-url (find-resource-for-uuid resource id))
+                    (ld-link link)))))
+      (if query-results
+          ;; one result or more
+          (jsown:new-js
+            ("data" (jsown:new-js
+                      ("id" (jsown:filter (first query-results) "uuid" "value"))
+                      ("type" (json-type (find-resource-by-name (resource-name link))))))
+            ("links" (build-links-object resource id link)))
+          (jsown:new-js
+            ("data" :null)
+            ("links" (build-links-object resource id link)))))))
+
 (defgeneric patch-relation-call (resource id link)
   (:documentation "implementation of the PATCH request which
     handles the updating of a relation.")
@@ -831,7 +860,7 @@
         (verify-json-api-request-accept-header)
         (let* ((resource (find-resource-by-path base-path))
                (link (find-resource-link-by-path resource relation)))
-          (jsown:new-js ("error" "not supported"))))
+          (show-relation-call resource id link)))
     (incorrect-accept-header (condition)
       (respond-not-acceptable (jsown:new-js
                                 ("errors" (jsown:new-js
