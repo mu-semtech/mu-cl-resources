@@ -731,3 +731,34 @@
                                                         "Resource for path (~A) not found"
                                                         base-path)))))))))
 
+(defcall :patch (base-path id :links relation)
+  (let ((body (jsown:parse (post-body))))
+    (handler-case
+        (progn
+          (verify-json-api-request-accept-header)
+          (verify-json-api-content-type)
+          (verify-request-contains-type body)
+          (verify-request-contains-id body)
+          (find-resource-by-path base-path)
+          ;; [verify we have the correct relationship]
+          ;; [update the relationship]
+          (jsown:new-js ("error" "not supported yet")))
+      (incorrect-accept-header (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition)))))))
+      (incorrect-content-type (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition)))))))
+      (no-type-in-data ()
+        (respond-conflict (jsown:new-js
+                            ("errors" (jsown:new-js
+                                        ("title" "No type found in primary data."))))))
+      (no-id-in-data ()
+        (respond-conflict (jsown:new-js
+                            ("errors" (jsown:new-js
+                                        ("title" "Must supply id in primary data."))))))
+      (no-such-resource ()
+        (respond-not-found)))))
+
