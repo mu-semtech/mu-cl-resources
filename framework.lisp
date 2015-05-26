@@ -684,13 +684,19 @@
                         "  }"
                         "}")
                     (s-url (find-resource-for-uuid resource id))
-                    (ld-link link)))))
+                    (ld-link link))))
+          (linked-resource (find-resource-by-name (resource-name link))))
       (if query-results
           ;; one result or more
           (jsown:new-js
-            ("data" (jsown:new-js
-                      ("id" (jsown:filter (first query-results) "uuid" "value"))
-                      ("type" (json-type (find-resource-by-name (resource-name link))))))
+            ("data" (jsown:val (show-call linked-resource
+                                          (jsown:filter (first query-results)
+                                                        "uuid" "value"))
+                               "data")
+                    ;; (jsown:new-js
+                    ;;   ("id" (jsown:filter (first query-results) "uuid" "value"))
+                    ;;   ("type" (json-type (find-resource-by-name (resource-name link)))))
+                    )
             ("links" (build-links-object resource id link)))
           (jsown:new-js
             ("data" :null)
