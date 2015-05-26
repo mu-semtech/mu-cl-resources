@@ -619,20 +619,18 @@
                            (ld-properties resource)))
         (setf (jsown:val attributes (symbol-to-camelcase var))
               (from-sparql (jsown:val solution var))))
-      (let ((resp-data (jsown:new-js
-                         ("attributes" attributes)
-                         ("id" uuid)
-                         ("type" (json-type resource))))
-            (links (let ((base (jsown:new-js
-                                 ("self" (construct-resource-item-path resource uuid)))))
-                     (loop for link in (all-links resource)
-                        do
-                          (setf (jsown:val base (json-key link))
-                                (build-links-object resource uuid link)))
-                     base)))
+      (let* ((resp-data (jsown:new-js
+                          ("attributes" attributes)
+                          ("id" uuid)
+                          ("type" (json-type resource))
+                          ("links" (jsown:empty-object)))))
+        (loop for link in (all-links resource)
+           do
+             (setf (jsown:val (jsown:val resp-data "links") (json-key link))
+                   (build-links-object resource uuid link)))
         (jsown:new-js
           ("data" resp-data)
-          ("links" links))))))
+          ("links" (jsown:new-js ("self" (construct-resource-item-path resource uuid)))))))))
 
 (defgeneric build-links-object (resource identifier link)
   (:documentation "Builds the json object which represents the link
