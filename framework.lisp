@@ -696,7 +696,28 @@
             ("links" (build-links-object resource id link)))
           (jsown:new-js
             ("data" :null)
-            ("links" (build-links-object resource id link)))))))
+            ("links" (build-links-object resource id link))))))
+  (:method ((resource resource) id (link has-many-link))
+    (let ((query-results
+           (fuseki:query
+            *repository*
+            (format nil
+                    (s+ "SELECT ?uuid WHERE { "
+                        "  GRAPH <http://mu.semte.ch/application/> {"
+                        "    ~A ~A ?resource. "
+                        "    ?resource mu:uuid ?uuid."
+                        "  }"
+                        "}")
+                    (s-url (find-resource-for-uuid resource id))
+                    (ld-link link)))))
+      (jsown:new-js
+        ("data" (loop for result in query-results
+                   for uuid = (jsown:filter result "uuid" "value")
+                   collect
+                     (jsown:new-js
+                       ("id" uuid)
+                       ("type" (json-type (find-resource-by-name (resource-name link)))))))
+        ("links" (build-links-object resource id link))))))
 
 (defgeneric patch-relation-call (resource id link)
   (:documentation "implementation of the PATCH request which
