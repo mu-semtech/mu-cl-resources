@@ -707,14 +707,17 @@
                         "  }"
                         "}")
                     (s-url (find-resource-for-uuid resource id))
-                    (ld-link link)))))
+                    (ld-link link))))
+          (linked-resource (find-resource-by-name (resource-name link))))
       (jsown:new-js
         ("data" (loop for result in query-results
                    for uuid = (jsown:filter result "uuid" "value")
                    collect
-                     (jsown:new-js
-                       ("id" uuid)
-                       ("type" (json-type (find-resource-by-name (resource-name link)))))))
+                     (jsown:val (show-call linked-resource uuid) "data")
+                     ;;   ("id" uuid)
+                     ;;   ("self" (construct-resource-item-path linked-resource uuid))
+                     ;;   ("type" (json-type linked-resource)))
+                     ))
         ("links" (build-links-object resource id link))))))
 
 (defgeneric patch-relation-call (resource id link)
