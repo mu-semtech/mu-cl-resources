@@ -982,7 +982,7 @@
 ;;;;;;;;;;;;;;;
 ;;;; link calls
 
-(defcall :get (base-path id relation)
+(defun handle-relation-get-call (base-path id relation)
   (handler-case
       (progn
         (verify-json-api-request-accept-header)
@@ -1002,6 +1002,12 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" message)))))))))
+
+(defcall :get (base-path id relation)
+  (handle-relation-get-call base-path id relation))
+
+(defcall :get (base-path id :links relation)
+  (handle-relation-get-call base-path id relation))
 
 (defcall :patch (base-path id :links relation)
   (let ((body (jsown:parse (post-body))))
