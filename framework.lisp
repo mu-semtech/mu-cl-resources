@@ -244,7 +244,23 @@
           (error 'invalid-link-patch-body-format
                  :description (format nil
                                       "Obligatory content (~{~A~,^, ~}) of data object was not found."
-                                      missing-keys)))))))
+                                      missing-keys))))))
+  (:method ((link has-many-link) obj)
+    (unless (jsown:keyp obj "data")
+      (error 'invalid-link-patch-body-format
+             :description "Top level key (data) missing."))
+    (when (jsown:val obj "data")
+      ;; only perform these checks when data is not :null (or falsy in our interpretation).
+      (loop for answer in (jsown:val obj "data")
+         for missing-keys = (loop for k in '("id" "type")
+                               unless (jsown:keyp answer k)
+                               collect k)
+         when missing-keys
+         do
+           (error 'invalid-link-patch-body-format
+                  :description (format nil
+                                       "Obligatory content (~{~A~,^, ~}) of one of the items in the data object was not found."
+                                       missing-keys))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing query results
@@ -723,6 +739,47 @@
             (fuseki:query *repository*
                           (delete-query (s-url resource-uri)
                                         (ld-link link))))))
+    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+))
+  (:method ((resource resource) id (link has-many-link))
+    (flet ((delete-query (resource-uri link-uri)
+             (format nil
+                     (s+
+                      "DELETE WHERE { "
+                      "  GRAPH <http://mu.semte.ch/application/> { "
+                      "    ~A ~A ?s."
+                      "  }"
+                      "}")
+                     resource-uri link-uri))
+           (insert-query (resource-uri link-uri new-linked-uris)
+             (format nil
+                     (s+
+                      "INSERT DATA { "
+                      "  GRAPH <http://mu.semte.ch/application/> { "
+                      "    ~A ~A ~{~&~8t~A~,^, ~}."
+                      "  }"
+                      "}")
+                     resource-uri link-uri new-linked-uris)))
+      (let ((body (jsown:parse (post-body)))
+            (linked-resource (find-resource-by-name (resource-name link)))
+            (resource-uri (find-resource-for-uuid resource id)))
+        (if (jsown:val body "data")
+            ;; update content
+            (let* ((new-linked-uuids (jsown:filter body "data" map "id"))
+                   (new-linked-resources (mapcar (alexandria:curry #'find-resource-for-uuid
+                                                                   linked-resource)
+                                                 new-linked-uuids)))
+              (fuseki:query *repository*
+                            (s+ (delete-query (s-url resource-uri)
+                                              (ld-link link))
+                                (insert-query (s-url resource-uri)
+                                              (ld-link link)
+                                              (mapcar #'s-url new-linked-resources)))))
+            ;; delete content
+            (fuseki:query *repository*
+                          (delete-query (s-url resource-uri)
+                                        (ld-link link))))))
+    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
+
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 ;;;;;;;;;;;;;;;;;;;
