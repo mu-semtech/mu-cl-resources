@@ -780,6 +780,28 @@
                                         (ld-link link))))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
+(defgeneric delete-relation-call (resource id link)
+  (:documentation "Performs a delete call on a relation, thereby
+    removing a set of linked resources.")
+  (:method ((resource resource) id (link has-many-link))
+    (let* ((linked-resource (find-resource-by-name (resource-name link)))
+           (resources (mapcar
+                       (alexandria:curry #'find-resource-for-uuid
+                                         linked-resource)
+                       (remove-if-not #'identity
+                                      (jsown:filter (jsown:parse (post-body))
+                                                    "data" map "id")))))
+      (when resources
+        (fuseki:query *repository*
+                      (format nil
+                              (s+ "DELETE WHERE { "
+                                  "  GRAPH <http://mu.semte.ch/application/> { "
+                                  "    ~A ~A ~{~&~8t~A~,^, ~}"
+                                  "  }"
+                                  "}")
+                              (s-url (find-resource-for-uuid resource id))
+                              (ld-link link)
+                              (mapcar #'s-url resources)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 ;;;;;;;;;;;;;;;;;;;
@@ -945,6 +967,53 @@
                  (link (find-resource-link-by-path resource relation)))
             (verify-link-patch-body-format link body)
             (patch-relation-call resource id link)))
+      (incorrect-accept-header (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition)))))))
+      (incorrect-content-type (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition)))))))
+      (no-type-in-data ()
+        (respond-conflict (jsown:new-js
+                            ("errors" (jsown:new-js
+                                        ("title" "No type found in primary data."))))))
+      (no-id-in-data ()
+        (respond-conflict (jsown:new-js
+                            ("errors" (jsown:new-js
+                                        ("title" "Must supply id in primary data."))))))
+      (no-such-resource ()
+        (respond-not-found))
+      (no-such-link (condition)
+        (let ((message
+               (format nil "Could not find link (~A) on resource (~A)."
+                       (path condition) (json-type (resource condition)))))
+          (respond-not-acceptable (jsown:new-js
+                                    ("errors" (jsown:new-js
+                                                ("title" message)))))))
+      (invalid-link-patch-body-format (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition)))))))
+      (no-such-instance (condition)
+        (respond-not-acceptable
+         (jsown:new-js ("errors"
+                        (jsown:new-js
+                          ("title" (format nil "No resource found for supplied type (~A) and id (~A)"
+                                           (target-type condition)
+                                           (target-id condition)))))))))))
+
+(defcall :delete (base-path id :links relation)
+  (let ((body (jsown:parse (post-body))))
+    (handler-case
+        (progn
+          (verify-json-api-request-accept-header)
+          (verify-json-api-content-type)
+          (let* ((resource (find-resource-by-path base-path))
+                 (link (find-resource-link-by-path resource relation)))
+            (verify-link-patch-body-format link body) ; same as delete body
+            (delete-relation-call resource id link)))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
