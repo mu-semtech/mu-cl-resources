@@ -507,7 +507,14 @@
       (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
       (setf (hunchentoot:header-out :location)
             (construct-resource-item-path resource uuid))
-      (show-call resource uuid))))
+      (let ((show-content
+             (show-call resource uuid)))
+        ;; only need to set the id in attributes temporarily
+        (setf (jsown:val (jsown:val (jsown:val show-content "data")
+                                    "attributes")
+                         "id")
+              uuid)
+        show-content))))
 
 (defun find-resource-for-uuid (resource uuid)
   "Retrieves the resource hich specifies the supplied UUID in the database."
