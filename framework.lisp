@@ -576,7 +576,13 @@
                   for slot = (resource-slot-by-json-key resource key)
                   append (list (ld-property-list slot)
                                (interpret-json-value slot
-                                                     (jsown:val attributes key)))))))
+                                                     (jsown:val attributes key))))))
+      (loop for relation in (jsown:keywords (jsown:filter json-input "data" "links"))
+         if (jsown:keyp (jsown:filter json-input "data" "links" relation)
+                        "linkage")
+         do
+           (update-resource-relation resource uuid relation
+                                     (jsown:filter json-input "data" "links" relation "linkage"))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric update-resource-relation (resource uuid relation resource-specification)
