@@ -514,6 +514,12 @@
       (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
       (setf (hunchentoot:header-out :location)
             (construct-resource-item-path resource uuid))
+      (loop for relation in (jsown:keywords (jsown:filter json-input "data" "links"))
+         if (jsown:keyp (jsown:filter json-input "data" "links" relation)
+                        "linkage")
+         do
+           (update-resource-relation resource uuid relation
+                                     (jsown:filter json-input "data" "links" relation "linkage")))
       (let ((show-content
              (show-call resource uuid)))
         ;; only need to set the id in attributes temporarily
