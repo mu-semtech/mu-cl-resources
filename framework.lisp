@@ -353,6 +353,13 @@
 (defmethod json-key ((link has-link))
   (request-path link))
 
+(defgeneric find-link-by-json-name (resource json-link)
+  (:documentation "find a has-many link by resource and json-link of the link")
+  (:method ((resource resource) json-link)
+    (loop for link in (all-links resource)
+       if (string= (json-key link) json-link)
+       return link)))
+
 (defclass resource ()
   ((ld-class :initarg :ld-class :reader ld-class)
    (ld-properties :initarg :ld-properties :reader ld-properties)
