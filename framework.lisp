@@ -579,6 +579,86 @@
                                                      (jsown:val attributes key)))))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
+(defgeneric update-resource-relation (resource uuid relation resource-specification)
+  (:documentation "updates the specified relation with the given specification.")
+  (:method ((resource resource) uuid (relation string) resource-specification)
+    (update-resource-relation resource
+                              uuid
+                              (find-link-by-json-name resource relation)
+                              resource-specification))
+  (:method ((resource resource) uuid (link has-one-link) resource-specification)
+    (flet ((delete-query (resource-uri link-uri)
+             (format nil
+                     (s+
+                      "DELETE WHERE { "
+                      "  GRAPH <http://mu.semte.ch/application/> { "
+                      "    ~A ~A ?s."
+                      "  }"
+                      "}")
+                     resource-uri link-uri))
+           (insert-query (resource-uri link-uri new-linked-uri)
+             (format nil
+                     (s+
+                      "INSERT DATA { "
+                      "  GRAPH <http://mu.semte.ch/application/> { "
+                      "    ~A ~A ~A."
+                      "  }"
+                      "}")
+                     resource-uri link-uri new-linked-uri)))
+      (let ((linked-resource (find-resource-by-name (resource-name link)))
+            (resource-uri (find-resource-for-uuid resource uuid)))
+        (if resource-specification
+            ;; update content
+            (let* ((new-linked-uuid (jsown:val resource-specification "id"))
+                   (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
+              (fuseki:query *repository*
+                            (s+ (delete-query (s-url resource-uri)
+                                              (ld-link link))
+                                (insert-query (s-url resource-uri)
+                                              (ld-link link)
+                                              (s-url new-linked-uri)))))
+            ;; delete content
+            (fuseki:query *repository*
+                          (delete-query (s-url resource-uri)
+                                        (ld-link link)))))))
+  (:method ((resource resource) uuid (link has-many-link) resource-specification)
+    (flet ((delete-query (resource-uri link-uri)
+             (format nil
+                     (s+
+                      "DELETE WHERE { "
+                      "  GRAPH <http://mu.semte.ch/application/> { "
+                      "    ~A ~A ?s."
+                      "  }"
+                      "}")
+                     resource-uri link-uri))
+           (insert-query (resource-uri link-uri new-linked-uris)
+             (format nil
+                     (s+
+                      "INSERT DATA { "
+                      "  GRAPH <http://mu.semte.ch/application/> { "
+                      "    ~A ~A ~{~&~8t~A~,^, ~}."
+                      "  }"
+                      "}")
+                     resource-uri link-uri new-linked-uris)))
+      (let ((linked-resource (find-resource-by-name (resource-name link)))
+            (resource-uri (find-resource-for-uuid resource uuid)))
+        (if resource-specification
+            ;; update content
+            (let* ((new-linked-uuids (jsown:filter resource-specification map "id"))
+                   (new-linked-resources (mapcar (alexandria:curry #'find-resource-for-uuid
+                                                                   linked-resource)
+                                                 new-linked-uuids)))
+              (fuseki:query *repository*
+                            (s+ (delete-query (s-url resource-uri)
+                                              (ld-link link))
+                                (insert-query (s-url resource-uri)
+                                              (ld-link link)
+                                              (mapcar #'s-url new-linked-resources)))))
+            ;; delete content
+            (fuseki:query *repository*
+                          (delete-query (s-url resource-uri)
+                                        (ld-link link))))))))
+
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
