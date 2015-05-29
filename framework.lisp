@@ -105,6 +105,231 @@
                                      (jsown:val b key)))))))
     result))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; parsing query results
+
+(defun from-sparql (object)
+  "Converts the supplied sparql value specification into a lisp value."
+  (let ((type (intern (string-upcase (jsown:val object "type"))
+                      :keyword))
+        (value (jsown:val object "value")))
+    (import-value-from-sparql-result type value object)))
+
+(defgeneric import-value-from-sparql-result (type value object)
+  (:documentation "imports the value from 'object' given its 'value'
+   and 'type' to dispatch on.")
+  (:method ((type (eql :uri)) value object)
+    (declare (ignore object))
+    value)
+  (:method ((type (eql :literal)) value object)
+    (declare (ignore object))
+    value)
+  (:method ((type (eql :typed-literal)) value object)
+    (import-typed-literal-value-from-sparql-result
+     (jsown:val object "datatype")
+     value
+     object)))
+
+(defparameter *typed-literal-importers* (make-hash-table :test 'equal :synchronized t)
+  "contains all convertors for typed-literal values coming from the database.")
+
+(defmacro define-typed-literal-importer (type (&rest variables) &body body)
+  "defines a new typed literal importer.  should receive value, object
+   as variables."
+  `(setf (gethash ,type *typed-literal-importers*)
+         (lambda (,@variables)
+           ,@body)))
+
+(defun import-typed-literal-value-from-sparql-result (type value object)
+  "imports a typed-literal-value from a sparql result."
+  (funcall (gethash type *typed-literal-importers*)
+           value object))
+
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#decimal"
+    (value object)
+  (declare (ignore object))
+  (read-from-string value))
+
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#integer"
+    (value object)
+  (declare (ignore object))
+  (parse-integer value))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;;;; defining resources
+
+(defclass resource-slot ()
+  ((json-key :initarg :json-key :reader json-key)
+   (ld-property :initarg :ld-property :reader ld-property)
+   (resource-type :initarg :resource-type :reader resource-type))
+  (:documentation "Describes a single property of a resource."))
+
+(defclass has-link ()
+  ((resource-name :initarg :resource :reader resource-name)
+   (ld-link :initarg :via :reader ld-link)
+   (inverse :initarg :inverse :reader inverse-p :initform nil)
+   (request-path :initarg :as :reader request-path))
+  (:documentation "Describes a link to another resource.
+   You should use one of its subclasses."))
+
+(defclass has-many-link (has-link)
+  ()
+  (:documentation "Describes a has-many link to another resource"))
+
+(defclass has-one-link (has-link)
+  ()
+  (:documentation "Describes a has-one link to another resource"))
+
+(defclass resource ()
+  ((ld-class :initarg :ld-class :reader ld-class)
+   (ld-properties :initarg :ld-properties :reader ld-properties)
+   (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)
+   (json-type :initarg :json-type :reader json-type)
+   (has-many-links :initarg :has-many :reader has-many-links)
+   (has-one-links :initarg :has-one :reader has-one-links)
+   (request-path :initarg :request-path :reader request-path)))
+
+(defgeneric json-property-name (resource-slot)
+  (:documentation "retrieves the name of the json property of the
+   supplied resource-slot")
+  (:method ((slot resource-slot))
+    (symbol-to-camelcase (json-key slot))))
+
+(defgeneric ld-property-list (slot)
+  (:documentation "yields the ld-property as a list from the
+   resource-slot")
+  (:method ((slot resource-slot))
+    (list (ld-property slot))))
+
+(defmethod json-key ((link has-link))
+  (request-path link))
+
+(defgeneric find-link-by-json-name (resource json-link)
+  (:documentation "find a has-many link by resource and json-link of the link")
+  (:method ((resource resource) json-link)
+    (loop for link in (all-links resource)
+       if (string= (json-key link) json-link)
+       return link)))
+
+(defgeneric all-links (resource)
+  (:documentation "Retrieves all links for the supplied resource.
+    Both the has-many-links and has-one-links.")
+  (:method ((resource resource))
+    (append (has-many-links resource) (has-one-links resource))))
+
+(defgeneric resource-slot-by-json-key (resource key)
+  (:documentation "Returns the slot which should be communicated
+    with the json format through the use of the key attribute.")
+  (:method ((resource resource) key)
+    (loop for slot in (ld-properties resource)
+       when (string= (symbol-to-camelcase (json-key slot))
+                     key)
+       return slot)))
+
+(defparameter *resources* (make-hash-table)
+  "contains all currently known resources")
+
+(defun find-resource-by-name (symbol)
+  "retrieves the resource with name symbol."
+  (gethash symbol *resources*))
+
+(defun find-resource-by-path (path)
+  "finds a resource based on the supplied request path"
+  (maphash (lambda (name resource)
+             (declare (ignore name))
+             (when (string= (request-path resource) path)
+               (return-from find-resource-by-path resource)))
+           *resources*)
+  (error 'no-such-resource
+         :description (format nil "Path: ~A" path)))
+
+(defgeneric find-resource-link-by-path (resource path)
+  (:documentation "Finds the link object corresponding to the specified
+    resource and the specified path.")
+  (:method ((resource resource) path)
+    (let ((link (find path (all-links resource)
+                      :test (lambda (path link)
+                              (string= path (request-path link))))))
+      (unless link
+        (error 'no-such-link
+               :resource resource
+               :path path))
+      link)))
+
+(defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path)
+  "defines a resource for which get and set requests exist"
+  (let* ((properties (loop for (key type prop) in ld-properties
+                        collect (make-instance 'resource-slot
+                                               :json-key key
+                                               :resource-type type
+                                               :ld-property prop)))
+         (has-many-links (mapcar (alexandria:curry #'apply #'make-instance 'has-many-link :resource)
+                                 has-many))
+         (has-one-links (mapcar (alexandria:curry #'apply #'make-instance 'has-one-link :resource)
+                                has-one))
+         (resource (make-instance 'resource
+                                  :ld-class ld-class
+                                  :ld-properties properties
+                                  :ld-resource-base ld-resource-base
+                                  :has-many has-many-links
+                                  :has-one has-one-links
+                                  :json-type on-path ; (symbol-to-camelcase name :cap-first t)
+                                  :request-path on-path)))
+    (setf (gethash name *resources*) resource)))
+
+(defmacro define-resource (name options &key class properties resource-base has-many has-one on-path)
+  (declare (ignore options))
+  `(define-resource* ',name
+       :ld-class ,class
+       :ld-properties ,properties
+       :ld-resource-base ,resource-base
+       :has-many ,has-many
+       :has-one ,has-one
+       :on-path ,on-path))
+
+(defun property-paths-format-component (resource)
+  (declare (ignore resource))
+  "~{~&~4t~{~A~,^/~} ~A~,^;~}.")
+(defun property-paths-content-component (resource json-input)
+  (loop for slot
+     in (ld-properties resource)
+     append (list (ld-property-list slot)
+                  (interpret-json-value
+                   slot
+                   (jsown:filter json-input
+                                 "data"
+                                 "attributes"
+                                 (json-property-name slot))))))
+
+(defgeneric construct-resource-item-path (resource identifier)
+  (:documentation "Constructs the path on which information can
+   be fetched for a specific instance of a resource.")
+  (:method ((resource resource) identifier)
+    (format nil "/~A/~A"
+            (request-path resource) identifier)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;;;; parsing user input
+
+(defgeneric interpret-json-value (slot value)
+  (:documentation "Interprets the supplied json value <value>
+   given that it should be used for the supplied slot.  Yields a
+   value which can be used in a query.")
+  (:method ((slot resource-slot) value)
+    (interpret-json-value-by-type slot (resource-type slot) value)))
+
+(defgeneric interpret-json-value-by-type (slot type value)
+  (:documentation "Interprets the supplied json value <value>
+   given that it should be used for the supplied slot.  The type
+   of the slot is supplied is the second parameter to dispatch on.")
+  (:method ((slot resource-slot) type value)
+    (s-from-json value))
+  (:method ((slot resource-slot) (type (eql :url)) value)
+    (s-url value)))
+
+
 (defun respond-not-found (&optional jsown-object)
   "Returns a not-found response.  The supplied jsown-object is
    merged with the response if it is supplied.  This allows you
@@ -261,231 +486,6 @@
                   :description (format nil
                                        "Obligatory content (~{~A~,^, ~}) of one of the items in the data object was not found."
                                        missing-keys))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; parsing query results
-
-(defun from-sparql (object)
-  "Converts the supplied sparql value specification into a lisp value."
-  (let ((type (intern (string-upcase (jsown:val object "type"))
-                      :keyword))
-        (value (jsown:val object "value")))
-    (import-value-from-sparql-result type value object)))
-
-(defgeneric import-value-from-sparql-result (type value object)
-  (:documentation "imports the value from 'object' given its 'value'
-   and 'type' to dispatch on.")
-  (:method ((type (eql :uri)) value object)
-    (declare (ignore object))
-    value)
-  (:method ((type (eql :literal)) value object)
-    (declare (ignore object))
-    value)
-  (:method ((type (eql :typed-literal)) value object)
-    (import-typed-literal-value-from-sparql-result
-     (jsown:val object "datatype")
-     value
-     object)))
-
-(defparameter *typed-literal-importers* (make-hash-table :test 'equal :synchronized t)
-  "contains all convertors for typed-literal values coming from the database.")
-
-(defmacro define-typed-literal-importer (type (&rest variables) &body body)
-  "defines a new typed literal importer.  should receive value, object
-   as variables."
-  `(setf (gethash ,type *typed-literal-importers*)
-         (lambda (,@variables)
-           ,@body)))
-
-(defun import-typed-literal-value-from-sparql-result (type value object)
-  "imports a typed-literal-value from a sparql result."
-  (funcall (gethash type *typed-literal-importers*)
-           value object))
-
-(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#decimal"
-    (value object)
-  (declare (ignore object))
-  (read-from-string value))
-
-(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#integer"
-    (value object)
-  (declare (ignore object))
-  (parse-integer value))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;
-;;;; defining resources
-
-(defclass resource-slot ()
-  ((json-key :initarg :json-key :reader json-key)
-   (ld-property :initarg :ld-property :reader ld-property)
-   (resource-type :initarg :resource-type :reader resource-type))
-  (:documentation "Describes a single property of a resource."))
-
-(defgeneric json-property-name (resource-slot)
-  (:documentation "retrieves the name of the json property of the
-   supplied resource-slot")
-  (:method ((slot resource-slot))
-    (symbol-to-camelcase (json-key slot))))
-
-(defgeneric ld-property-list (slot)
-  (:documentation "yields the ld-property as a list from the
-   resource-slot")
-  (:method ((slot resource-slot))
-    (list (ld-property slot))))
-
-(defclass has-link ()
-  ((resource-name :initarg :resource :reader resource-name)
-   (ld-link :initarg :via :reader ld-link)
-   (inverse :initarg :inverse :reader inverse-p :initform nil)
-   (request-path :initarg :as :reader request-path))
-  (:documentation "Describes a link to another resource.
-   You should use one of its subclasses."))
-
-(defclass has-many-link (has-link)
-  ()
-  (:documentation "Describes a has-many link to another resource"))
-
-(defclass has-one-link (has-link)
-  ()
-  (:documentation "Describes a has-one link to another resource"))
-
-(defmethod json-key ((link has-link))
-  (request-path link))
-
-(defgeneric find-link-by-json-name (resource json-link)
-  (:documentation "find a has-many link by resource and json-link of the link")
-  (:method ((resource resource) json-link)
-    (loop for link in (all-links resource)
-       if (string= (json-key link) json-link)
-       return link)))
-
-(defclass resource ()
-  ((ld-class :initarg :ld-class :reader ld-class)
-   (ld-properties :initarg :ld-properties :reader ld-properties)
-   (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)
-   (json-type :initarg :json-type :reader json-type)
-   (has-many-links :initarg :has-many :reader has-many-links)
-   (has-one-links :initarg :has-one :reader has-one-links)
-   (request-path :initarg :request-path :reader request-path)))
-
-(defgeneric all-links (resource)
-  (:documentation "Retrieves all links for the supplied resource.
-    Both the has-many-links and has-one-links.")
-  (:method ((resource resource))
-    (append (has-many-links resource) (has-one-links resource))))
-
-(defgeneric resource-slot-by-json-key (resource key)
-  (:documentation "Returns the slot which should be communicated
-    with the json format through the use of the key attribute.")
-  (:method ((resource resource) key)
-    (loop for slot in (ld-properties resource)
-       when (string= (symbol-to-camelcase (json-key slot))
-                     key)
-       return slot)))
-
-(defparameter *resources* (make-hash-table)
-  "contains all currently known resources")
-
-(defun find-resource-by-name (symbol)
-  "retrieves the resource with name symbol."
-  (gethash symbol *resources*))
-
-(defun find-resource-by-path (path)
-  "finds a resource based on the supplied request path"
-  (maphash (lambda (name resource)
-             (declare (ignore name))
-             (when (string= (request-path resource) path)
-               (return-from find-resource-by-path resource)))
-           *resources*)
-  (error 'no-such-resource
-         :description (format nil "Path: ~A" path)))
-
-(defgeneric find-resource-link-by-path (resource path)
-  (:documentation "Finds the link object corresponding to the specified
-    resource and the specified path.")
-  (:method ((resource resource) path)
-    (let ((link (find path (all-links resource)
-                      :test (lambda (path link)
-                              (string= path (request-path link))))))
-      (unless link
-        (error 'no-such-link
-               :resource resource
-               :path path))
-      link)))
-
-(defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path)
-  "defines a resource for which get and set requests exist"
-  (let* ((properties (loop for (key type prop) in ld-properties
-                        collect (make-instance 'resource-slot
-                                               :json-key key
-                                               :resource-type type
-                                               :ld-property prop)))
-         (has-many-links (mapcar (alexandria:curry #'apply #'make-instance 'has-many-link :resource)
-                                 has-many))
-         (has-one-links (mapcar (alexandria:curry #'apply #'make-instance 'has-one-link :resource)
-                                has-one))
-         (resource (make-instance 'resource
-                                  :ld-class ld-class
-                                  :ld-properties properties
-                                  :ld-resource-base ld-resource-base
-                                  :has-many has-many-links
-                                  :has-one has-one-links
-                                  :json-type on-path ; (symbol-to-camelcase name :cap-first t)
-                                  :request-path on-path)))
-    (setf (gethash name *resources*) resource)))
-
-(defmacro define-resource (name options &key class properties resource-base has-many has-one on-path)
-  (declare (ignore options))
-  `(define-resource* ',name
-       :ld-class ,class
-       :ld-properties ,properties
-       :ld-resource-base ,resource-base
-       :has-many ,has-many
-       :has-one ,has-one
-       :on-path ,on-path))
-
-(defun property-paths-format-component (resource)
-  (declare (ignore resource))
-  "~{~&~4t~{~A~,^/~} ~A~,^;~}.")
-(defun property-paths-content-component (resource json-input)
-  (loop for slot
-     in (ld-properties resource)
-     append (list (ld-property-list slot)
-                  (interpret-json-value
-                   slot
-                   (jsown:filter json-input
-                                 "data"
-                                 "attributes"
-                                 (json-property-name slot))))))
-
-(defgeneric construct-resource-item-path (resource identifier)
-  (:documentation "Constructs the path on which information can
-   be fetched for a specific instance of a resource.")
-  (:method ((resource resource) identifier)
-    (format nil "/~A/~A"
-            (request-path resource) identifier)))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;
-;;;; parsing user input
-
-(defgeneric interpret-json-value (slot value)
-  (:documentation "Interprets the supplied json value <value>
-   given that it should be used for the supplied slot.  Yields a
-   value which can be used in a query.")
-  (:method ((slot resource-slot) value)
-    (interpret-json-value-by-type slot (resource-type slot) value)))
-
-(defgeneric interpret-json-value-by-type (slot type value)
-  (:documentation "Interprets the supplied json value <value>
-   given that it should be used for the supplied slot.  The type
-   of the slot is supplied is the second parameter to dispatch on.")
-  (:method ((slot resource-slot) type value)
-    (s-from-json value))
-  (:method ((slot resource-slot) (type (eql :url)) value)
-    (s-url value)))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; call implementation
