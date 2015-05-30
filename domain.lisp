@@ -23,3 +23,12 @@
                             :inverse t
                             :as "product-group"))
   :on-path "products")
+
+(define-resource producer ()
+  :class (s-url "http://veeakker.com/vocabulary/shop/Producer")
+  :properties `((:name :string ,(s-prefix "producer:name"))
+                (:description :string ,(s-prefix "dc:description"))
+                (:website :string ,(s-prefix "producer:website"))
+                (:long-description :string ,(s-prefix "producer:longDescription")))
+  :resource-base (s-url "http://veeakker.com/api/producers/")
+  :on-path "producers")
