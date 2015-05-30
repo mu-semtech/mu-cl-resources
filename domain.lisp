@@ -8,6 +8,7 @@
   :properties `((:name :string ,(s-prefix "productGroup:name"))
                 ;; (:color :url ,(s-prefix "productGroup:color"))
                 ;; (:code :number ,(s-prefix "productGroup:code"))
+                (:sortOrder :number ,(s-prefix "mu:sortOrder")))
   :resource-base (s-url "http://veeakker.com/api/product-groups/")
   :has-many `((product :via ,(s-url "http://veeakker.com/vocabulary/shop/hasProduct")
                        :as "products"))
