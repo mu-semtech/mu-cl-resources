@@ -1,5 +1,10 @@
 (in-package :product-groups)
 
+;;;;;;;;;;;;;;;;;;
+;;;; configuration
+(defparameter *camelcase-json-variables* nil
+  "when non-nil, json variable names should be camelcased, rather than dasherized.")
+
 ;;;;;;;;;;;;;;;;
 ;;;; error codes
 
@@ -194,6 +199,14 @@
   (:documentation "retrieves the name of the json property of the
    supplied resource-slot")
   (:method ((slot resource-slot))
+    (if *camelcase-json-variables*
+        (symbol-to-camelcase (json-key slot))
+        (string-downcase (string (json-key slot))))))
+
+(defgeneric sparql-variable-name (resource-slot)
+  (:documentation "retrieves the name of the json property as it
+   could be used in a sparql query")
+  (:method ((slot resource-slot))
     (symbol-to-camelcase (json-key slot))))
 
 (defgeneric ld-property-list (slot)
@@ -223,8 +236,7 @@
     with the json format through the use of the key attribute.")
   (:method ((resource resource) key)
     (loop for slot in (ld-properties resource)
-       when (string= (symbol-to-camelcase (json-key slot))
-                     key)
+       when (string= (json-property-name slot) key)
        return slot)))
 
 (defparameter *resources* (make-hash-table)
@@ -718,17 +730,19 @@
                             (s-str uuid)
                             (loop for slot in (ld-properties resource)
                                append (list (ld-property-list slot)
-                                            (s-var (json-property-name slot))))))))
+                                            (s-var (sparql-variable-name slot))))))))
            (attributes (jsown:empty-object)))
       (unless solution
         (error 'no-such-instance
                :resource resource
                :id uuid
                :type (json-type resource)))
-      (dolist (var (mapcar #'json-property-name
-                           (ld-properties resource)))
-        (setf (jsown:val attributes (symbol-to-camelcase var))
-              (from-sparql (jsown:val solution var))))
+      (loop for property in (ld-properties resource)
+         for sparql-var = (sparql-variable-name property)
+         for json-var = (json-property-name property)
+         do
+           (setf (jsown:val attributes json-var)
+                 (from-sparql (jsown:val solution sparql-var))))
       (let* ((resp-data (jsown:new-js
                           ("attributes" attributes)
                           ("id" uuid)
@@ -774,7 +788,7 @@
                    (ld-class resource)
                    (loop for slot in (ld-properties resource)
                       append (list (ld-property-list slot)
-                                   (s-var (json-property-name slot))))))
+                                   (s-var (sparql-variable-name slot))))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric show-relation-call (resource id link)
