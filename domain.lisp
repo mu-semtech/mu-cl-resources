@@ -17,11 +17,16 @@
 (define-resource product ()
   :class (s-url "http://veeakker.com/vocabulary/shop/Product")
   :properties `((:name :string ,(s-prefix "product:name"))
-                (:price :number ,(s-prefix "product:price")))
+                (:price :number ,(s-prefix "product:price"))
+                (:fat :number ,(s-prefix "product:fat"))
+                (:joule :number ,(s-prefix "product:joule"))
+                (:allergenics :string ,(s-prefix "product:allergenics")))
   :resource-base (s-url "http://veeakker.com/api/products/")
   :has-one `((product-group :via ,(s-url "http://veeakker.com/vocabulary/shop/hasProduct")
                             :inverse t
-                            :as "product-group"))
+                            :as "product-group")
+             (producer :via ,(s-prefix "product:producer")
+                       :as "producer"))
   :on-path "products")
 
 (define-resource producer ()
