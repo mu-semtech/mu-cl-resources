@@ -717,17 +717,21 @@
   (:method ((resource-symbol symbol) uuid)
     (show-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
-    (let* ((solution
+    (let* ((resource-url
+            ;; we search for a resource separately as searching it
+            ;; in one query is redonculously slow.  in the order of
+            ;; seconds for a single solution.
+            (find-resource-for-uuid resource uuid))
+           (solution
             (first
              (query *repository*
                     (format nil
                             (s+ "SELECT * WHERE {"
                                 "  GRAPH <http://mu.semte.ch/application/> {"
-                                "    ?s mu:uuid ~A; "
-                                "    ~{~&~8t~{~A~,^/~} ~A~,^;~}."
+                                "    ~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
                                 "  }"
-                                "}")
-                            (s-str uuid)
+                                "} LIMIT 1")
+                            (s-url resource-url)
                             (loop for slot in (ld-properties resource)
                                append (list (ld-property-list slot)
                                             (s-var (sparql-variable-name slot))))))))
