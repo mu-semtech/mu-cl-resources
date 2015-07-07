@@ -527,15 +527,15 @@
       (setf (hunchentoot:header-out :location)
             (construct-resource-item-path resource uuid))
       (when (and (jsown:keyp json-input "data")
-                 (jsown:keyp (jsown:val json-input "data") "links"))
-        (loop for relation in (jsown:keywords (jsown:filter json-input "data" "links"))
-           if (jsown:keyp (jsown:filter json-input "data" "links" relation)
-                          "linkage")
+                 (jsown:keyp (jsown:val json-input "data") "relationships"))
+        (loop for relation in (jsown:keywords (jsown:filter json-input "data" "relationships"))
+           if (jsown:keyp (jsown:filter json-input "data" "relationships" relation)
+                          "data")
            do
              (update-resource-relation resource uuid relation
-                                       (jsown:filter json-input "data" "links" relation "linkage"))))
-      (let ((show-content
-             (show-call resource uuid)))
+                                       (jsown:filter json-input
+                                                     "data" "relationships" relation "data"))))
+      (let ((show-content (show-call resource uuid)))
         ;; only need to set the id in attributes temporarily
         (setf (jsown:val (jsown:val (jsown:val show-content "data")
                                     "attributes")
@@ -552,7 +552,7 @@
                              "  GRAPH <http://mu.semte.ch/application/> { "
                              "    ?s mu:uuid ~A."
                              "  }"
-                             "}")
+                             "} LIMIT 1")
                          (s-str uuid)))))
     (unless result
       (error 'no-such-instance
@@ -598,13 +598,14 @@
                                (interpret-json-value slot
                                                      (jsown:val attributes key))))))
       (when (and (jsown:keyp json-input "data")
-                 (jsown:keyp (jsown:val json-input "data") "links"))
-        (loop for relation in (jsown:keywords (jsown:filter json-input "data" "links"))
-           if (jsown:keyp (jsown:filter json-input "data" "links" relation)
-                          "linkage")
+                 (jsown:keyp (jsown:val json-input "data") "relationships"))
+        (loop for relation in (jsown:keywords (jsown:filter json-input "data" "relationships"))
+           if (jsown:keyp (jsown:filter json-input "data" "relationships" relation)
+                          "data")
            do
              (update-resource-relation resource uuid relation
-                                       (jsown:filter json-input "data" "links" relation "linkage")))))
+                                       (jsown:filter json-input
+                                                     "data" "relationships" relation "data")))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric update-resource-relation (resource uuid relation resource-specification)
@@ -751,11 +752,11 @@
                           ("attributes" attributes)
                           ("id" uuid)
                           ("type" (json-type resource))
-                          ("links" (jsown:empty-object)))))
+                          ("relationships" (jsown:empty-object)))))
         (loop for link in (all-links resource)
            do
-             (setf (jsown:val (jsown:val resp-data "links") (json-key link))
-                   (build-links-object resource uuid link)))
+             (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
+                   (jsown:new-js ("links" (build-links-object resource uuid link)))))
         (jsown:new-js
           ("data" resp-data)
           ("links" (jsown:new-js ("self" (construct-resource-item-path resource uuid)))))))))
@@ -769,9 +770,9 @@
                                   identifier
                                   (request-path link)))
                   ("related" (format nil "/~A/~A/links/~A"
-                                  (request-path resource)
-                                  identifier
-                                  (request-path link))))))
+                                     (request-path resource)
+                                     identifier
+                                     (request-path link))))))
 
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
