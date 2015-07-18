@@ -4,6 +4,8 @@
 ;;;; configuration
 (defparameter *camelcase-json-variables* nil
   "when non-nil, json variable names should be camelcased, rather than dasherized.")
+(defparameter *verify-accept-header* nil
+  "when non-nil, the application/vndi+json ACCEPT header is checked.")
 
 ;;;;;;;;;;;;;;;;
 ;;;; error codes
@@ -409,10 +411,11 @@
   "Returns a 406 Not Acceptable status from the request (and
    returns nil) if the Accept header did not include the
    correct application/vnd.api+json Accept header."
-  (unless (search "application/vnd.api+json"
-                  (hunchentoot:header-in* :accept))
-    (error 'incorrect-accept-header
-           :description "application/vnd.api+json not found in Accept header")))
+  (if (and *verify-accept-header*
+           (not (search "application/vnd.api+json"
+                      (hunchentoot:header-in* :accept))))
+      (error 'incorrect-accept-header
+             :description "application/vnd.api+json not found in Accept header")))
 
 (defun verify-request-contains-type (obj)
   "Throws an error if the request does not contain a type."
