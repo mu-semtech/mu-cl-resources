@@ -625,6 +625,15 @@
                       "  }"
                       "}")
                      resource-uri link-uri))
+           (inverse-delete-query (resource-uri link-uri)
+             (format nil
+                     (s+
+                      "DELETE WHERE { "
+                      "  GRAPH <http://mu.semte.ch/application/> { "
+                      "    ?s ~A ~A."
+                      "  }"
+                      "}")
+                     link-uri resource-uri))
            (insert-query (resource-uri link-uri new-linked-uri)
              (format nil
                      (s+
@@ -641,11 +650,19 @@
             (let* ((new-linked-uuid (jsown:val resource-specification "id"))
                    (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
               (fuseki:query *repository*
-                            (s+ (delete-query (s-url resource-uri)
-                                              (ld-link link))
-                                (insert-query (s-url resource-uri)
-                                              (ld-link link)
-                                              (s-url new-linked-uri)))))
+                            (if (inverse-p link)
+                                (let ((query
+                                       (s+ (inverse-delete-query (s-url resource-uri)
+                                                                 (ld-link link))
+                                           (insert-query (s-url new-linked-uri)
+                                                         (ld-link link)
+                                                         (s-url resource-uri)))))
+                                  query)
+                                (s+ (delete-query (s-url resource-uri)
+                                                  (ld-link link))
+                                    (insert-query (s-url resource-uri)
+                                                  (ld-link link)
+                                                  (s-url new-linked-uri))))))
             ;; delete content
             (fuseki:query *repository*
                           (delete-query (s-url resource-uri)
