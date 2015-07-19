@@ -1,4 +1,4 @@
-(in-package :product-groups)
+(in-package :mu-cl-resources)
 
 (add-prefix "productGroup" "http://veeakker.com/vocabulary/shop/product-groups/")
 (add-prefix "product" "http://veeakker.com/vocabulary/shop/product/")

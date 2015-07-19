@@ -1,4 +1,4 @@
-(in-package :product-groups)
+(in-package :mu-cl-resources)
 
 ;;;;; product groups
 
