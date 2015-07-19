@@ -112,6 +112,58 @@
                                      (jsown:val b key)))))))
     result))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; query execution helpers
+
+(defparameter *query-group* nil
+  "Describes a group of queries to be executed in one go. The
+   queries are executed when the query-group is ended.  This is a
+   special variable which is set by with-grouped-queries")
+
+
+(defmacro with-query-group (&body body)
+  "Starts a new query-group.  The queries are executed when the
+   group exits."
+  `(let ((*query-group* (cons nil nil)))
+     ,@body
+     (let ((queries (apply #'s+ (reverse (butlast *query-group*)))))
+       (fuseki:query *repository* queries))))
+
+(defun sparql-query (content)
+  "Executes a sparql query on the current repository, or pushes
+   it on the set of queries to be executed in the query-group
+   based on the current context.
+
+   NOTE: see sparql-select, sparql-insert and sparql-delete for
+         functions geared towards end-users."
+  (if *query-group*
+      (push content *query-group*)
+      (fuseki:query *repository* content)))
+
+(defun sparql-select (variables body)
+  "Executes a SPARQL SELECT query on the current graph.
+   Takes with-query-group into account."
+  (sparql-query
+   (s-select variables
+             (s-graph (s-url "http://mu.semte.ch/application/")
+                      body))))
+
+(defun sparql-insert (body)
+  "Executes a SPARQL INSERT DATA query on the current graph.
+   Takes with-query-group into account."
+  (sparql-query
+   (s-insert
+    (s-graph (s-url "http://mu.semte.ch/application/")
+             body))))
+
+(defun sparql-delete (body)
+  "Executes a SPARQL DELETE query on the current graph.
+   Takes with-query-group into account."
+  (sparql-query
+   (s-delete (s-graph (s-url "http://mu.semte.ch/application/")
+                      body))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; parsing query results
 
