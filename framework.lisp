@@ -565,19 +565,16 @@
   (:method ((resource resource))
     (let ((json-input (jsown:parse (post-body)))
           (uuid (princ-to-string (uuid:make-v4-uuid))))
-      (insert *repository* ()
-        (s+
-         "GRAPH <http://mu.semte.ch/application/> { "
-         "  ~A a ~A;"
-         "  ~&~4tmu:uuid ~A;"
-         (property-paths-format-component resource)
-         "}")
-        (s-url (format nil "~A~A"
-                       (raw-content (ld-resource-base resource))
-                       uuid))
-        (ld-class resource)
-        (s-str uuid)
-        (property-paths-content-component resource json-input))
+      (sparql-insert (format nil
+                             (s+ "~A a ~A;"
+                                 "~&~4tmu:uuid ~A;"
+                                 (property-paths-format-component resource))
+                             (s-url (format nil "~A~A"
+                                            (raw-content (ld-resource-base resource))
+                                            uuid))
+                             (ld-class resource)
+                             (s-str uuid)
+                             (property-paths-content-component resource json-input)))
       (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
       (setf (hunchentoot:header-out :location)
             (construct-resource-item-path resource uuid))
@@ -600,15 +597,9 @@
 
 (defun find-resource-for-uuid (resource uuid)
   "Retrieves the resource hich specifies the supplied UUID in the database."
-  (let ((result (fuseki:query
-                 *repository*
-                 (format nil
-                         (s+ "SELECT ?s WHERE { "
-                             "  GRAPH <http://mu.semte.ch/application/> { "
-                             "    ?s mu:uuid ~A."
-                             "  }"
-                             "} LIMIT 1")
-                         (s-str uuid)))))
+  (let ((result (sparql-select (s-var "s")
+                               (format nil "?s mu:uuid ~A."
+                                       (s-str uuid)))))
     (unless result
       (error 'no-such-instance
              :resource resource
@@ -625,33 +616,23 @@
     (let* ((json-input (jsown:parse (post-body)))
            (attributes (jsown:filter json-input "data" "attributes"))
            (uri (s-url (find-resource-for-uuid resource uuid))))
-      (fuseki:query
-       *repository*
-       (format nil
-               (s+ "DELETE WHERE { "
-                   "  GRAPH <http://mu.semte.ch/application/> { "
-                   "    ~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
-                   "  }"
-                   "}"
-                   "INSERT DATA {"
-                   "  GRAPH <http://mu.semte.ch/application/> { "
-                   "    ~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
-                   "  }"
-                   "}")
-               ;; delete
-               uri
-               (loop for key in (jsown:keywords attributes)
-                  for slot = (resource-slot-by-json-key resource key)
-                  for i from 0
-                  append (list (ld-property-list slot)
-                               (s-var (format nil "gensym~A" i))))
-               ;; insert
-               uri
-               (loop for key in (jsown:keywords attributes)
-                  for slot = (resource-slot-by-json-key resource key)
-                  append (list (ld-property-list slot)
-                               (interpret-json-value slot
-                                                     (jsown:val attributes key))))))
+      (with-query-group
+        (sparql-delete
+         (format nil "~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
+                 uri
+                 (loop for key in (jsown:keywords attributes)
+                    for slot = (resource-slot-by-json-key resource key)
+                    for i from 0
+                    append (list (ld-property-list slot)
+                                 (s-var (format nil "gensym~A" i))))))
+        (sparql-insert
+         (format nil "~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
+                 uri
+                 (loop for key in (jsown:keywords attributes)
+                    for slot = (resource-slot-by-json-key resource key)
+                    append (list (ld-property-list slot)
+                                 (interpret-json-value slot
+                                                       (jsown:val attributes key)))))))
       (when (and (jsown:keyp json-input "data")
                  (jsown:keyp (jsown:val json-input "data") "relationships"))
         (loop for relation in (jsown:keywords (jsown:filter json-input "data" "relationships"))
@@ -672,75 +653,43 @@
                               resource-specification))
   (:method ((resource resource) uuid (link has-one-link) resource-specification)
     (flet ((delete-query (resource-uri link-uri)
-             (format nil
-                     (s+
-                      "DELETE WHERE { "
-                      "  GRAPH <http://mu.semte.ch/application/> { "
-                      "    ~A ~A ?s."
-                      "  }"
-                      "}")
-                     resource-uri link-uri))
+             (sparql-delete (format nil "~A ~A ?s"
+                                    resource-uri link-uri)))
            (inverse-delete-query (resource-uri link-uri)
-             (format nil
-                     (s+
-                      "DELETE WHERE { "
-                      "  GRAPH <http://mu.semte.ch/application/> { "
-                      "    ?s ~A ~A."
-                      "  }"
-                      "}")
-                     link-uri resource-uri))
+             (sparql-delete (format nil "?s ~A ~A."
+                                    link-uri resource-uri)))
            (insert-query (resource-uri link-uri new-linked-uri)
-             (format nil
-                     (s+
-                      "INSERT DATA { "
-                      "  GRAPH <http://mu.semte.ch/application/> { "
-                      "    ~A ~A ~A."
-                      "  }"
-                      "}")
-                     resource-uri link-uri new-linked-uri)))
+             (sparql-insert (format nil "~A ~A ~A."
+                                    resource-uri link-uri new-linked-uri))))
       (let ((linked-resource (find-resource-by-name (resource-name link)))
             (resource-uri (find-resource-for-uuid resource uuid)))
         (if resource-specification
             ;; update content
             (let* ((new-linked-uuid (jsown:val resource-specification "id"))
                    (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
-              (fuseki:query *repository*
-                            (if (inverse-p link)
-                                (let ((query
-                                       (s+ (inverse-delete-query (s-url resource-uri)
-                                                                 (ld-link link))
-                                           (insert-query (s-url new-linked-uri)
-                                                         (ld-link link)
-                                                         (s-url resource-uri)))))
-                                  query)
-                                (s+ (delete-query (s-url resource-uri)
-                                                  (ld-link link))
-                                    (insert-query (s-url resource-uri)
-                                                  (ld-link link)
-                                                  (s-url new-linked-uri))))))
+              (if (inverse-p link)
+                  (with-query-group
+                    (inverse-delete-query (s-url resource-uri)
+                                          (ld-link link))
+                    (insert-query (s-url new-linked-uri)
+                                  (ld-link link)
+                                  (s-url resource-uri)))
+                  (with-query-group
+                    (delete-query (s-url resource-uri)
+                                  (ld-link link))
+                    (insert-query (s-url resource-uri)
+                                  (ld-link link)
+                                  (s-url new-linked-uri)))))
             ;; delete content
-            (fuseki:query *repository*
-                          (delete-query (s-url resource-uri)
-                                        (ld-link link)))))))
+            (delete-query (s-url resource-uri)
+                          (ld-link link))))))
   (:method ((resource resource) uuid (link has-many-link) resource-specification)
     (flet ((delete-query (resource-uri link-uri)
-             (format nil
-                     (s+
-                      "DELETE WHERE { "
-                      "  GRAPH <http://mu.semte.ch/application/> { "
-                      "    ~A ~A ?s."
-                      "  }"
-                      "}")
-                     resource-uri link-uri))
+             (sparql-delete (format nil "~A ~A ?s."
+                                    resource-uri link-uri)))
            (insert-query (resource-uri link-uri new-linked-uris)
-             (format nil
-                     (s+
-                      "INSERT DATA { "
-                      "  GRAPH <http://mu.semte.ch/application/> { "
-                      "    ~A ~A ~{~&~8t~A~,^, ~}."
-                      "  }"
-                      "}")
-                     resource-uri link-uri new-linked-uris)))
+             (sparql-insert (format nil "~A ~A ~{~&~8t~A~,^, ~}."
+                                    resource-uri link-uri new-linked-uris))))
       (let ((linked-resource (find-resource-by-name (resource-name link)))
             (resource-uri (find-resource-for-uuid resource uuid)))
         (if resource-specification
@@ -749,16 +698,15 @@
                    (new-linked-resources (mapcar (alexandria:curry #'find-resource-for-uuid
                                                                    linked-resource)
                                                  new-linked-uuids)))
-              (fuseki:query *repository*
-                            (s+ (delete-query (s-url resource-uri)
-                                              (ld-link link))
-                                (insert-query (s-url resource-uri)
-                                              (ld-link link)
-                                              (mapcar #'s-url new-linked-resources)))))
+              (with-query-group
+                (delete-query (s-url resource-uri)
+                              (ld-link link))
+                (insert-query (s-url resource-uri)
+                              (ld-link link)
+                              (mapcar #'s-url new-linked-resources))))
             ;; delete content
-            (fuseki:query *repository*
-                          (delete-query (s-url resource-uri)
-                                        (ld-link link))))))))
+            (delete-query (s-url resource-uri)
+                          (ld-link link)))))))
 
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
@@ -767,15 +715,9 @@
     (list-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
     (let ((uuids (jsown:filter
-                  (query *repository*
-                         (format nil
-                                 (s+ "SELECT * WHERE {"
-                                     "  GRAPH <http://mu.semte.ch/application/> {"
-                                     "    ?s mu:uuid ?uuid;"
-                                     "       a ~A."
-                                     "  }"
-                                     "}")
-                                 (ld-class resource)))
+                  (sparql-select "*"
+                                 (format nil "?s mu:uuid ?uuid; a ~A."
+                                         (ld-class resource)))
                   map "uuid" "value")))
       (jsown:new-js ("data" (loop for uuid in uuids
                                for shown = (handler-case
@@ -795,19 +737,15 @@
             ;; in one query is redonculously slow.  in the order of
             ;; seconds for a single solution.
             (find-resource-for-uuid resource uuid))
-           (solution
-            (first
-             (query *repository*
-                    (format nil
-                            (s+ "SELECT * WHERE {"
-                                "  GRAPH <http://mu.semte.ch/application/> {"
-                                "    ~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
-                                "  }"
-                                "} LIMIT 1")
-                            (s-url resource-url)
-                            (loop for slot in (ld-properties resource)
-                               append (list (ld-property-list slot)
-                                            (s-var (sparql-variable-name slot))))))))
+           (solution (first
+                      (sparql-select
+                       "*"
+                       (format nil
+                               "~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
+                               (s-url resource-url)
+                               (loop for slot in (ld-properties resource)
+                                  append (list (ld-property-list slot)
+                                               (s-var (sparql-variable-name slot))))))))
            (attributes (jsown:empty-object)))
       (unless solution
         (error 'no-such-instance
@@ -852,20 +790,15 @@
   (:method ((resource-symbol symbol) uuid)
     (delete-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
-    (query *repository*
-           (format nil
-                   (s+ "DELETE WHERE {"
-                       "  GRAPH <http://mu.semte.ch/application/> {"
-                       "    ?s mu:uuid ~A;"
-                       "       a ~A;"
-                       "       ~{~&~8t~{~A~,^/~} ~A~,^;~}."
-                       "  }"
-                       "}")
-                   (s-str uuid)
-                   (ld-class resource)
-                   (loop for slot in (ld-properties resource)
-                      append (list (ld-property-list slot)
-                                   (s-var (sparql-variable-name slot))))))
+    (sparql-delete
+     (format nil (s+ "?s mu:uuid ~A;"
+                     "   a ~A;"
+                     "   ~{~&~8t~{~A~,^/~} ~A~,^;~}.")
+             (s-str uuid)
+             (ld-class resource)
+             (loop for slot in (ld-properties resource)
+                append (list (ld-property-list slot)
+                             (s-var (sparql-variable-name slot))))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric show-relation-call (resource id link)
@@ -875,17 +808,11 @@
     (show-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
     (let ((query-results
-           (fuseki:query
-            *repository*
-            (format nil
-                    (s+ "SELECT ?uuid WHERE { "
-                        "  GRAPH <http://mu.semte.ch/application/> {"
-                        "    ~A ~A ?resource. "
-                        "    ?resource mu:uuid ?uuid. "
-                        "  }"
-                        "}")
-                    (s-url (find-resource-for-uuid resource id))
-                    (ld-link link))))
+           (sparql-select (s-var "uuid")
+                          (format nil (s+ "~A ~A ?resource. "
+                                          "?resource mu:uuid ?uuid. ")
+                                  (s-url (find-resource-for-uuid resource id))
+                                  (ld-link link))))
           (linked-resource (find-resource-by-name (resource-name link))))
       (if query-results
           ;; one result or more
@@ -904,17 +831,12 @@
             ("links" (build-links-object resource id link))))))
   (:method ((resource resource) id (link has-many-link))
     (let ((query-results
-           (fuseki:query
-            *repository*
-            (format nil
-                    (s+ "SELECT ?uuid WHERE { "
-                        "  GRAPH <http://mu.semte.ch/application/> {"
-                        "    ~A ~A ?resource. "
-                        "    ?resource mu:uuid ?uuid."
-                        "  }"
-                        "}")
-                    (s-url (find-resource-for-uuid resource id))
-                    (ld-link link))))
+           (sparql-select (s-var "uuid")
+                          (format nil
+                                  (s+ "~A ~A ?resource. "
+                                      "?resource mu:uuid ?uuid.")
+                                  (s-url (find-resource-for-uuid resource id))
+                                  (ld-link link))))
           (linked-resource (find-resource-by-name (resource-name link))))
       (jsown:new-js
         ("data" (loop for result in query-results
@@ -934,23 +856,11 @@
     (patch-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
     (flet ((delete-query (resource-uri link-uri)
-             (format nil
-                     (s+ 
-                      "DELETE WHERE { "
-                      "  GRAPH <http://mu.semte.ch/application/> { "
-                      "    ~A ~A ?s."
-                      "  }"
-                      "}")
-                     resource-uri link-uri))
+             (sparql-delete (format nil "~A ~A ?s."
+                                    resource-uri link-uri)))
            (insert-query (resource-uri link-uri new-linked-uri)
-             (format nil
-                     (s+
-                      "INSERT DATA { "
-                      "  GRAPH <http://mu.semte.ch/application/> { "
-                      "    ~A ~A ~A."
-                      "  }"
-                      "}")
-                     resource-uri link-uri new-linked-uri)))
+             (sparql-insert (format nil "~A ~A ~A."
+                                    resource-uri link-uri new-linked-uri))))
       (let ((body (jsown:parse (post-body)))
             (linked-resource (find-resource-by-name (resource-name link)))
             (resource-uri (find-resource-for-uuid resource id)))
@@ -958,36 +868,23 @@
             ;; update content
             (let* ((new-linked-uuid (jsown:filter body "data" "id"))
                    (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
-              (fuseki:query *repository*
-                            (s+ (delete-query (s-url resource-uri)
-                                              (ld-link link))
-                                (insert-query (s-url resource-uri)
-                                              (ld-link link)
-                                              (s-url new-linked-uri)))))
+              (with-query-group
+                (delete-query (s-url resource-uri)
+                              (ld-link link))
+                (insert-query (s-url resource-uri)
+                              (ld-link link)
+                              (s-url new-linked-uri))))
             ;; delete content
-            (fuseki:query *repository*
-                          (delete-query (s-url resource-uri)
-                                        (ld-link link))))))
+            (delete-query (s-url resource-uri)
+                          (ld-link link)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+))
   (:method ((resource resource) id (link has-many-link))
     (flet ((delete-query (resource-uri link-uri)
-             (format nil
-                     (s+
-                      "DELETE WHERE { "
-                      "  GRAPH <http://mu.semte.ch/application/> { "
-                      "    ~A ~A ?s."
-                      "  }"
-                      "}")
-                     resource-uri link-uri))
+             (sparql-delete (format nil "~A ~A ?s."
+                                    resource-uri link-uri)))
            (insert-query (resource-uri link-uri new-linked-uris)
-             (format nil
-                     (s+
-                      "INSERT DATA { "
-                      "  GRAPH <http://mu.semte.ch/application/> { "
-                      "    ~A ~A ~{~&~8t~A~,^, ~}."
-                      "  }"
-                      "}")
-                     resource-uri link-uri new-linked-uris)))
+             (sparql-insert (format nil "~A ~A ~{~&~8t~A~,^, ~}."
+                                    resource-uri link-uri new-linked-uris))))
       (let ((body (jsown:parse (post-body)))
             (linked-resource (find-resource-by-name (resource-name link)))
             (resource-uri (find-resource-for-uuid resource id)))
@@ -997,16 +894,14 @@
                    (new-linked-resources (mapcar (alexandria:curry #'find-resource-for-uuid
                                                                    linked-resource)
                                                  new-linked-uuids)))
-              (fuseki:query *repository*
-                            (s+ (delete-query (s-url resource-uri)
-                                              (ld-link link))
-                                (insert-query (s-url resource-uri)
-                                              (ld-link link)
-                                              (mapcar #'s-url new-linked-resources)))))
+              (delete-query (s-url resource-uri)
+                               (ld-link link))
+              (insert-query (s-url resource-uri)
+                            (ld-link link)
+                            (mapcar #'s-url new-linked-resources)))
             ;; delete content
-            (fuseki:query *repository*
-                          (delete-query (s-url resource-uri)
-                                        (ld-link link))))))
+            (delete-query (s-url resource-uri)
+                          (ld-link link)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric delete-relation-call (resource id link)
@@ -1021,16 +916,10 @@
                                       (jsown:filter (jsown:parse (post-body))
                                                     "data" map "id")))))
       (when resources
-        (fuseki:query *repository*
-                      (format nil
-                              (s+ "DELETE WHERE { "
-                                  "  GRAPH <http://mu.semte.ch/application/> { "
-                                  "    ~A ~A ~{~&~8t~A~,^, ~}"
-                                  "  }"
-                                  "}")
-                              (s-url (find-resource-for-uuid resource id))
-                              (ld-link link)
-                              (mapcar #'s-url resources)))))
+        (sparql-delete (format nil "~A ~A ~{~&~8t~A~,^, ~}"
+                               (s-url (find-resource-for-uuid resource id))
+                               (ld-link link)
+                               (mapcar #'s-url resources)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric add-relation-call (resource id link)
@@ -1045,16 +934,10 @@
                                       (jsown:filter (jsown:parse (post-body))
                                                     "data" map "id")))))
       (when resources
-        (fuseki:query *repository*
-                      (format nil
-                              (s+ "INSERT DATA { "
-                                  "  GRAPH <http://mu.semte.ch/application/> { "
-                                  "    ~A ~A ~{~&~8t~A~,^, ~}"
-                                  "  }"
-                                  "}")
-                              (s-url (find-resource-for-uuid resource id))
-                              (ld-link link)
-                              (mapcar #'s-url resources)))))
+        (sparql-insert (format nil "~A ~A ~{~&~8t~A~,^, ~}"
+                               (s-url (find-resource-for-uuid resource id))
+                               (ld-link link)
+                               (mapcar #'s-url resources)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 ;;;;;;;;;;;;;;;;;;;
