@@ -787,8 +787,8 @@
   (:method ((resource resource) (uuid string))
     (sparql-delete
      (format nil (s+ "?s mu:uuid ~A;"
-                     "   a ~A;"
-                     "   ~{~&~8t~{~A~,^/~} ~A~,^;~}.")
+                     "   a ~A."
+                     "~{~&OPTIONAL { ?s ~{~A~,^/~} ~A.}~}")
              (s-str uuid)
              (ld-class resource)
              (loop for slot in (ld-properties resource)
