@@ -612,12 +612,12 @@
            (uri (s-url (find-resource-for-uuid resource uuid))))
       (with-query-group
         (sparql-delete
-         (format nil "~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
-                 uri
+         (format nil "~{~&OPTIONAL{ ~A ~{~A~,^/~} ~A.}~}"
                  (loop for key in (jsown:keywords attributes)
                     for slot = (resource-slot-by-json-key resource key)
                     for i from 0
-                    append (list (ld-property-list slot)
+                    append (list uri
+                                 (ld-property-list slot)
                                  (s-var (format nil "gensym~A" i))))))
         (sparql-insert
          (format nil "~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
