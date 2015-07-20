@@ -214,6 +214,19 @@
   (declare (ignore object))
   (parse-integer value))
 
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#boolean"
+    (value object)
+  (declare (ignore object))
+  (if (or (string= value "1")
+          (string= value "true"))
+      :true :false))
+
+(define-typed-literal-importer "http://mu.semte.ch/vocabularies/typed-literals/boolean"
+    (value object)
+  (declare (ignore object))
+  (if (or (string= value "1")
+          (string= value "true"))
+      :true :false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; defining resources
