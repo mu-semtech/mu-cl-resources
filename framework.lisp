@@ -69,10 +69,6 @@
   (:documentation "Indicates the id in the request does not match
     the id of the supplied content."))
 
-(define-condition missing-attributes (error)
-  ((missing-slots :initarg :missing-slots :reader missing-slots))
-  (:documentation "Indicates some attirbutes were missing in the
-    request."))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;;; Supporting code
@@ -371,15 +367,14 @@
   (declare (ignore resource))
   "~{~&~4t~{~A~,^/~} ~A~,^;~}.")
 (defun property-paths-content-component (resource json-input)
-  (loop for slot
-     in (ld-properties resource)
-     append (list (ld-property-list slot)
-                  (interpret-json-value
-                   slot
-                   (jsown:filter json-input
-                                 "data"
-                                 "attributes"
-                                 (json-property-name slot))))))
+  (let ((attributes (jsown:filter json-input "data" "attributes")))
+    (loop for slot
+       in (ld-properties resource)
+       if (jsown:keyp attributes (json-property-name slot))
+       append (list (ld-property-list slot)
+                    (interpret-json-value
+                     slot
+                     (jsown:val attributes (json-property-name slot)))))))
 
 (defgeneric construct-resource-item-path (resource identifier)
   (:documentation "Constructs the path on which information can
@@ -518,20 +513,6 @@
       (error 'request-id-mismatch
              :content-defined-id supplied-id
              :path-defined-id path-id))))
-
-(defun verify-all-attributes-are-available (path obj)
-  "Throws an error if not all slots have a matching attribute in
-   the attributes section of obj."
-  (let* ((supplied-attributes (jsown:keywords
-                               (jsown:filter obj "data" "attributes")))
-         (slots (ld-properties (find-resource-by-path path)))
-         (missing-slots
-          (set-difference slots supplied-attributes
-                          :test (lambda (slot name)
-                                  (string= (json-property-name slot) name)))))
-    (when missing-slots
-      (error 'missing-attributes
-             :missing-slots missing-slots))))
 
 (defgeneric verify-link-patch-body-format (link obj)
   (:documentation "Throws an error if the supplied obj does not have a
@@ -754,10 +735,10 @@
                       (sparql-select
                        "*"
                        (format nil
-                               "~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
-                               (s-url resource-url)
+                               "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
                                (loop for slot in (ld-properties resource)
-                                  append (list (ld-property-list slot)
+                                  append (list (s-url resource-url)
+                                               (ld-property-list slot)
                                                (s-var (sparql-variable-name slot))))))))
            (attributes (jsown:empty-object)))
       (unless solution
@@ -768,6 +749,7 @@
       (loop for property in (ld-properties resource)
          for sparql-var = (sparql-variable-name property)
          for json-var = (json-property-name property)
+         if (jsown:keyp solution sparql-var)
          do
            (setf (jsown:val attributes json-var)
                  (from-sparql (jsown:val solution sparql-var))))
@@ -991,7 +973,6 @@
           (verify-request-contains-type body)
           (verify-request-contains-no-id body)
           (verify-request-type-matches-path base-path body)
-          (verify-all-attributes-are-available base-path body)
           (create-call (find-resource-by-path base-path)))
       (no-such-resource ()
         (respond-forbidden (jsown:new-js
@@ -1021,14 +1002,7 @@
            ("errors" (jsown:new-js
                        ("title" (format nil "Supplied type (~A) did not match type for path (~A)."
                                         (content-defined-type condition)
-                                        (path-defined-type condition))))))))
-      (missing-attributes (condition)
-        ;; not sure if forbidden is the correct response in this case
-        (respond-unprocessable-entity
-         (jsown:new-js
-           ("errors" (jsown:new-js
-                       ("title" (format nil "Supplied attributes missed keys (~{~A~^, ~})"
-                                        (mapcar #'json-property-name (missing-slots condition))))))))))))
+                                        (path-defined-type condition)))))))))))
 
 (defcall :patch (base-path id)
   (let ((body (jsown:parse (post-body))))
