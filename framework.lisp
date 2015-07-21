@@ -116,14 +116,14 @@
    queries are executed when the query-group is ended.  This is a
    special variable which is set by with-grouped-queries")
 
-
 (defmacro with-query-group (&body body)
   "Starts a new query-group.  The queries are executed when the
    group exits."
   `(let ((*query-group* (cons nil nil)))
      ,@body
      (let ((queries (apply #'s+ (reverse (butlast *query-group*)))))
-       (fuseki:query *repository* queries))))
+       (fuseki:with-query-logging *error-output*
+         (fuseki:query *repository* queries)))))
 
 (defun sparql-query (content)
   "Executes a sparql query on the current repository, or pushes
@@ -134,7 +134,8 @@
          functions geared towards end-users."
   (if *query-group*
       (push content *query-group*)
-      (fuseki:query *repository* content)))
+      (fuseki:with-query-logging *error-output*
+        (fuseki:query *repository* content))))
 
 (defun sparql-select (variables body)
   "Executes a SPARQL SELECT query on the current graph.
