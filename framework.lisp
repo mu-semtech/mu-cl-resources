@@ -324,6 +324,16 @@
   "retrieves the resource with name symbol."
   (gethash symbol *resources*))
 
+(defgeneric referred-resource (link)
+  (:documentation "retrieves the resource which is referred to by a link")
+  (:method ((link has-link))
+    (let ((resource (find-resource-by-name (resource-name link))))
+      (unless resource
+        (error 'configuration-error
+               :description (format nil "Could not find resource for ~A."
+                                    (resource-name link))))
+      resource)))
+
 (defun find-resource-by-path (path)
   "finds a resource based on the supplied request path"
   (maphash (lambda (name resource)
@@ -692,7 +702,7 @@
            (insert-query (resource-uri link-uri new-linked-uri)
              (sparql-insert (format nil "~A ~{~A~,^/~} ~A."
                                     resource-uri link-uri new-linked-uri))))
-      (let ((linked-resource (find-resource-by-name (resource-name link)))
+      (let ((linked-resource (referred-resource link))
             (resource-uri (find-resource-for-uuid resource uuid)))
         (if resource-specification
             ;; update content
@@ -721,7 +731,7 @@
            (insert-query (resource-uri link-uri new-linked-uris)
              (sparql-insert (format nil "~A ~{~A~,^/~} ~{~&~8t~A~,^, ~}."
                                     resource-uri link-uri new-linked-uris))))
-      (let ((linked-resource (find-resource-by-name (resource-name link)))
+      (let ((linked-resource (referred-resource link))
             (resource-uri (find-resource-for-uuid resource uuid)))
         (if resource-specification
             ;; update content
@@ -860,7 +870,7 @@
                                           "?resource mu:uuid ?uuid. ")
                                   (s-url (find-resource-for-uuid resource id))
                                   (ld-property-list link))))
-          (linked-resource (find-resource-by-name (resource-name link))))
+          (linked-resource (referred-resource link)))
       (if query-results
           ;; one result or more
           (jsown:new-js
@@ -870,7 +880,7 @@
                                "data")
                     ;; (jsown:new-js
                     ;;   ("id" (jsown:filter (first query-results) "uuid" "value"))
-                    ;;   ("type" (json-type (find-resource-by-name (resource-name link)))))
+                    ;;   ("type" (json-type (referred-resource link))))
                     )
             ("links" (build-links-object resource id link)))
           (jsown:new-js
@@ -884,7 +894,7 @@
                                       "?resource mu:uuid ?uuid.")
                                   (s-url (find-resource-for-uuid resource id))
                                   (ld-property-list link))))
-          (linked-resource (find-resource-by-name (resource-name link))))
+          (linked-resource (referred-resource link)))
       (jsown:new-js
         ("data" (loop for result in query-results
                    for uuid = (jsown:filter result "uuid" "value")
@@ -909,7 +919,7 @@
              (sparql-insert (format nil "~A ~{~A~,^/~} ~A."
                                     resource-uri link-uri new-linked-uri))))
       (let ((body (jsown:parse (post-body)))
-            (linked-resource (find-resource-by-name (resource-name link)))
+            (linked-resource (referred-resource link))
             (resource-uri (find-resource-for-uuid resource id))
             (link-path (ld-property-list link)))
         (if (jsown:val body "data")
@@ -931,7 +941,7 @@
              (sparql-insert (format nil "~A ~{~A~,^/~} ~{~&~8t~A~,^, ~}."
                                     resource-uri link-uri new-linked-uris))))
       (let ((body (jsown:parse (post-body)))
-            (linked-resource (find-resource-by-name (resource-name link)))
+            (linked-resource (referred-resource link))
             (resource-uri (find-resource-for-uuid resource id))
             (link-path (ld-property-list link)))
         (if (jsown:val body "data")
@@ -953,7 +963,7 @@
   (:documentation "Performs a delete call on a relation, thereby
     removing a set of linked resources.")
   (:method ((resource resource) id (link has-many-link))
-    (let* ((linked-resource (find-resource-by-name (resource-name link)))
+    (let* ((linked-resource (referred-resource link))
            (resources (mapcar
                        (alexandria:curry #'find-resource-for-uuid
                                          linked-resource)
@@ -971,7 +981,7 @@
   (:documentation "Performs the addition call on a relation, thereby
     adding a set of linked resources.")
   (:method ((resource resource) id (link has-many-link))
-    (let* ((linked-resource (find-resource-by-name (resource-name link)))
+    (let* ((linked-resource (referred-resource link))
            (resources (mapcar
                        (alexandria:curry #'find-resource-for-uuid
                                          linked-resource)
