@@ -668,13 +668,13 @@
                               resource-specification))
   (:method ((resource resource) uuid (link has-one-link) resource-specification)
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete (format nil "~A ~A ?s"
+             (sparql-delete (format nil "~A ~{~A~,^/~} ?s"
                                     resource-uri link-uri)))
            (inverse-delete-query (resource-uri link-uri)
-             (sparql-delete (format nil "?s ~A ~A."
+             (sparql-delete (format nil "?s ~{~A~,^/~} ~A."
                                     link-uri resource-uri)))
            (insert-query (resource-uri link-uri new-linked-uri)
-             (sparql-insert (format nil "~A ~A ~A."
+             (sparql-insert (format nil "~A ~{~A~,^/~} ~A."
                                     resource-uri link-uri new-linked-uri))))
       (let ((linked-resource (find-resource-by-name (resource-name link)))
             (resource-uri (find-resource-for-uuid resource uuid)))
@@ -685,25 +685,25 @@
               (if (inverse-p link)
                   (with-query-group
                     (inverse-delete-query (s-url resource-uri)
-                                          (ld-link link))
+                                          (ld-property-list link))
                     (insert-query (s-url new-linked-uri)
-                                  (ld-link link)
+                                  (ld-property-list link)
                                   (s-url resource-uri)))
                   (with-query-group
                     (delete-query (s-url resource-uri)
-                                  (ld-link link))
+                                  (ld-property-list link))
                     (insert-query (s-url resource-uri)
-                                  (ld-link link)
+                                  (ld-property-list link)
                                   (s-url new-linked-uri)))))
             ;; delete content
             (delete-query (s-url resource-uri)
-                          (ld-link link))))))
+                          (ld-property-list link))))))
   (:method ((resource resource) uuid (link has-many-link) resource-specification)
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete (format nil "~A ~A ?s."
+             (sparql-delete (format nil "~A ~{~A~,^/~} ?s."
                                     resource-uri link-uri)))
            (insert-query (resource-uri link-uri new-linked-uris)
-             (sparql-insert (format nil "~A ~A ~{~&~8t~A~,^, ~}."
+             (sparql-insert (format nil "~A ~{~A~,^/~} ~{~&~8t~A~,^, ~}."
                                     resource-uri link-uri new-linked-uris))))
       (let ((linked-resource (find-resource-by-name (resource-name link)))
             (resource-uri (find-resource-for-uuid resource uuid)))
@@ -715,13 +715,13 @@
                                                  new-linked-uuids)))
               (with-query-group
                 (delete-query (s-url resource-uri)
-                              (ld-link link))
+                              (ld-property-list link))
                 (insert-query (s-url resource-uri)
-                              (ld-link link)
+                              (ld-property-list link)
                               (mapcar #'s-url new-linked-resources))))
             ;; delete content
             (delete-query (s-url resource-uri)
-                          (ld-link link)))))))
+                          (ld-property-list link)))))))
 
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
@@ -817,7 +817,6 @@
              relation-content
              (list (ld-property-list link)
                    (s-var (sparql-variable-name link)))))
-      (break "relation-content")
       (sparql-delete
        (format nil (s+ "?s mu:uuid ~A;"
                        "   a ~A."
