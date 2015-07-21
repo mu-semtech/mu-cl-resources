@@ -808,7 +808,10 @@
                           (format nil (s+ "~A ~A ?resource. "
                                           "?resource mu:uuid ?uuid. ")
                                   (s-url (find-resource-for-uuid resource id))
-                                  (ld-link link))))
+                                  (let ((link-property (ld-link link)))
+                                    (if (inverse-p link)
+                                        (s-inv link-property)
+                                        link-property)))))
           (linked-resource (find-resource-by-name (resource-name link))))
       (if query-results
           ;; one result or more
@@ -832,7 +835,10 @@
                                   (s+ "~A ~A ?resource. "
                                       "?resource mu:uuid ?uuid.")
                                   (s-url (find-resource-for-uuid resource id))
-                                  (ld-link link))))
+                                  (let ((link-property (ld-link link)))
+                                    (if (inverse-p link)
+                                        (s-inv link-property)
+                                        link-property)))))
           (linked-resource (find-resource-by-name (resource-name link))))
       (jsown:new-js
         ("data" (loop for result in query-results
@@ -859,20 +865,18 @@
                                     resource-uri link-uri new-linked-uri))))
       (let ((body (jsown:parse (post-body)))
             (linked-resource (find-resource-by-name (resource-name link)))
-            (resource-uri (find-resource-for-uuid resource id)))
+            (resource-uri (find-resource-for-uuid resource id))
+            (link-path (if (inverse-p link) (s-inv (ld-link link)) (ld-link link))))
         (if (jsown:val body "data")
             ;; update content
             (let* ((new-linked-uuid (jsown:filter body "data" "id"))
                    (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
               (with-query-group
-                (delete-query (s-url resource-uri)
-                              (ld-link link))
-                (insert-query (s-url resource-uri)
-                              (ld-link link)
+                (delete-query (s-url resource-uri) link-path)
+                (insert-query (s-url resource-uri) link-path
                               (s-url new-linked-uri))))
             ;; delete content
-            (delete-query (s-url resource-uri)
-                          (ld-link link)))))
+            (delete-query (s-url resource-uri) link-path))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+))
   (:method ((resource resource) id (link has-many-link))
     (flet ((delete-query (resource-uri link-uri)
@@ -883,21 +887,21 @@
                                     resource-uri link-uri new-linked-uris))))
       (let ((body (jsown:parse (post-body)))
             (linked-resource (find-resource-by-name (resource-name link)))
-            (resource-uri (find-resource-for-uuid resource id)))
+            (resource-uri (find-resource-for-uuid resource id))
+            (link-path (if (inverse-p link) (s-inv (ld-link link)) (ld-link link))))
         (if (jsown:val body "data")
             ;; update content
             (let* ((new-linked-uuids (jsown:filter body "data" map "id"))
                    (new-linked-resources (mapcar (alexandria:curry #'find-resource-for-uuid
                                                                    linked-resource)
                                                  new-linked-uuids)))
-              (delete-query (s-url resource-uri)
-                               (ld-link link))
+              (delete-query (s-url resource-uri) link-path)
               (insert-query (s-url resource-uri)
-                            (ld-link link)
+                            link-path
                             (mapcar #'s-url new-linked-resources)))
             ;; delete content
             (delete-query (s-url resource-uri)
-                          (ld-link link)))))
+                          link-path))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric delete-relation-call (resource id link)
@@ -914,7 +918,9 @@
       (when resources
         (sparql-delete (format nil "~A ~A ~{~&~8t~A~,^, ~}"
                                (s-url (find-resource-for-uuid resource id))
-                               (ld-link link)
+                               (if (inverse-p link)
+                                   (s-inv (ld-link link))
+                                   (ld-link link))
                                (mapcar #'s-url resources)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
@@ -932,7 +938,9 @@
       (when resources
         (sparql-insert (format nil "~A ~A ~{~&~8t~A~,^, ~}"
                                (s-url (find-resource-for-uuid resource id))
-                               (ld-link link)
+                               (if (inverse-p link)
+                                   (s-inv (ld-link link))
+                                   (ld-link link))
                                (mapcar #'s-url resources)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
