@@ -330,8 +330,9 @@
     (let ((resource (find-resource-by-name (resource-name link))))
       (unless resource
         (error 'configuration-error
-               :description (format nil "Could not find resource for ~A."
-                                    (resource-name link))))
+               :description (format nil "Could not find resource for link on path \"~A\".  Searched resource is ~A.  Common possibilities are that there's a (define-resource ~A ...) block missing or that the first argument of a :has-one or :has-many specification has a typo."
+                                    (request-path link)
+                                    (resource-name link) (resource-name link))))
       resource)))
 
 (defun find-resource-by-path (path)
