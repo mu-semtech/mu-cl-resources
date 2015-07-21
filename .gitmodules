@@ -1,0 +1,6 @@
+[submodule "cl-fuseki"]
+	path = dependencies/cl-fuseki
+	url = git@github.com:madnificent/cl-fuseki
+[submodule "mu-cl-support"]
+	path = dependencies/mu-cl-support
+	url = git@github.com:mu-semtech/mu-cl-support
