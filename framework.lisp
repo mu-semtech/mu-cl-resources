@@ -618,14 +618,24 @@
            (attributes (jsown:filter json-input "data" "attributes"))
            (uri (s-url (find-resource-for-uuid resource uuid))))
       (with-query-group
-        (sparql-delete
-         (format nil "~{~&OPTIONAL{ ~A ~{~A~,^/~} ~A.}~}"
-                 (loop for key in (jsown:keywords attributes)
-                    for slot = (resource-slot-by-json-key resource key)
-                    for i from 0
-                    append (list uri
-                                 (ld-property-list slot)
-                                 (s-var (format nil "gensym~A" i))))))
+        (let ((delete-vars (loop for key in (jsown:keywords attributes)
+                              for i from 0
+                              collect (s-var (format nil "gensym~A" i)))))
+          (sparql-delete
+           (format nil "~{~& ~A ~{~A~,^/~} ~A.~}"
+                   (loop for key in (jsown:keywords attributes)
+                      for slot = (resource-slot-by-json-key resource key)
+                      for s-var in delete-vars
+                      append (list uri
+                                   (ld-property-list slot)
+                                   s-var)))
+           (format nil "~{~&OPTIONAL{ ~A ~{~A~,^/~} ~A.}~}"
+                   (loop for key in (jsown:keywords attributes)
+                      for slot = (resource-slot-by-json-key resource key)
+                      for s-var in delete-vars
+                      append (list uri
+                                   (ld-property-list slot)
+                                   s-var)))))
         (sparql-insert
          (format nil "~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
                  uri
@@ -792,15 +802,31 @@
   (:method ((resource-symbol symbol) uuid)
     (delete-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
-    (sparql-delete
-     (format nil (s+ "?s mu:uuid ~A;"
-                     "   a ~A."
-                     "~{~&OPTIONAL { ?s ~{~A~,^/~} ~A.}~}")
-             (s-str uuid)
-             (ld-class resource)
-             (loop for slot in (ld-properties resource)
-                append (list (ld-property-list slot)
-                             (s-var (sparql-variable-name slot))))))
+    (let (relation-content)
+      (loop for slot in (ld-properties resource)
+         do (alexandria:appendf
+             relation-content
+             (list (ld-property-list slot)
+                   (s-var (sparql-variable-name slot)))))
+      (loop for link in (all-links resource)
+         do (alexandria:appendf
+             relation-content
+             (list (list (ld-link link))
+                   (s-var (sparql-variable-name link)))))
+      (break "relation-content")
+      (sparql-delete
+       (format nil (s+ "?s mu:uuid ~A;"
+                       "   a ~A."
+                       "~{~&?s ~{~A~,^/~} ~A.~}")
+               (s-str uuid)
+               (ld-class resource)
+               relation-content)
+       (format nil (s+ "?s mu:uuid ~A;"
+                       "   a ~A."
+                       "~{~&OPTIONAL { ?s ~{~A~,^/~} ~A.}~}")
+               (s-str uuid)
+               (ld-class resource)
+               relation-content)))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric show-relation-call (resource id link)
