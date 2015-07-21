@@ -10,6 +10,10 @@
 ;;;;;;;;;;;;;;;;
 ;;;; error codes
 
+(define-condition configuration-error (error)
+  ((description :initarg :description :reader description))
+  (:documentation "Indicates the system was configured incorrectly"))
+
 (define-condition no-such-resource (error)
   ((description :initarg :description :reader description))
   (:documentation "Indicates the resource could not be found"))
@@ -466,6 +470,18 @@
                          ("errors" (jsown:new-js
                                      ("status" "Unprocessable Entity")
                                      ("code" "422"))))
+                       (or jsown-object (jsown:empty-object))))
+
+(defun respond-server-error (&optional jsown-object)
+  "Returns a 500 Server Error response.   The supplied
+   jsown-object is merged with the response if it is supplied.
+   This allows you to extend the response and tailor it to your
+   needs."
+  (setf (hunchentoot:return-code*) 500)
+  (merge-jsown-objects (jsown:new-js
+                         ("errors" (jsown:new-js
+                                     ("status" "Server Error")
+                                     ("code" "500"))))
                        (or jsown-object (jsown:empty-object))))
 
 (defun verify-json-api-content-type ()
@@ -979,6 +995,11 @@
         (list-call (find-resource-by-path base-path)))
     (no-such-resource ()
       (respond-not-found))
+    (configuration-error (condition)
+      (respond-server-error
+       (jsown:new-js
+         ("errors" (jsown:new-js
+                     ("title" (s+ "Server configuration issue: " (description condition))))))))
     (incorrect-accept-header (condition)
       (respond-not-acceptable (jsown:new-js
                                 ("errors" (jsown:new-js
@@ -991,6 +1012,11 @@
         (show-call (find-resource-by-path base-path) id))
     (no-such-resource ()
       (respond-not-found))
+    (configuration-error (condition)
+      (respond-server-error
+       (jsown:new-js
+         ("errors" (jsown:new-js
+                     ("title" (s+ "Server configuration issue: " (description condition))))))))
     (no-such-instance ()
       (respond-not-found))
     (incorrect-accept-header (condition)
@@ -1014,6 +1040,11 @@
                                          ("title" (format nil
                                                           "Resource for path (~A) not found"
                                                           base-path)))))))
+      (configuration-error (condition)
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Server configuration issue: " (description condition))))))))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
@@ -1053,6 +1084,11 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (configuration-error (condition)
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Server configuration issue: " (description condition))))))))
       (incorrect-content-type (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
@@ -1083,6 +1119,11 @@
 (defcall :delete (base-path id)
   (handler-case
       (delete-call (find-resource-by-path base-path) id)
+    (configuration-error (condition)
+      (respond-server-error
+       (jsown:new-js
+         ("errors" (jsown:new-js
+                     ("title" (s+ "Server configuration issue: " (description condition))))))))
     (no-such-resource ()
       (respond-forbidden (jsown:new-js
                            ("errors" (jsown:new-js
@@ -1104,6 +1145,11 @@
       (respond-not-acceptable (jsown:new-js
                                 ("errors" (jsown:new-js
                                             ("title" (description condition)))))))
+    (configuration-error (condition)
+      (respond-server-error
+       (jsown:new-js
+         ("errors" (jsown:new-js
+                     ("title" (s+ "Server configuration issue: " (description condition))))))))
     (no-such-resource ()
       (respond-not-found))
     (no-such-link (condition)
@@ -1134,6 +1180,11 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (configuration-error (condition)
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Server configuration issue: " (description condition))))))))
       (incorrect-content-type (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
@@ -1181,6 +1232,11 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (configuration-error (condition)
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Server configuration issue: " (description condition))))))))
       (incorrect-content-type (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
@@ -1228,6 +1284,11 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (configuration-error (condition)
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Server configuration issue: " (description condition))))))))
       (incorrect-content-type (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
