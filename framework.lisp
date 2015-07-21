@@ -153,12 +153,14 @@
     (s-graph (s-url "http://mu.semte.ch/application/")
              body))))
 
-(defun sparql-delete (body)
+(defun sparql-delete (clauses &optional where)
   "Executes a SPARQL DELETE query on the current graph.
    Takes with-query-group into account."
-  (sparql-query
-   (s-delete (s-graph (s-url "http://mu.semte.ch/application/")
-                      body))))
+  (let ((clauses (s-graph (s-url "http://mu.semte.ch/application/") clauses))
+        (where (when where
+                 (s-graph (s-url "http://mu.semte.ch/application/") where))))
+    (sparql-query
+     (s-delete clauses where))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
