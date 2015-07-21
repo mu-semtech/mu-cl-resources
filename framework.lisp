@@ -771,11 +771,11 @@
   (:documentation "Builds the json object which represents the link
     in a json object.")
   (:method ((resource resource) identifier (link has-link))
-    (jsown:new-js ("self" (format nil "/~A/~A/~A"
+    (jsown:new-js ("self" (format nil "/~A/~A/links/~A"
                                   (request-path resource)
                                   identifier
                                   (request-path link)))
-                  ("related" (format nil "/~A/~A/links/~A"
+                  ("related" (format nil "/~A/~A/~A"
                                      (request-path resource)
                                      identifier
                                      (request-path link))))))
