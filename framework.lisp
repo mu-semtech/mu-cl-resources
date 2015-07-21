@@ -263,17 +263,21 @@
 
 (defgeneric json-property-name (resource-slot)
   (:documentation "retrieves the name of the json property of the
-   supplied resource-slot")
+   supplied slot")
   (:method ((slot resource-slot))
     (if *camelcase-json-variables*
         (symbol-to-camelcase (json-key slot))
-        (string-downcase (string (json-key slot))))))
+        (string-downcase (string (json-key slot)))))
+  (:method ((link has-link))
+    (request-path link)))
 
 (defgeneric sparql-variable-name (resource-slot)
   (:documentation "retrieves the name of the json property as it
    could be used in a sparql query")
   (:method ((slot resource-slot))
-    (symbol-to-camelcase (json-key slot))))
+    (symbol-to-camelcase (json-key slot)))
+  (:method ((link has-link))
+    (symbol-to-camelcase (request-path link))))
 
 (defgeneric ld-property-list (slot)
   (:documentation "yields the ld-property as a list from the
