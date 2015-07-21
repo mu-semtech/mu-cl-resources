@@ -283,7 +283,11 @@
   (:documentation "yields the ld-property as a list from the
    resource-slot")
   (:method ((slot resource-slot))
-    (list (ld-property slot))))
+    (list (ld-property slot)))
+  (:method ((link has-link))
+    (list (if (inverse-p link)
+              (s-inv (ld-link link))
+              (ld-link link)))))
 
 (defmethod json-key ((link has-link))
   (request-path link))
@@ -811,7 +815,7 @@
       (loop for link in (all-links resource)
          do (alexandria:appendf
              relation-content
-             (list (list (ld-link link))
+             (list (ld-property-list link)
                    (s-var (sparql-variable-name link)))))
       (break "relation-content")
       (sparql-delete
@@ -837,13 +841,10 @@
   (:method ((resource resource) id (link has-one-link))
     (let ((query-results
            (sparql-select (s-var "uuid")
-                          (format nil (s+ "~A ~A ?resource. "
+                          (format nil (s+ "~A ~{~A~,^/~} ?resource. "
                                           "?resource mu:uuid ?uuid. ")
                                   (s-url (find-resource-for-uuid resource id))
-                                  (let ((link-property (ld-link link)))
-                                    (if (inverse-p link)
-                                        (s-inv link-property)
-                                        link-property)))))
+                                  (ld-property-list link))))
           (linked-resource (find-resource-by-name (resource-name link))))
       (if query-results
           ;; one result or more
@@ -864,13 +865,10 @@
     (let ((query-results
            (sparql-select (s-var "uuid")
                           (format nil
-                                  (s+ "~A ~A ?resource. "
+                                  (s+ "~A ~{~A~,^/~} ?resource. "
                                       "?resource mu:uuid ?uuid.")
                                   (s-url (find-resource-for-uuid resource id))
-                                  (let ((link-property (ld-link link)))
-                                    (if (inverse-p link)
-                                        (s-inv link-property)
-                                        link-property)))))
+                                  (ld-property-list link))))
           (linked-resource (find-resource-by-name (resource-name link))))
       (jsown:new-js
         ("data" (loop for result in query-results
@@ -890,15 +888,15 @@
     (patch-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete (format nil "~A ~A ?s."
+             (sparql-delete (format nil "~A ~{~A~,^/~} ?s."
                                     resource-uri link-uri)))
            (insert-query (resource-uri link-uri new-linked-uri)
-             (sparql-insert (format nil "~A ~A ~A."
+             (sparql-insert (format nil "~A ~{~A~,^/~} ~A."
                                     resource-uri link-uri new-linked-uri))))
       (let ((body (jsown:parse (post-body)))
             (linked-resource (find-resource-by-name (resource-name link)))
             (resource-uri (find-resource-for-uuid resource id))
-            (link-path (if (inverse-p link) (s-inv (ld-link link)) (ld-link link))))
+            (link-path (ld-property-list link)))
         (if (jsown:val body "data")
             ;; update content
             (let* ((new-linked-uuid (jsown:filter body "data" "id"))
@@ -912,15 +910,15 @@
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+))
   (:method ((resource resource) id (link has-many-link))
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete (format nil "~A ~A ?s."
+             (sparql-delete (format nil "~A ~{~A~,^/~} ?s."
                                     resource-uri link-uri)))
            (insert-query (resource-uri link-uri new-linked-uris)
-             (sparql-insert (format nil "~A ~A ~{~&~8t~A~,^, ~}."
+             (sparql-insert (format nil "~A ~{~A~,^/~} ~{~&~8t~A~,^, ~}."
                                     resource-uri link-uri new-linked-uris))))
       (let ((body (jsown:parse (post-body)))
             (linked-resource (find-resource-by-name (resource-name link)))
             (resource-uri (find-resource-for-uuid resource id))
-            (link-path (if (inverse-p link) (s-inv (ld-link link)) (ld-link link))))
+            (link-path (ld-property-list link)))
         (if (jsown:val body "data")
             ;; update content
             (let* ((new-linked-uuids (jsown:filter body "data" map "id"))
@@ -948,11 +946,9 @@
                                       (jsown:filter (jsown:parse (post-body))
                                                     "data" map "id")))))
       (when resources
-        (sparql-delete (format nil "~A ~A ~{~&~8t~A~,^, ~}"
+        (sparql-delete (format nil "~A ~{~A~,^/~} ~{~&~8t~A~,^, ~}"
                                (s-url (find-resource-for-uuid resource id))
-                               (if (inverse-p link)
-                                   (s-inv (ld-link link))
-                                   (ld-link link))
+                               (ld-property-list link)
                                (mapcar #'s-url resources)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
@@ -968,11 +964,9 @@
                                       (jsown:filter (jsown:parse (post-body))
                                                     "data" map "id")))))
       (when resources
-        (sparql-insert (format nil "~A ~A ~{~&~8t~A~,^, ~}"
+        (sparql-insert (format nil "~A ~{~A~,^/~} ~{~&~8t~A~,^, ~}"
                                (s-url (find-resource-for-uuid resource id))
-                               (if (inverse-p link)
-                                   (s-inv (ld-link link))
-                                   (ld-link link))
+                               (ld-property-list link)
                                (mapcar #'s-url resources)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
