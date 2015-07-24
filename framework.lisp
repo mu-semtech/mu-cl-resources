@@ -157,6 +157,21 @@
     (s-graph (s-url "http://mu.semte.ch/application/")
              body))))
 
+(defun sparql-insert-triples (triple-clauses)
+  "Inserts a set of triples based on the provided triple-clauses.
+   Provide a pattern containing triple patterns and variables as
+   per 's-var."
+  (let ((patterns
+         (loop for triple-clause in triple-clauses
+            for (subject predicate object) = triple-clause
+            collect
+              (if (s-inv-p predicate)
+                  (format nil "~4t~A ~A ~A.~%"
+                          object (s-inv predicate) subject)
+                  (format nil "~4t~A ~A ~A.~%"
+                          subject predicate object)))))
+    (sparql-insert (apply #'concatenate 'string patterns))))
+
 (defun sparql-delete (clauses &optional where)
   "Executes a SPARQL DELETE query on the current graph.
    Takes with-query-group into account."
@@ -165,6 +180,22 @@
                  (s-graph (s-url "http://mu.semte.ch/application/") where))))
     (sparql-query
      (s-delete clauses where))))
+
+(defun sparql-delete-triples (triple-clauses)
+  "Deletes a set of triples based on the provided triple-clauses.
+   Provide a pattern containing triple patterns and variables as
+   per 's-var."
+  (let ((patterns
+         (loop for triple-clause in triple-clauses
+            for (subject predicate object) = triple-clause
+            collect
+              (if (s-inv-p predicate)
+                  (format nil "~4t~A ~A ~A.~%"
+                          object (s-inv predicate) subject)
+                  (format nil "~4t~A ~A ~A.~%"
+                          subject predicate object)))))
+    (sparql-delete (apply #'concatenate 'string patterns)
+                   (apply #'concatenate 'string patterns))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -397,10 +428,21 @@
     (loop for slot
        in (ld-properties resource)
        if (jsown:keyp attributes (json-property-name slot))
-       append (list (ld-property-list slot)
-                    (interpret-json-value
-                     slot
-                     (jsown:val attributes (json-property-name slot)))))))
+       collect (list (ld-property-list slot)
+                     (interpret-json-value
+                      slot
+                      (jsown:val attributes (json-property-name slot)))))))
+
+(defun attribute-properties-for-json-input (resource json-input)
+  (let ((attributes (jsown:filter json-input "data" "attributes")))
+    (loop for slot
+       in (ld-properties resource)
+       if (jsown:keyp attributes (json-property-name slot))
+       collect
+         (list (ld-property-list slot)
+               (interpret-json-value
+                slot
+                (jsown:val attributes (json-property-name slot)))))))
 
 (defgeneric construct-resource-item-path (resource identifier)
   (:documentation "Constructs the path on which information can
@@ -595,18 +637,17 @@
   (:method ((resource-symbol symbol))
     (create-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
-    (let ((json-input (jsown:parse (post-body)))
-          (uuid (princ-to-string (uuid:make-v4-uuid))))
-      (sparql-insert (format nil
-                             (s+ "~A a ~A;"
-                                 "~&~4tmu:uuid ~A;"
-                                 (property-paths-format-component resource))
-                             (s-url (format nil "~A~A"
-                                            (raw-content (ld-resource-base resource))
-                                            uuid))
-                             (ld-class resource)
-                             (s-str uuid)
-                             (property-paths-content-component resource json-input)))
+    (let* ((json-input (jsown:parse (post-body)))
+           (uuid (princ-to-string (uuid:make-v4-uuid)))
+           (resource-uri (s-url (format nil "~A~A"
+                                       (raw-content (ld-resource-base resource))
+                                       uuid))))
+      (sparql-insert-triples
+       `((,resource-uri ,(s-prefix "a") ,(ld-class resource))
+         (,resource-uri ,(s-prefix "mu:uuid") ,(s-str uuid))
+         ,@(loop for (predicates object)
+              in (attribute-properties-for-json-input resource json-input)
+              collect `(,resource-uri ,@predicates ,object))))
       (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
       (setf (hunchentoot:header-out :location)
             (construct-resource-item-path resource uuid))
@@ -652,29 +693,18 @@
         (let ((delete-vars (loop for key in (jsown:keywords attributes)
                               for i from 0
                               collect (s-var (format nil "gensym~A" i)))))
-          (sparql-delete
-           (format nil "~{~& ~A ~{~A~,^/~} ~A.~}"
-                   (loop for key in (jsown:keywords attributes)
-                      for slot = (resource-slot-by-json-key resource key)
-                      for s-var in delete-vars
-                      append (list uri
-                                   (ld-property-list slot)
-                                   s-var)))
-           (format nil "~{~&OPTIONAL{ ~A ~{~A~,^/~} ~A.}~}"
-                   (loop for key in (jsown:keywords attributes)
-                      for slot = (resource-slot-by-json-key resource key)
-                      for s-var in delete-vars
-                      append (list uri
-                                   (ld-property-list slot)
-                                   s-var)))))
-        (sparql-insert
-         (format nil "~A ~{~&~8t~{~A~,^/~} ~A~,^;~}."
-                 uri
-                 (loop for key in (jsown:keywords attributes)
-                    for slot = (resource-slot-by-json-key resource key)
-                    append (list (ld-property-list slot)
-                                 (interpret-json-value slot
-                                                       (jsown:val attributes key)))))))
+          (sparql-delete-triples
+           (loop for key in (jsown:keywords attributes)
+              for slot = (resource-slot-by-json-key resource key)
+              for s-var in delete-vars
+              collect `(,uri ,@(ld-property-list slot) ,s-var))))
+        (sparql-insert-triples
+         (loop for key in (jsown:keywords attributes)
+            for slot = (resource-slot-by-json-key resource key)
+            for value = (interpret-json-value slot (jsown:val attributes key))
+            for property-list = (ld-property-list slot)
+            collect
+              `(,uri ,@property-list ,slot))))
       (when (and (jsown:keyp json-input "data")
                  (jsown:keyp (jsown:val json-input "data") "relationships"))
         (loop for relation in (jsown:keywords (jsown:filter json-input "data" "relationships"))
@@ -695,14 +725,14 @@
                               resource-specification))
   (:method ((resource resource) uuid (link has-one-link) resource-specification)
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete (format nil "~A ~{~A~,^/~} ?s"
-                                    resource-uri link-uri)))
+             (sparql-delete-triples
+              `((,resource-uri ,@link-uri ,(s-var "s")))))
            (inverse-delete-query (resource-uri link-uri)
-             (sparql-delete (format nil "?s ~{~A~,^/~} ~A."
-                                    link-uri resource-uri)))
+             (sparql-delete-triples
+              `((,(s-var "s") ,@link-uri ,resource-uri))))
            (insert-query (resource-uri link-uri new-linked-uri)
-             (sparql-insert (format nil "~A ~{~A~,^/~} ~A."
-                                    resource-uri link-uri new-linked-uri))))
+             (sparql-insert-triples
+              `((,resource-uri ,@link-uri ,new-linked-uri)))))
       (let ((linked-resource (referred-resource link))
             (resource-uri (find-resource-for-uuid resource uuid)))
         (if resource-specification
@@ -713,9 +743,12 @@
                   (with-query-group
                     (inverse-delete-query (s-url resource-uri)
                                           (ld-property-list link))
-                    (insert-query (s-url new-linked-uri)
+                                        ; no need to change the order in the insert
+                                        ; query as ld-property-list takes care of
+                                        ; that.
+                    (insert-query (s-url resource-uri)
                                   (ld-property-list link)
-                                  (s-url resource-uri)))
+                                  (s-url new-linked-uri)))
                   (with-query-group
                     (delete-query (s-url resource-uri)
                                   (ld-property-list link))
@@ -727,11 +760,13 @@
                           (ld-property-list link))))))
   (:method ((resource resource) uuid (link has-many-link) resource-specification)
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete (format nil "~A ~{~A~,^/~} ?s."
-                                    resource-uri link-uri)))
+             (sparql-delete-triples
+              `((,resource-uri ,@link-uri ,(s-var "s")))))
            (insert-query (resource-uri link-uri new-linked-uris)
-             (sparql-insert (format nil "~A ~{~A~,^/~} ~{~&~8t~A~,^, ~}."
-                                    resource-uri link-uri new-linked-uris))))
+             (sparql-insert-triples
+              (loop for new-link-uri in new-linked-uris
+                 collect
+                   `(,resource-uri ,@link-uri ,new-link-uri)))))
       (let ((linked-resource (referred-resource link))
             (resource-uri (find-resource-for-uuid resource uuid)))
         (if resource-specification
@@ -835,28 +870,19 @@
   (:method ((resource resource) (uuid string))
     (let (relation-content)
       (loop for slot in (ld-properties resource)
-         do (alexandria:appendf
-             relation-content
-             (list (ld-property-list slot)
-                   (s-var (sparql-variable-name slot)))))
+         do (push (list (ld-property-list slot)
+                        (s-var (sparql-variable-name slot)))
+                  relation-content))
       (loop for link in (all-links resource)
-         do (alexandria:appendf
-             relation-content
-             (list (ld-property-list link)
-                   (s-var (sparql-variable-name link)))))
-      (sparql-delete
-       (format nil (s+ "?s mu:uuid ~A;"
-                       "   a ~A."
-                       "~{~&?s ~{~A~,^/~} ~A.~}")
-               (s-str uuid)
-               (ld-class resource)
-               relation-content)
-       (format nil (s+ "?s mu:uuid ~A;"
-                       "   a ~A."
-                       "~{~&OPTIONAL { ?s ~{~A~,^/~} ~A.}~}")
-               (s-str uuid)
-               (ld-class resource)
-               relation-content)))
+         do (push (list (ld-property-list link)
+                        (s-var (sparql-variable-name link)))
+                  relation-content))
+      (setf relation-content (reverse relation-content))
+      (sparql-delete-triples
+       `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))
+         (,(s-var "s") ,(s-prefix "a") ,(ld-class resource))
+         ,@(loop for content on relation-content
+              collect `(,(s-var "s") ,@content)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric show-relation-call (resource id link)
@@ -914,11 +940,11 @@
     (patch-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete (format nil "~A ~{~A~,^/~} ?s."
-                                    resource-uri link-uri)))
+             (sparql-delete-triples
+              `((,resource-uri ,@link-uri ,(s-var "s")))))
            (insert-query (resource-uri link-uri new-linked-uri)
-             (sparql-insert (format nil "~A ~{~A~,^/~} ~A."
-                                    resource-uri link-uri new-linked-uri))))
+             (sparql-insert-triples
+              `((,resource-uri ,@link-uri ,new-linked-uri)))))
       (let ((body (jsown:parse (post-body)))
             (linked-resource (referred-resource link))
             (resource-uri (find-resource-for-uuid resource id))
@@ -936,11 +962,11 @@
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+))
   (:method ((resource resource) id (link has-many-link))
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete (format nil "~A ~{~A~,^/~} ?s."
-                                    resource-uri link-uri)))
+             (sparql-delete-triples
+              `((,resource-uri ,@link-uri ,(s-var "s")))))
            (insert-query (resource-uri link-uri new-linked-uris)
-             (sparql-insert (format nil "~A ~{~A~,^/~} ~{~&~8t~A~,^, ~}."
-                                    resource-uri link-uri new-linked-uris))))
+             (loop for new-uri in new-linked-uris
+                collect `(,resource-uri ,@link-uri ,new-uri))))
       (let ((body (jsown:parse (post-body)))
             (linked-resource (referred-resource link))
             (resource-uri (find-resource-for-uuid resource id))
@@ -972,10 +998,12 @@
                                       (jsown:filter (jsown:parse (post-body))
                                                     "data" map "id")))))
       (when resources
-        (sparql-delete (format nil "~A ~{~A~,^/~} ~{~&~8t~A~,^, ~}"
-                               (s-url (find-resource-for-uuid resource id))
-                               (ld-property-list link)
-                               (mapcar #'s-url resources)))))
+        (sparql-delete-triples
+         (loop for resource in resources
+            collect
+              `(,(s-url (find-resource-for-uuid resource id))
+                 ,@(ld-property-list link)
+                 ,resource)))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 (defgeneric add-relation-call (resource id link)
@@ -990,10 +1018,12 @@
                                       (jsown:filter (jsown:parse (post-body))
                                                     "data" map "id")))))
       (when resources
-        (sparql-insert (format nil "~A ~{~A~,^/~} ~{~&~8t~A~,^, ~}"
-                               (s-url (find-resource-for-uuid resource id))
-                               (ld-property-list link)
-                               (mapcar #'s-url resources)))))
+        (let ((source-url (find-resource-for-uuid resource id))
+              (properties (ld-property-list link)))
+          (sparql-insert-triples
+           (loop for resource in resources
+              collect
+                `(,source-url ,@properties ,resource))))))
     (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
 
 ;;;;;;;;;;;;;;;;;;;
