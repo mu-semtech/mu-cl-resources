@@ -727,9 +727,6 @@
     (flet ((delete-query (resource-uri link-uri)
              (sparql-delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
-           (inverse-delete-query (resource-uri link-uri)
-             (sparql-delete-triples
-              `((,(s-var "s") ,@link-uri ,resource-uri))))
            (insert-query (resource-uri link-uri new-linked-uri)
              (sparql-insert-triples
               `((,resource-uri ,@link-uri ,new-linked-uri)))))
@@ -739,22 +736,12 @@
             ;; update content
             (let* ((new-linked-uuid (jsown:val resource-specification "id"))
                    (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
-              (if (inverse-p link)
-                  (with-query-group
-                    (inverse-delete-query (s-url resource-uri)
-                                          (ld-property-list link))
-                                        ; no need to change the order in the insert
-                                        ; query as ld-property-list takes care of
-                                        ; that.
-                    (insert-query (s-url resource-uri)
-                                  (ld-property-list link)
-                                  (s-url new-linked-uri)))
-                  (with-query-group
-                    (delete-query (s-url resource-uri)
-                                  (ld-property-list link))
-                    (insert-query (s-url resource-uri)
-                                  (ld-property-list link)
-                                  (s-url new-linked-uri)))))
+              (with-query-group
+                (delete-query (s-url resource-uri)
+                              (ld-property-list link))
+                (insert-query (s-url resource-uri)
+                              (ld-property-list link)
+                              (s-url new-linked-uri))))
             ;; delete content
             (delete-query (s-url resource-uri)
                           (ld-property-list link))))))
