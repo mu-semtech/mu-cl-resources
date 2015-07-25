@@ -704,7 +704,7 @@
             for value = (interpret-json-value slot (jsown:val attributes key))
             for property-list = (ld-property-list slot)
             collect
-              `(,uri ,@property-list ,slot))))
+              `(,uri ,@property-list ,value))))
       (when (and (jsown:keyp json-input "data")
                  (jsown:keyp (jsown:val json-input "data") "relationships"))
         (loop for relation in (jsown:keywords (jsown:filter json-input "data" "relationships"))
