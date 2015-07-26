@@ -471,6 +471,10 @@
   (:method ((slot resource-slot) (type (eql :url)) value)
     (s-url value)))
 
+(defun respond-no-content ()
+  "Returns a 204 No Content response."
+  (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)
+  :no-content)
 
 (defun respond-not-found (&optional jsown-object)
   "Returns a not-found response.  The supplied jsown-object is
@@ -714,7 +718,7 @@
              (update-resource-relation resource uuid relation
                                        (jsown:filter json-input
                                                      "data" "relationships" relation "data")))))
-    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
+    (respond-no-content)))
 
 (defgeneric update-resource-relation (resource uuid relation resource-specification)
   (:documentation "updates the specified relation with the given specification.")
@@ -870,7 +874,7 @@
          (,(s-var "s") ,(s-prefix "a") ,(ld-class resource))
          ,@(loop for content on relation-content
               collect `(,(s-var "s") ,@content)))))
-    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
+    (respond-no-content)))
 
 (defgeneric show-relation-call (resource id link)
   (:documentation "implementation of the GET request which handles
@@ -946,7 +950,7 @@
                               (s-url new-linked-uri))))
             ;; delete content
             (delete-query (s-url resource-uri) link-path))))
-    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+))
+    (respond-no-content))
   (:method ((resource resource) id (link has-many-link))
     (flet ((delete-query (resource-uri link-uri)
              (sparql-delete-triples
@@ -971,7 +975,7 @@
             ;; delete content
             (delete-query (s-url resource-uri)
                           link-path))))
-    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
+    (respond-no-content)))
 
 (defgeneric delete-relation-call (resource id link)
   (:documentation "Performs a delete call on a relation, thereby
@@ -991,7 +995,7 @@
               `(,(s-url (find-resource-for-uuid resource id))
                  ,@(ld-property-list link)
                  ,resource)))))
-    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
+    (respond-no-content)))
 
 (defgeneric add-relation-call (resource id link)
   (:documentation "Performs the addition call on a relation, thereby
@@ -1011,7 +1015,7 @@
            (loop for resource in resources
               collect
                 `(,source-url ,@properties ,resource))))))
-    (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)))
+    (respond-no-content)))
 
 ;;;;;;;;;;;;;;;;;;;
 ;;;; standard calls
