@@ -872,8 +872,8 @@
       (sparql-delete-triples
        `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))
          (,(s-var "s") ,(s-prefix "a") ,(ld-class resource))
-         ,@(loop for content on relation-content
-              collect `(,(s-var "s") ,@content)))))
+         ,@(loop for (property-list value) on relation-content
+              collect `(,(s-var "s") ,@property-list ,value)))))
     (respond-no-content)))
 
 (defgeneric show-relation-call (resource id link)
