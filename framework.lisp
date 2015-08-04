@@ -1014,7 +1014,7 @@
           (sparql-insert-triples
            (loop for resource in resources
               collect
-                `(,source-url ,@properties ,resource))))))
+                `(,(s-url source-url) ,@properties ,(s-url resource)))))))
     (respond-no-content)))
 
 ;;;;;;;;;;;;;;;;;;;
