@@ -243,6 +243,11 @@
   (declare (ignore object))
   (read-from-string value))
 
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#float"
+    (value object)
+  (declare (ignore object))
+  (read-from-string value))
+
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#integer"
     (value object)
   (declare (ignore object))
