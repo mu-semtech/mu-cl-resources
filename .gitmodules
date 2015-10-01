@@ -4,3 +4,6 @@
 [submodule "mu-cl-support"]
 	path = dependencies/mu-cl-support
 	url = git@github.com:mu-semtech/mu-cl-support
+[submodule "dependencies/jsown"]
+	path = dependencies/jsown
+	url = git@github.com:madnificent/jsown

@@ -244,6 +244,11 @@
   (declare (ignore object))
   (read-from-string value))
 
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#float"
+    (value object)
+  (declare (ignore object))
+  (read-from-string value))
+
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#integer"
     (value object)
   (declare (ignore object))
@@ -870,11 +875,30 @@
                         (s-var (sparql-variable-name link)))
                   relation-content))
       (setf relation-content (reverse relation-content))
-      (sparql-delete-triples
-       `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))
-         (,(s-var "s") ,(s-prefix "a") ,(ld-class resource))
-         ,@(loop for (property-list value) on relation-content
-              collect `(,(s-var "s") ,@property-list ,value)))))
+      (sparql-delete
+       (apply #'concatenate 'string
+              (loop for triple-clause
+                 in
+                   `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))
+                     (,(s-var "s") ,(s-prefix "a") ,(ld-class resource))
+                     ,@(loop for (property-list value) in relation-content
+                          collect `(,(s-var "s") ,@property-list ,value)))
+                 for (subject predicate object) = triple-clause
+                 collect (if (s-inv-p predicate)
+                             (format nil "~4t~A ~A ~A.~%"
+                                     object (s-inv predicate) subject)
+                             (format nil "~4t~A ~A ~A.~%"
+                                     subject predicate object))))
+       (concatenate 'string
+                    (format nil "~{~&~4t~{~A ~A ~A~}.~%~}"
+                            `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))
+                              (,(s-var "s") ,(s-prefix "a") ,(ld-class resource))))
+                    (format nil "~{~&~4tOPTIONAL {~{~A ~A ~A~}.}~%~}"
+                            (loop for (property-list value) in relation-content
+                               if (s-inv-p (first property-list))
+                               collect `(,value ,(s-inv (first property-list)) ,(s-var "s"))
+                               else
+                               collect `(,(s-var "s") ,(first property-list) ,value))))))
     (respond-no-content)))
 
 (defgeneric show-relation-call (resource id link)
@@ -1015,7 +1039,7 @@
           (sparql-insert-triples
            (loop for resource in resources
               collect
-                `(,source-url ,@properties ,resource))))))
+                `(,(s-url source-url) ,@properties ,(s-url resource)))))))
     (respond-no-content)))
 
 ;;;;;;;;;;;;;;;;;;;
