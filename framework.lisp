@@ -7,6 +7,9 @@
 (defparameter *verify-accept-header* nil
   "when non-nil, the application/vndi+json ACCEPT header is checked.")
 
+(defparameter *application-graph* (s-url "http://mu.semte.ch/application")
+  "standard graph for all sparql queries.")
+
 ;;;;;;;;;;;;;;;;
 ;;;; error codes
 
@@ -146,16 +149,14 @@
    Takes with-query-group into account."
   (sparql-query
    (s-select variables
-             (s-graph (s-url "http://mu.semte.ch/application/")
-                      body))))
+             (s-graph *application-graph* body))))
 
 (defun sparql-insert (body)
   "Executes a SPARQL INSERT DATA query on the current graph.
    Takes with-query-group into account."
   (sparql-query
    (s-insert
-    (s-graph (s-url "http://mu.semte.ch/application/")
-             body))))
+    (s-graph *application-graph* body))))
 
 (defun sparql-insert-triples (triple-clauses)
   "Inserts a set of triples based on the provided triple-clauses.
@@ -175,9 +176,9 @@
 (defun sparql-delete (clauses &optional where)
   "Executes a SPARQL DELETE query on the current graph.
    Takes with-query-group into account."
-  (let ((clauses (s-graph (s-url "http://mu.semte.ch/application/") clauses))
+  (let ((clauses (s-graph *application-graph* clauses))
         (where (when where
-                 (s-graph (s-url "http://mu.semte.ch/application/") where))))
+                 (s-graph *application-graph* where))))
     (sparql-query
      (s-delete clauses where))))
 
