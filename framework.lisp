@@ -253,6 +253,11 @@
   (declare (ignore object))
   (parse-integer value))
 
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#dateTime"
+    (value object)
+  (declare (ignore object))
+  value)
+
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#boolean"
     (value object)
   (declare (ignore object))
@@ -474,7 +479,9 @@
   (:method ((slot resource-slot) type value)
     (s-from-json value))
   (:method ((slot resource-slot) (type (eql :url)) value)
-    (s-url value)))
+    (s-url value))
+  (:method ((slot resource-slot) (type (eql :datetime)) value)
+    (s-typed value (s-prefix "xsd:dateTime"))))
 
 (defun respond-no-content ()
   "Returns a 204 No Content response."
