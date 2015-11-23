@@ -224,7 +224,7 @@
      value
      object)))
 
-(defparameter *typed-literal-importers* (make-hash-table :test 'equal :synchronized t)
+(defparameter *typed-literal-importers* (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
   "contains all convertors for typed-literal values coming from the database.")
 
 (defmacro define-typed-literal-importer (type (&rest variables) &body body)
