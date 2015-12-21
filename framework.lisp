@@ -806,6 +806,14 @@
       (parse-integer entity :junk-allowed t)
     (error () nil)))
 
+(defun count-matches (identifier-variable query-body)
+  "Returns the amount of matches for a particular response."
+  (parse-integer
+   (jsown:filter (first (sparql-select (format nil "((COUNT (DISTINCT ~A)) AS ?count)"
+                                               identifier-variable)
+                                       query-body))
+                 "count" "value")))
+
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
@@ -815,16 +823,12 @@
     (let ((page-size (or (try-parse-number (hunchentoot:get-parameter "page[size]")) 10))
           (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
       (let ((limit page-size)
-            (offset (* page-size page-number)))
-        (let ((uuid-count (parse-integer
-                           (jsown:filter (first (sparql-select "((count (distinct ?uuid)) AS ?count)"
-                                                               (format nil "?s mu:uuid ?uuid; a ~A."
-                                                                       (ld-class resource))))
-                                         "count" "value")))
+            (offset (* page-size page-number))
+            (match-sparql-body (format nil "?s mu:uuid ?uuid; a ~A."
+                                       (ld-class resource))))
+        (let ((uuid-count (count-matches (s-var "uuid") match-sparql-body))
               (uuids (jsown:filter
-                      (sparql-select "*"
-                                     (format nil "?s mu:uuid ?uuid; a ~A."
-                                             (ld-class resource))
+                      (sparql-select "*" match-sparql-body
                                      :order-by (s-var "uuid")
                                      :limit limit
                                      :offset offset)
