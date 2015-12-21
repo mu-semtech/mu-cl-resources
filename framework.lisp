@@ -842,25 +842,30 @@
                                  :offset offset)
                   map "uuid" "value")))
 
+(defun paginated-collection-response (&key resource sparql-body)
+  "Constructs the paginated response for a collection listing."
+  (destructuring-bind (page-size page-number)
+      (extract-pagination-info-from-request)
+    (let ((uuid-count (count-matches (s-var "uuid") sparql-body))
+          (uuids (paginate-uuids-for-sparql-body :sparql-body sparql-body
+                                                 :page-size page-size
+                                                 :page-number page-number)))
+      (jsown:new-js ("data" (retrieve-data-for-uuids resource uuids))
+                    ("links" (build-pagination-links resource
+                                                     :total-count uuid-count
+                                                     :page-size page-size
+                                                     :page-number page-number))))))
+
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
   (:method ((resource-symbol symbol))
     (list-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
-    (destructuring-bind (page-size page-number)
-        (extract-pagination-info-from-request)
-      (let ((match-sparql-body (format nil "?s mu:uuid ?uuid; a ~A."
-                                       (ld-class resource))))
-        (let ((uuid-count (count-matches (s-var "uuid") match-sparql-body))
-              (uuids (paginate-uuids-for-sparql-body :sparql-body match-sparql-body
-                                                     :page-size page-size
-                                                     :page-number page-number)))
-          (jsown:new-js ("data" (retrieve-data-for-uuids resource uuids))
-                        ("links" (build-pagination-links resource
-                                                         :total-count uuid-count
-                                                         :page-size page-size
-                                                         :page-number page-number))))))))
+    (paginated-collection-response
+     :resource resource
+     :sparql-body (format nil "?s mu:uuid ?uuid; a ~A."
+                          (ld-class resource)))))
 
 (defgeneric show-call (resource uuid)
   (:documentation "implementation of the GET request which
