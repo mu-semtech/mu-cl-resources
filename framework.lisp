@@ -675,7 +675,7 @@
 
 (defun extract-pagination-info-from-request ()
   "Extracts the pagination info from the current request object."
-  (let ((page-size (or (try-parse-number (hunchentoot:get-parameter "page[size]")) 10))
+  (let ((page-size (or (try-parse-number (hunchentoot:get-parameter "page[size]")) *default-page-size*))
         (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
     (list page-size page-number)))
 
