@@ -808,7 +808,12 @@
           (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
       (let ((limit page-size)
             (offset (* page-size page-number)))
-        (let ((uuids (jsown:filter
+        (let ((uuid-count (parse-integer
+                           (jsown:filter (first (sparql-select "((count (distinct ?uuid)) AS ?count)"
+                                                               (format nil "?s mu:uuid ?uuid; a ~A."
+                                                                       (ld-class resource))))
+                                         "count" "value")))
+              (uuids (jsown:filter
                       (sparql-select "*"
                                      (format nil "?s mu:uuid ?uuid; a ~A."
                                              (ld-class resource))
@@ -821,7 +826,11 @@
                                                    (show-call resource uuid)
                                                  (no-such-instance () nil))
                                    when shown
-                                   collect (jsown:val shown "data")))))))))
+                                   collect (jsown:val shown "data")))
+                        ("links" (build-pagination-links resource
+                                                         :total-count uuid-count
+                                                         :page-size page-size
+                                                         :page page-number))))))))
 
 (defgeneric show-call (resource uuid)
   (:documentation "implementation of the GET request which
@@ -881,6 +890,37 @@
                                      (request-path resource)
                                      identifier
                                      (request-path link))))))
+
+(defun build-url (base-url request-params)
+  "Constructs a simple url.  Request-params should contain
+  lists of options.
+  eg: (build-url \"/taxonomies\" `((\"page[number]\" 42) (\"page[size]\" 3)))"
+  (if request-params
+      (format nil "~A?~{~A=~A~,^&~}" base-url request-params)
+      base-url))
+
+(defgeneric build-pagination-links (resource &rest args &key page page-size total-count)
+  (:documentation "retrieves the links object for pagination of a
+    resource's listing.")
+  (:method ((resource-symbol symbol) &rest args &key &allow-other-keys)
+    (apply #'build-pagination-links (find-resource-by-name resource-symbol) args))
+  (:method ((resource resource) &rest args &key (page 0) (page-size *default-page-size*) total-count)
+    (declare (ignore args))
+    (flet ((build-url (&key page-number)
+             (build-url (s+ "/" (request-path resource))
+                        `(,@(unless (= page-number 0) `("page[number]" ,page-number))
+                          ,@(unless (= page-size *default-page-size*) `("page[size]" ,page-size))))))
+      (let ((last-page (1- (ceiling (/ total-count page-size)))))
+        (let ((links (jsown:new-js
+                       ("first" (build-url :page-number 0))
+                       ("last" (build-url :page-number last-page)))))
+          (unless (= page 0)
+            (setf (jsown:val links "prev")
+                  (build-url :page-number (1- page))))
+          (unless (= page last-page)
+            (setf (jsown:val links "next")
+                  (build-url :page-number (1+ page))))
+          links)))))
 
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
