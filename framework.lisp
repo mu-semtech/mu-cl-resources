@@ -719,10 +719,10 @@
         (let ((links (jsown:new-js
                        ("first" (build-url :page-number 0))
                        ("last" (build-url :page-number last-page)))))
-          (unless (= page-number 0)
+          (unless (<= page-number 0)
             (setf (jsown:val links "prev")
                   (build-url :page-number (1- page-number))))
-          (unless (= page-number last-page)
+          (unless (>= page-number last-page)
             (setf (jsown:val links "next")
                   (build-url :page-number (1+ page-number))))
           links)))))
