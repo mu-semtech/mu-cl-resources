@@ -832,6 +832,16 @@
         (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
     (list page-size page-number)))
 
+(defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number)
+  (let ((limit page-size)
+        (offset (* page-size page-number)))
+    (jsown:filter (sparql-select (s-var "uuid")
+                                 sparql-body
+                                 :order-by (s-var "uuid")
+                                 :limit limit
+                                 :offset offset)
+                  map "uuid" "value")))
+
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
@@ -840,17 +850,12 @@
   (:method ((resource resource))
     (destructuring-bind (page-size page-number)
         (extract-pagination-info-from-request)
-      (let ((limit page-size)
-            (offset (* page-size page-number))
-            (match-sparql-body (format nil "?s mu:uuid ?uuid; a ~A."
+      (let ((match-sparql-body (format nil "?s mu:uuid ?uuid; a ~A."
                                        (ld-class resource))))
         (let ((uuid-count (count-matches (s-var "uuid") match-sparql-body))
-              (uuids (jsown:filter
-                      (sparql-select "*" match-sparql-body
-                                     :order-by (s-var "uuid")
-                                     :limit limit
-                                     :offset offset)
-                      map "uuid" "value")))
+              (uuids (paginate-uuids-for-sparql-body :sparql-body match-sparql-body
+                                                     :page-size page-size
+                                                     :page-number page-number)))
           (jsown:new-js ("data" (retrieve-data-for-uuids resource uuids))
                         ("links" (build-pagination-links resource
                                                          :total-count uuid-count
