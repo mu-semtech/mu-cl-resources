@@ -826,14 +826,20 @@
      when shown
      collect (jsown:val shown "data")))
 
+(defun extract-pagination-info-from-request ()
+  "Extracts the pagination info from the current request object."
+  (let ((page-size (or (try-parse-number (hunchentoot:get-parameter "page[size]")) 10))
+        (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
+    (list page-size page-number)))
+
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
   (:method ((resource-symbol symbol))
     (list-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
-    (let ((page-size (or (try-parse-number (hunchentoot:get-parameter "page[size]")) 10))
-          (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
+    (destructuring-bind (page-size page-number)
+        (extract-pagination-info-from-request)
       (let ((limit page-size)
             (offset (* page-size page-number))
             (match-sparql-body (format nil "?s mu:uuid ?uuid; a ~A."
