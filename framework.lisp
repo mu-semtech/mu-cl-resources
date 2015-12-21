@@ -814,6 +814,18 @@
                                        query-body))
                  "count" "value")))
 
+(defun retrieve-data-for-uuids (resource uuids)
+  "Retrieves the object description for all found uuids in the
+   set of supplied uuids.
+   If a uuid could not be found, it is not returned in the set of
+   results."
+  (loop for uuid in uuids
+     for shown = (handler-case
+                     (show-call resource uuid)
+                   (no-such-instance () nil))
+     when shown
+     collect (jsown:val shown "data")))
+
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
@@ -833,12 +845,7 @@
                                      :limit limit
                                      :offset offset)
                       map "uuid" "value")))
-          (jsown:new-js ("data" (loop for uuid in uuids
-                                   for shown = (handler-case
-                                                   (show-call resource uuid)
-                                                 (no-such-instance () nil))
-                                   when shown
-                                   collect (jsown:val shown "data")))
+          (jsown:new-js ("data" (retrieve-data-for-uuids resource uuids))
                         ("links" (build-pagination-links resource
                                                          :total-count uuid-count
                                                          :page-size page-size
