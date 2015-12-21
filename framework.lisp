@@ -702,8 +702,11 @@
      collect (jsown:val shown "data")))
 
 (defgeneric build-pagination-links (resource &rest args &key page-number page-size total-count)
-  (:documentation "retrieves the links object for pagination of a
-    resource's listing.")
+  (:documentation "Retrieves the links object for pagination of a
+    resource's listing.
+
+    This method is long and it looks daunting, but it's just some
+    ugly wiring from our internal format to nice URLs for JSONAPI.")
   (:method ((resource-symbol symbol) &rest args &key &allow-other-keys)
     (apply #'build-pagination-links (find-resource-by-name resource-symbol) args))
   (:method ((resource resource) &rest args &key (page-number 0) (page-size *default-page-size*) total-count)
