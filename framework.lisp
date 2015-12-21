@@ -9,6 +9,8 @@
 
 (defparameter *application-graph* (s-url "http://mu.semte.ch/application")
   "standard graph for all sparql queries.")
+(defparameter *default-page-size* 20
+  "default amount of items in a single page of results.")
 
 ;;;;;;;;;;;;;;;;
 ;;;; error codes
@@ -144,11 +146,12 @@
       (fuseki:with-query-logging *error-output*
         (fuseki:query *repository* content))))
 
-(defun sparql-select (variables body &key order-by)
+(defun sparql-select (variables body &rest args &key order-by limit offset)
   "Executes a SPARQL SELECT query on the current graph.
    Takes with-query-group into account."
+  (declare (ignore order-by limit offset))
   (sparql-query
-   (s-select variables (list :order-by order-by)
+   (s-select variables args
              (s-graph *application-graph* body))))
 
 (defun sparql-insert (body)
@@ -789,24 +792,36 @@
             (delete-query (s-url resource-uri)
                           (ld-property-list link)))))))
 
+(defun try-parse-number (entity)
+  "Tries to parse the number, returns nil if no number could be found."
+  (handler-case
+      (parse-integer entity :junk-allowed t)
+    (error () nil)))
+
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
   (:method ((resource-symbol symbol))
     (list-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
-    (let ((uuids (jsown:filter
-                  (sparql-select "*"
-                                 (format nil "?s mu:uuid ?uuid; a ~A."
-                                         (ld-class resource))
-                                 :order-by (s-var "uuid"))
-                  map "uuid" "value")))
-      (jsown:new-js ("data" (loop for uuid in uuids
-                               for shown = (handler-case
-                                               (show-call resource uuid)
-                                             (no-such-instance () nil))
-                               when shown
-                               collect (jsown:val shown "data")))))))
+    (let ((page-size (or (try-parse-number (hunchentoot:get-parameter "page[size]")) 10))
+          (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
+      (let ((limit page-size)
+            (offset (* page-size page-number)))
+        (let ((uuids (jsown:filter
+                      (sparql-select "*"
+                                     (format nil "?s mu:uuid ?uuid; a ~A."
+                                             (ld-class resource))
+                                     :order-by (s-var "uuid")
+                                     :limit limit
+                                     :offset offset)
+                      map "uuid" "value")))
+          (jsown:new-js ("data" (loop for uuid in uuids
+                                   for shown = (handler-case
+                                                   (show-call resource uuid)
+                                                 (no-such-instance () nil))
+                                   when shown
+                                   collect (jsown:val shown "data")))))))))
 
 (defgeneric show-call (resource uuid)
   (:documentation "implementation of the GET request which
