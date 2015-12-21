@@ -144,11 +144,11 @@
       (fuseki:with-query-logging *error-output*
         (fuseki:query *repository* content))))
 
-(defun sparql-select (variables body)
+(defun sparql-select (variables body &key order-by)
   "Executes a SPARQL SELECT query on the current graph.
    Takes with-query-group into account."
   (sparql-query
-   (s-select variables
+   (s-select variables (list :order-by order-by)
              (s-graph *application-graph* body))))
 
 (defun sparql-insert (body)
@@ -798,7 +798,8 @@
     (let ((uuids (jsown:filter
                   (sparql-select "*"
                                  (format nil "?s mu:uuid ?uuid; a ~A."
-                                         (ld-class resource)))
+                                         (ld-class resource))
+                                 :order-by (s-var "uuid"))
                   map "uuid" "value")))
       (jsown:new-js ("data" (loop for uuid in uuids
                                for shown = (handler-case
