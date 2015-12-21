@@ -656,6 +656,89 @@
                                        "Obligatory content (~{~A~,^, ~}) of one of the items in the data object was not found."
                                        missing-keys))))))
 
+;;;;;;;;;;;;;;;;;;;;;
+;;;; response support
+
+(defun try-parse-number (entity)
+  "Tries to parse the number, returns nil if no number could be found."
+  (handler-case
+      (parse-integer entity :junk-allowed t)
+    (error () nil)))
+
+(defun count-matches (identifier-variable query-body)
+  "Returns the amount of matches for a particular response."
+  (parse-integer
+   (jsown:filter (first (sparql-select (format nil "((COUNT (DISTINCT ~A)) AS ?count)"
+                                               identifier-variable)
+                                       query-body))
+                 "count" "value")))
+
+(defun extract-pagination-info-from-request ()
+  "Extracts the pagination info from the current request object."
+  (let ((page-size (or (try-parse-number (hunchentoot:get-parameter "page[size]")) 10))
+        (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
+    (list page-size page-number)))
+
+(defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number)
+  (let ((limit page-size)
+        (offset (* page-size page-number)))
+    (jsown:filter (sparql-select (s-var "uuid")
+                                 sparql-body
+                                 :order-by (s-var "uuid")
+                                 :limit limit
+                                 :offset offset)
+                  map "uuid" "value")))
+
+(defun retrieve-data-for-uuids (resource uuids)
+  "Retrieves the object description for all found uuids in the
+   set of supplied uuids.
+   If a uuid could not be found, it is not returned in the set of
+   results."
+  (loop for uuid in uuids
+     for shown = (handler-case
+                     (show-call resource uuid)
+                   (no-such-instance () nil))
+     when shown
+     collect (jsown:val shown "data")))
+
+(defgeneric build-pagination-links (resource &rest args &key page-number page-size total-count)
+  (:documentation "retrieves the links object for pagination of a
+    resource's listing.")
+  (:method ((resource-symbol symbol) &rest args &key &allow-other-keys)
+    (apply #'build-pagination-links (find-resource-by-name resource-symbol) args))
+  (:method ((resource resource) &rest args &key (page-number 0) (page-size *default-page-size*) total-count)
+    (declare (ignore args))
+    (flet ((build-url (&key page-number)
+             (build-url (s+ "/" (request-path resource))
+                        `(,@(unless (= page-number 0) `("page[number]" ,page-number))
+                          ,@(unless (= page-size *default-page-size*) `("page[size]" ,page-size))))))
+      (let ((last-page (1- (ceiling (/ total-count page-size)))))
+        (let ((links (jsown:new-js
+                       ("first" (build-url :page-number 0))
+                       ("last" (build-url :page-number last-page)))))
+          (unless (= page-number 0)
+            (setf (jsown:val links "prev")
+                  (build-url :page-number (1- page-number))))
+          (unless (= page-number last-page)
+            (setf (jsown:val links "next")
+                  (build-url :page-number (1+ page-number))))
+          links)))))
+
+(defun paginated-collection-response (&key resource sparql-body)
+  "Constructs the paginated response for a collection listing."
+  (destructuring-bind (page-size page-number)
+      (extract-pagination-info-from-request)
+    (let ((uuid-count (count-matches (s-var "uuid") sparql-body))
+          (uuids (paginate-uuids-for-sparql-body :sparql-body sparql-body
+                                                 :page-size page-size
+                                                 :page-number page-number)))
+      (jsown:new-js ("data" (retrieve-data-for-uuids resource uuids))
+                    ("links" (build-pagination-links resource
+                                                     :total-count uuid-count
+                                                     :page-size page-size
+                                                     :page-number page-number))))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; call implementation
 
@@ -800,62 +883,6 @@
             (delete-query (s-url resource-uri)
                           (ld-property-list link)))))))
 
-(defun try-parse-number (entity)
-  "Tries to parse the number, returns nil if no number could be found."
-  (handler-case
-      (parse-integer entity :junk-allowed t)
-    (error () nil)))
-
-(defun count-matches (identifier-variable query-body)
-  "Returns the amount of matches for a particular response."
-  (parse-integer
-   (jsown:filter (first (sparql-select (format nil "((COUNT (DISTINCT ~A)) AS ?count)"
-                                               identifier-variable)
-                                       query-body))
-                 "count" "value")))
-
-(defun retrieve-data-for-uuids (resource uuids)
-  "Retrieves the object description for all found uuids in the
-   set of supplied uuids.
-   If a uuid could not be found, it is not returned in the set of
-   results."
-  (loop for uuid in uuids
-     for shown = (handler-case
-                     (show-call resource uuid)
-                   (no-such-instance () nil))
-     when shown
-     collect (jsown:val shown "data")))
-
-(defun extract-pagination-info-from-request ()
-  "Extracts the pagination info from the current request object."
-  (let ((page-size (or (try-parse-number (hunchentoot:get-parameter "page[size]")) 10))
-        (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
-    (list page-size page-number)))
-
-(defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number)
-  (let ((limit page-size)
-        (offset (* page-size page-number)))
-    (jsown:filter (sparql-select (s-var "uuid")
-                                 sparql-body
-                                 :order-by (s-var "uuid")
-                                 :limit limit
-                                 :offset offset)
-                  map "uuid" "value")))
-
-(defun paginated-collection-response (&key resource sparql-body)
-  "Constructs the paginated response for a collection listing."
-  (destructuring-bind (page-size page-number)
-      (extract-pagination-info-from-request)
-    (let ((uuid-count (count-matches (s-var "uuid") sparql-body))
-          (uuids (paginate-uuids-for-sparql-body :sparql-body sparql-body
-                                                 :page-size page-size
-                                                 :page-number page-number)))
-      (jsown:new-js ("data" (retrieve-data-for-uuids resource uuids))
-                    ("links" (build-pagination-links resource
-                                                     :total-count uuid-count
-                                                     :page-size page-size
-                                                     :page-number page-number))))))
-
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
@@ -925,29 +952,6 @@
                                      (request-path resource)
                                      identifier
                                      (request-path link))))))
-
-(defgeneric build-pagination-links (resource &rest args &key page-number page-size total-count)
-  (:documentation "retrieves the links object for pagination of a
-    resource's listing.")
-  (:method ((resource-symbol symbol) &rest args &key &allow-other-keys)
-    (apply #'build-pagination-links (find-resource-by-name resource-symbol) args))
-  (:method ((resource resource) &rest args &key (page-number 0) (page-size *default-page-size*) total-count)
-    (declare (ignore args))
-    (flet ((build-url (&key page-number)
-             (build-url (s+ "/" (request-path resource))
-                        `(,@(unless (= page-number 0) `("page[number]" ,page-number))
-                          ,@(unless (= page-size *default-page-size*) `("page[size]" ,page-size))))))
-      (let ((last-page (1- (ceiling (/ total-count page-size)))))
-        (let ((links (jsown:new-js
-                       ("first" (build-url :page-number 0))
-                       ("last" (build-url :page-number last-page)))))
-          (unless (= page-number 0)
-            (setf (jsown:val links "prev")
-                  (build-url :page-number (1- page-number))))
-          (unless (= page-number last-page)
-            (setf (jsown:val links "next")
-                  (build-url :page-number (1+ page-number))))
-          links)))))
 
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
