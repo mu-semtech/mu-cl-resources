@@ -1029,24 +1029,14 @@
             ("data" :null)
             ("links" (build-links-object resource id link))))))
   (:method ((resource resource) id (link has-many-link))
-    (let ((query-results
-           (sparql-select (s-var "uuid")
-                          (format nil
-                                  (s+ "~A ~{~A~,^/~} ?resource. "
-                                      "?resource mu:uuid ?uuid.")
-                                  (s-url (find-resource-for-uuid resource id))
-                                  (ld-property-list link))))
-          (linked-resource (referred-resource link)))
-      (jsown:new-js
-        ("data" (loop for result in query-results
-                   for uuid = (jsown:filter result "uuid" "value")
-                   collect
-                     (jsown:val (show-call linked-resource uuid) "data")
-                     ;;   ("id" uuid)
-                     ;;   ("self" (construct-resource-item-path linked-resource uuid))
-                     ;;   ("type" (json-type linked-resource)))
-                     ))
-        ("links" (build-links-object resource id link))))))
+    (paginated-collection-response
+     :resource (referred-resource link)
+     :sparql-body (format nil
+                          (s+ "~A ~{~A~,^/~} ?resource. "
+                              "?resource mu:uuid ?uuid.")
+                          (s-url (find-resource-for-uuid resource id))
+                          (ld-property-list link))
+     :link-defaults (build-links-object resource id link))))
 
 (defgeneric patch-relation-call (resource id link)
   (:documentation "implementation of the PATCH request which
