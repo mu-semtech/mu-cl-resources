@@ -838,7 +838,7 @@
                         ("links" (build-pagination-links resource
                                                          :total-count uuid-count
                                                          :page-size page-size
-                                                         :page page-number))))))))
+                                                         :page-number page-number))))))))
 
 (defgeneric show-call (resource uuid)
   (:documentation "implementation of the GET request which
@@ -899,13 +899,12 @@
                                      identifier
                                      (request-path link))))))
 
-
-(defgeneric build-pagination-links (resource &rest args &key page page-size total-count)
+(defgeneric build-pagination-links (resource &rest args &key page-number page-size total-count)
   (:documentation "retrieves the links object for pagination of a
     resource's listing.")
   (:method ((resource-symbol symbol) &rest args &key &allow-other-keys)
     (apply #'build-pagination-links (find-resource-by-name resource-symbol) args))
-  (:method ((resource resource) &rest args &key (page 0) (page-size *default-page-size*) total-count)
+  (:method ((resource resource) &rest args &key (page-number 0) (page-size *default-page-size*) total-count)
     (declare (ignore args))
     (flet ((build-url (&key page-number)
              (build-url (s+ "/" (request-path resource))
@@ -915,12 +914,12 @@
         (let ((links (jsown:new-js
                        ("first" (build-url :page-number 0))
                        ("last" (build-url :page-number last-page)))))
-          (unless (= page 0)
+          (unless (= page-number 0)
             (setf (jsown:val links "prev")
-                  (build-url :page-number (1- page))))
-          (unless (= page last-page)
+                  (build-url :page-number (1- page-number))))
+          (unless (= page-number last-page)
             (setf (jsown:val links "next")
-                  (build-url :page-number (1+ page))))
+                  (build-url :page-number (1+ page-number))))
           links)))))
 
 (defgeneric delete-call (resource uuid)
