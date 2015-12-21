@@ -715,7 +715,7 @@
              (build-url (s+ "/" (request-path resource))
                         `(,@(unless (= page-number 0) `("page[number]" ,page-number))
                           ,@(unless (= page-size *default-page-size*) `("page[size]" ,page-size))))))
-      (let ((last-page (1- (ceiling (/ total-count page-size)))))
+      (let ((last-page (max 0 (1- (ceiling (/ total-count page-size))))))
         (let ((links (jsown:new-js
                        ("first" (build-url :page-number 0))
                        ("last" (build-url :page-number last-page)))))
