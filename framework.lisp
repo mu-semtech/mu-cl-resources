@@ -117,6 +117,14 @@
                                      (jsown:val b key)))))))
     result))
 
+(defun build-url (base-url request-params)
+  "Constructs a simple url.  Request-params should contain
+  lists of options.
+  eg: (build-url \"/taxonomies\" `((\"page[number]\" 42) (\"page[size]\" 3)))"
+  (if request-params
+      (format nil "~A?~{~A=~A~,^&~}" base-url request-params)
+      base-url))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; query execution helpers
 
@@ -891,13 +899,6 @@
                                      identifier
                                      (request-path link))))))
 
-(defun build-url (base-url request-params)
-  "Constructs a simple url.  Request-params should contain
-  lists of options.
-  eg: (build-url \"/taxonomies\" `((\"page[number]\" 42) (\"page[size]\" 3)))"
-  (if request-params
-      (format nil "~A?~{~A=~A~,^&~}" base-url request-params)
-      base-url))
 
 (defgeneric build-pagination-links (resource &rest args &key page page-size total-count)
   (:documentation "retrieves the links object for pagination of a
