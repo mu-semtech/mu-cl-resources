@@ -743,6 +743,33 @@
                                                       :page-number page-number)
                               link-defaults))))))
 
+(defun filter-body-for-search (&key resource source-variable sparql-body)
+  (let ((filters
+         (loop for (param . value) in (hunchentoot:get-parameters hunchentoot:*request*)
+            if (string= "filter" (subseq param 0 (length "filter")))
+            collect (list :components
+                          (mapcar (lambda (str)
+                                    (subseq str 0 (1- (length str))))
+                                  (rest (cl-ppcre:split "\\[" param)))
+                          :search
+                          value
+                          :tmp-var
+                          (s-genvar "search")))))
+    ;; generate the search triples
+    (dolist (filter filters)
+      (destructuring-bind (&key components search tmp-var) filter
+        (when (> 1 (length components))
+          (error 'simple-error :format-control "Components of filter should not exceed 1"))
+        (let ((resource-slot (resource-slot-by-json-key resource (car components))))
+          (setf sparql-body
+                (format nil "~A ~&~t~A ~{~A~^,/~} ~A FILTER CONTAINS(LCASE(~A), LCASE(~A)) ~&"
+                        sparql-body source-variable
+                        (ld-property-list resource-slot)
+                        tmp-var
+                        tmp-var
+                        (s-str search))))))
+    sparql-body))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; call implementation
@@ -896,8 +923,11 @@
   (:method ((resource resource))
     (paginated-collection-response
      :resource resource
-     :sparql-body (format nil "?s mu:uuid ?uuid; a ~A."
-                          (ld-class resource)))))
+     :sparql-body (filter-body-for-search
+                   :sparql-body  (format nil "?s mu:uuid ?uuid; a ~A."
+                                         (ld-class resource))
+                   :source-variable (s-var "s")
+                   :resource resource))))
 
 (defgeneric show-call (resource uuid)
   (:documentation "implementation of the GET request which
