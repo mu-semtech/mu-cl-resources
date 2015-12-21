@@ -727,7 +727,7 @@
                   (build-url :page-number (1+ page-number))))
           links)))))
 
-(defun paginated-collection-response (&key resource sparql-body)
+(defun paginated-collection-response (&key resource sparql-body link-defaults)
   "Constructs the paginated response for a collection listing."
   (destructuring-bind (page-size page-number)
       (extract-pagination-info-from-request)
@@ -736,10 +736,12 @@
                                                  :page-size page-size
                                                  :page-number page-number)))
       (jsown:new-js ("data" (retrieve-data-for-uuids resource uuids))
-                    ("links" (build-pagination-links resource
-                                                     :total-count uuid-count
-                                                     :page-size page-size
-                                                     :page-number page-number))))))
+                    ("links" (merge-jsown-objects
+                              (build-pagination-links resource
+                                                      :total-count uuid-count
+                                                      :page-size page-size
+                                                      :page-number page-number)
+                              link-defaults))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
