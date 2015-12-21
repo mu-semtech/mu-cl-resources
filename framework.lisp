@@ -655,7 +655,7 @@
     (create-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
     (let* ((json-input (jsown:parse (post-body)))
-           (uuid (princ-to-string (uuid:make-v4-uuid)))
+           (uuid (mu-support:make-uuid)) 
            (resource-uri (s-url (format nil "~A~A"
                                        (raw-content (ld-resource-base resource))
                                        uuid))))
