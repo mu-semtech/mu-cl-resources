@@ -811,6 +811,16 @@
                                                       :page-number page-number)
                               link-defaults))))))
 
+(defun sparql-pattern-filter-string (resource source-variable &key components search)
+  "Constructs the sparql pattern for a filter constraint."
+  (let ((tmp-var (s-genvar "search")))
+    (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(~A), LCASE(~A)) ~&"
+            source-variable
+            (property-path-for-filter-components resource components)
+            tmp-var
+            tmp-var
+            (s-str search))))
+
 (defun filter-body-for-search (&key resource source-variable sparql-body)
   (let ((filters
          (loop for (param . value) in (hunchentoot:get-parameters hunchentoot:*request*)
@@ -820,19 +830,13 @@
                                     (subseq str 0 (1- (length str))))
                                   (rest (cl-ppcre:split "\\[" param)))
                           :search
-                          value
-                          :tmp-var
-                          (s-genvar "search")))))
+                          value))))
     ;; generate the search triples
     (dolist (filter filters)
-      (destructuring-bind (&key components search tmp-var) filter
-        (setf sparql-body
-              (format nil "~A ~&~t~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(~A), LCASE(~A)) ~&"
-                      sparql-body source-variable
-                      (property-path-for-filter-components resource components)
-                      tmp-var
-                      tmp-var
-                      (s-str search)))))
+      (setf sparql-body
+            (format nil "~A~&~t~A" sparql-body
+                    (apply #'sparql-pattern-filter-string
+                           resource source-variable filter))))
     sparql-body))
 
 
