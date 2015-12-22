@@ -125,11 +125,13 @@
 
 (defun build-url (base-url request-params)
   "Constructs a simple url.  Request-params should contain
-  lists of options.
+  lists of options.  Options which contain nil as their value
+  are removed.
   eg: (build-url \"/taxonomies\" `((\"page[number]\" 42) (\"page[size]\" 3)))"
-  (if request-params
-      (format nil "~A?~{~A=~A~,^&~}" base-url request-params)
-      base-url))
+  (let ((parameters (plist-remove-nil request-params)))
+    (if request-params
+        (format nil "~A?~{~A=~A~,^&~}" base-url parameters)
+        base-url)))
 
 (defun alist-to-plist (alist)
   "Converts an alist to a plist"
@@ -780,9 +782,14 @@
   (:method ((resource resource) &rest args &key (page-number 0) (page-size *default-page-size*) total-count)
     (declare (ignore args))
     (flet ((build-url (&key page-number)
-             (build-url (s+ "/" (request-path resource))
-                        `(,@(unless (= page-number 0) `("page[number]" ,page-number))
-                          ,@(unless (= page-size *default-page-size*) `("page[size]" ,page-size))))))
+             (let ((get-parameters (alist-to-plist (hunchentoot:get-parameters hunchentoot:*request*))))
+               (setf (getfstr get-parameters "page[number]")
+                     (and (> page-number 0) page-number))
+               (setf (getfstr get-parameters "page[size]")
+                     (and (/= page-size *default-page-size*)
+                          page-size))
+               (build-url (s+ "/" (request-path resource))
+                          get-parameters))))
       (let ((last-page (max 0 (1- (ceiling (/ total-count page-size))))))
         (let ((links (jsown:new-js
                        ("first" (build-url :page-number 0))
