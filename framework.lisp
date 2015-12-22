@@ -1126,11 +1126,14 @@
   (:method ((resource resource) id (link has-many-link))
     (paginated-collection-response
      :resource (referred-resource link)
-     :sparql-body (format nil
-                          (s+ "~A ~{~A~,^/~} ?resource. "
-                              "?resource mu:uuid ?uuid.")
-                          (s-url (find-resource-for-uuid resource id))
-                          (ld-property-list link))
+     :sparql-body (filter-body-for-search
+                   :sparql-body (format nil
+                                        (s+ "~A ~{~A~,^/~} ?resource. "
+                                            "?resource mu:uuid ?uuid.")
+                                        (s-url (find-resource-for-uuid resource id))
+                                        (ld-property-list link))
+                   :source-variable (s-var "resource")
+                   :resource (referred-resource link))
      :link-defaults (build-links-object resource id link))))
 
 (defgeneric patch-relation-call (resource id link)
