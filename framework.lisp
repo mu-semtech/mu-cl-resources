@@ -771,36 +771,29 @@
      when shown
      collect (jsown:val shown "data")))
 
-(defgeneric build-pagination-links (resource &rest args &key page-number page-size total-count)
-  (:documentation "Retrieves the links object for pagination of a
-    resource's listing.
-
-    This method is long and it looks daunting, but it's just some
-    ugly wiring from our internal format to nice URLs for JSONAPI.")
-  (:method ((resource-symbol symbol) &rest args &key &allow-other-keys)
-    (apply #'build-pagination-links (find-resource-by-name resource-symbol) args))
-  (:method ((resource resource) &rest args &key (page-number 0) (page-size *default-page-size*) total-count)
-    (declare (ignore args))
-    (flet ((build-url (&key page-number)
-             (let ((get-parameters (alist-to-plist (hunchentoot:get-parameters hunchentoot:*request*))))
-               (setf (getfstr get-parameters "page[number]")
-                     (and (> page-number 0) page-number))
-               (setf (getfstr get-parameters "page[size]")
-                     (and (/= page-size *default-page-size*)
-                          page-size))
-               (build-url (s+ "/" (request-path resource))
-                          get-parameters))))
-      (let ((last-page (max 0 (1- (ceiling (/ total-count page-size))))))
-        (let ((links (jsown:new-js
-                       ("first" (build-url :page-number 0))
-                       ("last" (build-url :page-number last-page)))))
-          (unless (<= page-number 0)
-            (setf (jsown:val links "prev")
-                  (build-url :page-number (1- page-number))))
-          (unless (>= page-number last-page)
-            (setf (jsown:val links "next")
-                  (build-url :page-number (1+ page-number))))
-          links)))))
+(defun build-pagination-links (base-path &key page-number page-size total-count)
+  "Builds a links object containing the necessary pagination
+   links.  It bases itself on the base-path for the targetted
+   request."
+  (flet ((build-url (&key page-number)
+           (let ((get-parameters (alist-to-plist (hunchentoot:get-parameters hunchentoot:*request*))))
+             (setf (getfstr get-parameters "page[number]")
+                   (and (> page-number 0) page-number))
+             (setf (getfstr get-parameters "page[size]")
+                   (and (/= page-size *default-page-size*)
+                        page-size))
+             (build-url base-path get-parameters))))
+    (let ((last-page (max 0 (1- (ceiling (/ total-count page-size))))))
+      (let ((links (jsown:new-js
+                     ("first" (build-url :page-number 0))
+                     ("last" (build-url :page-number last-page)))))
+        (unless (<= page-number 0)
+          (setf (jsown:val links "prev")
+                (build-url :page-number (1- page-number))))
+        (unless (>= page-number last-page)
+          (setf (jsown:val links "next")
+                (build-url :page-number (1+ page-number))))
+        links))))
 
 (defun paginated-collection-response (&key resource sparql-body link-defaults)
   "Constructs the paginated response for a collection listing."
@@ -812,7 +805,7 @@
                                                  :page-number page-number)))
       (jsown:new-js ("data" (retrieve-data-for-uuids resource uuids))
                     ("links" (merge-jsown-objects
-                              (build-pagination-links resource
+                              (build-pagination-links (hunchentoot:script-name*)
                                                       :total-count uuid-count
                                                       :page-size page-size
                                                       :page-number page-number)
