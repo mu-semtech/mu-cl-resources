@@ -411,6 +411,29 @@
                :path path))
       link)))
 
+(defgeneric find-resource-link-by-json-key (resource json-key)
+  (:documentation "Finds the link object corresponding to the specified
+    resource and the specified json key.")
+  (:method ((resource resource) json-key)
+    (find-resource-link-by-path resource json-key)))
+
+(defun property-path-for-filter-components (resource components)
+  "Constructs the SPARQL property path for a set of filter
+   components.  Assumes the components end with an attribute
+   specification."
+  (let ((current-resource resource) path-components)
+    (loop for current-component in components
+       for resting-components on components
+       for last-component-p = (not (rest resting-components))
+       do
+         (if last-component-p
+             (let ((slot (resource-slot-by-json-key current-resource current-component)))
+               (alexandria:appendf path-components (ld-property-list slot)))
+             (let ((link (find-resource-link-by-json-key current-resource current-component)))
+               (alexandria:appendf path-components (ld-property-list link))
+               (setf current-resource (referred-resource link)))))
+    path-components))
+
 (defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path)
   "defines a resource for which get and set requests exist"
   (let* ((properties (loop for (key type prop) in ld-properties
@@ -758,16 +781,13 @@
     ;; generate the search triples
     (dolist (filter filters)
       (destructuring-bind (&key components search tmp-var) filter
-        (when (> 1 (length components))
-          (error 'simple-error :format-control "Components of filter should not exceed 1"))
-        (let ((resource-slot (resource-slot-by-json-key resource (car components))))
-          (setf sparql-body
-                (format nil "~A ~&~t~A ~{~A~^,/~} ~A FILTER CONTAINS(LCASE(~A), LCASE(~A)) ~&"
-                        sparql-body source-variable
-                        (ld-property-list resource-slot)
-                        tmp-var
-                        tmp-var
-                        (s-str search))))))
+        (setf sparql-body
+              (format nil "~A ~&~t~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(~A), LCASE(~A)) ~&"
+                      sparql-body source-variable
+                      (property-path-for-filter-components resource components)
+                      tmp-var
+                      tmp-var
+                      (s-str search)))))
     sparql-body))
 
 
