@@ -821,23 +821,29 @@
             tmp-var
             (s-str search))))
 
+(defun extract-filters-from-request ()
+  "Extracts the filters from the request.  The result is a list
+   containing the :components and :search key.  The :components
+   key includes a left-to-right specification of the strings
+   between brackets.  The :search contains the content for that
+   specification."
+  (loop for (param . value) in (hunchentoot:get-parameters hunchentoot:*request*)
+     if (string= "filter" (subseq param 0 (length "filter")))
+     collect (list :components
+                   (mapcar (lambda (str)
+                             (subseq str 0 (1- (length str))))
+                           (rest (cl-ppcre:split "\\[" param)))
+                   :search
+                   value)))
+
 (defun filter-body-for-search (&key resource source-variable sparql-body)
-  (let ((filters
-         (loop for (param . value) in (hunchentoot:get-parameters hunchentoot:*request*)
-            if (string= "filter" (subseq param 0 (length "filter")))
-            collect (list :components
-                          (mapcar (lambda (str)
-                                    (subseq str 0 (1- (length str))))
-                                  (rest (cl-ppcre:split "\\[" param)))
-                          :search
-                          value))))
-    ;; generate the search triples
-    (dolist (filter filters)
-      (setf sparql-body
-            (format nil "~A~&~t~A" sparql-body
-                    (apply #'sparql-pattern-filter-string
-                           resource source-variable filter))))
-    sparql-body))
+  "Adds constraints to sparql-body so that it abides the filters
+   which were posed by the user."
+  (dolist (filter (extract-filters-from-request))
+    (setf sparql-body
+          (format nil "~A~&~t~A" sparql-body
+                  (apply #'sparql-pattern-filter-string
+                         resource source-variable filter)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
