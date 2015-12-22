@@ -129,7 +129,7 @@
   are removed.
   eg: (build-url \"/taxonomies\" `((\"page[number]\" 42) (\"page[size]\" 3)))"
   (let ((parameters (plist-remove-nil request-params)))
-    (if request-params
+    (if parameters
         (format nil "~A?~{~A=~A~,^&~}" base-url parameters)
         base-url)))
 
