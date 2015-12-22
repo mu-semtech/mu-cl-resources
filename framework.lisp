@@ -417,6 +417,15 @@
        when (string= (json-property-name slot) key)
        return slot)))
 
+(defgeneric resource-slot-p (resource &key json-key)
+  (:documentation "Returns truethy if a resource could be found
+    for the supplied definition.")
+  (:method ((resource resource) &key json-key)
+    (and (find json-key (ld-properties resource)
+               :test #'equal
+               :key #'json-property-name)
+         t)))
+
 (defparameter *resources* (make-hash-table)
   "contains all currently known resources")
 
@@ -473,7 +482,7 @@
        for resting-components on components
        for last-component-p = (not (rest resting-components))
        do
-         (if last-component-p
+         (if (resource-slot-p current-resource :json-key current-component)
              (let ((slot (resource-slot-by-json-key current-resource current-component)))
                (alexandria:appendf path-components (ld-property-list slot)))
              (let ((link (find-resource-link-by-json-key current-resource current-component)))
@@ -813,13 +822,19 @@
 
 (defun sparql-pattern-filter-string (resource source-variable &key components search)
   "Constructs the sparql pattern for a filter constraint."
-  (let ((tmp-var (s-genvar "search")))
-    (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(~A), LCASE(~A)) ~&"
-            source-variable
-            (property-path-for-filter-components resource components)
-            tmp-var
-            tmp-var
-            (s-str search))))
+  (let ((search-var (s-genvar "search")))
+   (cond ((string= "id" (car (last components)))
+          (format nil "~A ~{~A~^/~}/mu:uuid ~A. ~&"
+                  source-variable
+                  (property-path-for-filter-components resource (butlast components))
+                  (s-str search)))
+         (t
+          (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(~A), LCASE(~A)) ~&"
+                  source-variable
+                  (property-path-for-filter-components resource components)
+                  search-var
+                  search-var
+                  (s-str search))))))
 
 (defun extract-filters-from-request ()
   "Extracts the filters from the request.  The result is a list
@@ -843,7 +858,8 @@
     (setf sparql-body
           (format nil "~A~&~t~A" sparql-body
                   (apply #'sparql-pattern-filter-string
-                         resource source-variable filter)))))
+                         resource source-variable filter))))
+  sparql-body)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
