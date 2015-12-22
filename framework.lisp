@@ -117,6 +117,12 @@
                                      (jsown:val b key)))))))
     result))
 
+(defun plist-remove-nil (plist)
+  "Removes settings which are nil from <plist>."
+  (loop for (key value) on plist by #'cddr
+     if value
+     append (list key value)))
+
 (defun build-url (base-url request-params)
   "Constructs a simple url.  Request-params should contain
   lists of options.
@@ -124,6 +130,45 @@
   (if request-params
       (format nil "~A?~{~A=~A~,^&~}" base-url request-params)
       base-url))
+
+(defun alist-to-plist (alist)
+  "Converts an alist to a plist"
+  (loop for (k . v) in alist
+     append (list k v)))
+
+(define-setf-expander getfstr (place key &environment env)
+  "see (setf getf) and val"
+  (multiple-value-bind (*temps *vals *store-vars *setter *getter)
+      (get-setf-expansion place env)
+    (let ((value-v (gensym "value-v"))
+          (key-v (gensym "key-v"))
+          (result-v (gensym "result-v")))
+      (values (list* key-v *temps) ;; key-v will be set to key
+              (list* key *vals)    ;; <- because of this
+              (list  value-v)      ;; contains the value to be set
+              `(let ((,result-v (fn-update-getfstr ,*getter ,key-v ,value-v)))
+                 (let ((,(first *store-vars) ,result-v))
+                   ,*setter)
+                 ,value-v)
+              `(getfstr ,*getter ,key-v)))))
+
+(defun getfstr (place key)
+  "getf, but for strings."
+  (loop for (k v) on place by #'cddr
+     if (and (stringp k)
+             (string= k key))
+     return v))
+
+(defun fn-update-getfstr (place key new-value)
+  "updates getfstr in a functional way"
+  (let ((keys (loop for k in place by #'cddr collect k)))
+    (if (find key keys :test #'equal)
+        (loop for (k v) on place by #'cddr
+           if (equal k key)
+           append (list k new-value)
+           else
+           append (list k v))
+        (list* key new-value place))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; query execution helpers
