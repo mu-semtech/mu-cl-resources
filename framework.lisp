@@ -481,19 +481,30 @@
 (defun property-path-for-filter-components (resource components)
   "Constructs the SPARQL property path for a set of filter
    components.  Assumes the components end with an attribute
-   specification."
-  (let ((current-resource resource) path-components)
+   specification.
+
+   If the last component of the specification yields a resource,
+   rather than a property, the search path will allow for all
+   properties in that search path."
+  (let ((current-resource resource) path-components
+        (last-component-resource resource)) ; we use this to expand the search path at the end
     (loop for current-component in components
        for resting-components on components
        for last-component-p = (not (rest resting-components))
        do
          (if (resource-slot-p current-resource :json-key current-component)
              (let ((slot (resource-slot-by-json-key current-resource current-component)))
-               (alexandria:appendf path-components (ld-property-list slot)))
+               (alexandria:appendf path-components (ld-property-list slot))
+               (setf last-component-resource nil))
              (let ((link (find-resource-link-by-json-key current-resource current-component)))
                (alexandria:appendf path-components (ld-property-list link))
-               (setf current-resource (referred-resource link)))))
-    path-components))
+               (setf current-resource (referred-resource link))
+               (setf last-component-resource current-resource))))
+    (if last-component-resource
+        `(,@path-components
+          ,(format nil "(~{(~{~A~^/~})~^|~})"
+                   (mapcar #'ld-property-list (ld-properties resource))))
+        path-components)))
 
 (defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path)
   "defines a resource for which get and set requests exist"
