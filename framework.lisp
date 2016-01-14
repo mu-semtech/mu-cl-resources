@@ -766,7 +766,7 @@
 (defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number)
   (let ((limit page-size)
         (offset (* page-size page-number)))
-    (jsown:filter (sparql-select (s-var "uuid")
+    (jsown:filter (sparql-select (format nil "DISTINCT ~A" (s-var "uuid"))
                                  sparql-body
                                  :order-by (s-var "uuid")
                                  :limit limit
