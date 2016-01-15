@@ -842,7 +842,7 @@
    (cond ((string= "id" (car (last components)))
           (format nil "~A ~{~A~^/~}/mu:uuid ~A. ~&"
                   source-variable
-                  (property-path-for-filter-components resource (butlast components))
+                  (butlast (property-path-for-filter-components resource (butlast components)))
                   (s-str search)))
          (t
           (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(~A), LCASE(~A)) ~&"
