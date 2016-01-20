@@ -845,7 +845,7 @@
                   (butlast (property-path-for-filter-components resource (butlast components)))
                   (s-str search)))
          (t
-          (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(~A), LCASE(~A)) ~&"
+          (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
                   source-variable
                   (property-path-for-filter-components resource components)
                   search-var
