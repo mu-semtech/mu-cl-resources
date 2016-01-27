@@ -7,7 +7,9 @@
 (defparameter *verify-accept-header* nil
   "when non-nil, the application/vndi+json ACCEPT header is checked.")
 
-(defparameter *application-graph* (s-url "http://mu.semte.ch/application")
+(defparameter *application-graph*
+  (s-url (or (uiop:getenv "MU_APPLICATION_GRAPH")
+             "http://mu.semte.ch/application"))
   "standard graph for all sparql queries.")
 
 (defparameter *default-page-size*
