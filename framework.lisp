@@ -9,7 +9,11 @@
 
 (defparameter *application-graph* (s-url "http://mu.semte.ch/application")
   "standard graph for all sparql queries.")
-(defparameter *default-page-size* 20
+
+(defparameter *default-page-size*
+  (handler-case
+      (parse-integer (uiop:getenv "MU_DEFAULT_PAGE_SIZE"))
+    (error () 20))
   "default amount of items in a single page of results.")
 
 ;;;;;;;;;;;;;;;;
