@@ -588,7 +588,9 @@
   (:method ((slot resource-slot) (type (eql :url)) value)
     (s-url value))
   (:method ((slot resource-slot) (type (eql :datetime)) value)
-    (s-typed value (s-prefix "xsd:dateTime"))))
+    (s-typed value (s-prefix "xsd:dateTime")))
+  (:method ((slot resource-slot) (type (eql :boolean)) value)
+    (s-from-json value)))
 
 (defun respond-no-content ()
   "Returns a 204 No Content response."
