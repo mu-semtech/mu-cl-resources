@@ -328,6 +328,11 @@
   (declare (ignore object))
   value)
 
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#date"
+    (value object)
+  (declare (ignore object))
+  value)
+
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#boolean"
     (value object)
   (declare (ignore object))
@@ -595,6 +600,8 @@
     (s-url value))
   (:method ((slot resource-slot) (type (eql :datetime)) value)
     (s-typed value (s-prefix "xsd:dateTime")))
+  (:method ((slot resource-slot) (type (eql :date)) value)
+    (s-typed value (s-prefix "xsd:date")))
   (:method ((slot resource-slot) (type (eql :boolean)) value)
     (s-from-json value)))
 
