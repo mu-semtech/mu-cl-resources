@@ -905,8 +905,8 @@
     (let* ((json-input (jsown:parse (post-body)))
            (uuid (mu-support:make-uuid)) 
            (resource-uri (s-url (format nil "~A~A"
-                                       (raw-content (ld-resource-base resource))
-                                       uuid))))
+                                        (raw-content (ld-resource-base resource))
+                                        uuid))))
       (sparql-insert-triples
        `((,resource-uri ,(s-prefix "a") ,(ld-class resource))
          (,resource-uri ,(s-prefix "mu:uuid") ,(s-str uuid))
