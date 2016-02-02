@@ -929,7 +929,8 @@
 (defun find-resource-for-uuid (resource uuid)
   "Retrieves the resource hich specifies the supplied UUID in the database."
   (let ((result (sparql-select (s-var "s")
-                               (format nil "?s mu:uuid ~A."
+                               (format nil (s+ "?s mu:uuid ?uuid. "
+                                               "FILTER(~A = (str ?uuid)")
                                        (s-str uuid)))))
     (unless result
       (error 'no-such-instance
