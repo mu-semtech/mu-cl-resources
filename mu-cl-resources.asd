@@ -9,6 +9,6 @@
   :depends-on (mu-support)
   :components ((:file "packages")
                (:file "repository")
-               (:file "framework")
+               (:file "framework/framework")
                (:file "support")
                (:file "domain")))
