@@ -19,6 +19,5 @@
                (:file "framework/response-generation")
                (:file "framework/call-implementation")
                (:file "framework/call-specification")
-               (:file "framework/framework")
                (:file "support")
                (:file "domain")))
