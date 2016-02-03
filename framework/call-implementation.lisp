@@ -57,7 +57,8 @@
   (:method ((resource-symbol symbol) uuid)
     (update-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
-    (let* ((json-input (jsown:parse (post-body)))
+    (let* ((jsown:*parsed-null-value* :null)
+           (json-input (jsown:parse (post-body)))
            (attributes (jsown:filter json-input "data" "attributes"))
            (uri (s-url (find-resource-for-uuid resource uuid))))
       (with-query-group
@@ -72,8 +73,11 @@
         (sparql-insert-triples
          (loop for key in (jsown:keywords attributes)
             for slot = (resource-slot-by-json-key resource key)
-            for value = (interpret-json-value slot (jsown:val attributes key))
+            for value = (if (eq (jsown:val attributes key) :null)
+                            :null
+                            (interpret-json-value slot (jsown:val attributes key)))
             for property-list = (ld-property-list slot)
+            unless (eq value :null)
             collect
               `(,uri ,@property-list ,value))))
       (when (and (jsown:keyp json-input "data")
