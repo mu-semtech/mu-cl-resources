@@ -937,7 +937,7 @@
   "Retrieves the resource hich specifies the supplied UUID in the database."
   (let ((result (sparql-select (s-var "s")
                                (format nil (s+ "?s mu:uuid ?uuid. "
-                                               "FILTER(~A = (str ?uuid)")
+                                               "FILTER(~A = str(?uuid))")
                                        (s-str uuid)))))
     (unless result
       (error 'no-such-instance
