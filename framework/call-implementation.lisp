@@ -335,8 +335,9 @@
              (sparql-delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
            (insert-query (resource-uri link-uri new-linked-uris)
-             (loop for new-uri in new-linked-uris
-                collect `(,resource-uri ,@link-uri ,new-uri))))
+             (sparql-insert-triples
+              (loop for new-uri in new-linked-uris
+                 collect `(,resource-uri ,@link-uri ,new-uri)))))
       (let ((body (jsown:parse (post-body)))
             (linked-resource (referred-resource link))
             (resource-uri (find-resource-for-uuid resource id))
