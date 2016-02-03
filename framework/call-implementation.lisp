@@ -7,7 +7,8 @@
   (:method ((resource-symbol symbol))
     (create-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
-    (let* ((json-input (jsown:parse (post-body)))
+    (let* ((jsown:*parsed-null-value* :null)
+           (json-input (jsown:parse (post-body)))
            (uuid (mu-support:make-uuid)) 
            (resource-uri (s-url (format nil "~A~A"
                                         (raw-content (ld-resource-base resource))
@@ -17,6 +18,7 @@
          (,resource-uri ,(s-prefix "mu:uuid") ,(s-str uuid))
          ,@(loop for (predicates object)
               in (attribute-properties-for-json-input resource json-input)
+              unless (eq object :null)
               collect `(,resource-uri ,@predicates ,object))))
       (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
       (setf (hunchentoot:header-out :location)

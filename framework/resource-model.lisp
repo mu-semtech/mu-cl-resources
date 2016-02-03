@@ -216,12 +216,17 @@
   (let ((attributes (jsown:filter json-input "data" "attributes")))
     (loop for slot
        in (ld-properties resource)
-       if (jsown:keyp attributes (json-property-name slot))
+       for primitive-value =
+         (and (jsown:keyp attributes (json-property-name slot))
+              (jsown:val attributes (json-property-name slot)))
+       if primitive-value
        collect
          (list (ld-property-list slot)
-               (interpret-json-value
-                slot
-                (jsown:val attributes (json-property-name slot)))))))
+               (if (eq primitive-value :null)
+                   :null
+                   (interpret-json-value
+                    slot
+                    (jsown:val attributes (json-property-name slot))))))))
 
 (defgeneric construct-resource-item-path (resource identifier)
   (:documentation "Constructs the path on which information can
