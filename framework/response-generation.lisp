@@ -9,7 +9,7 @@
 (defun count-matches (identifier-variable query-body)
   "Returns the amount of matches for a particular response."
   (parse-integer
-   (jsown:filter (first (sparql-select (format nil "((COUNT (DISTINCT ~A)) AS ?count)"
+   (jsown:filter (first (sparql:select (format nil "((COUNT (DISTINCT ~A)) AS ?count)"
                                                identifier-variable)
                                        query-body))
                  "count" "value")))
@@ -23,7 +23,7 @@
 (defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number)
   (let ((limit page-size)
         (offset (* page-size page-number)))
-    (jsown:filter (sparql-select (format nil "DISTINCT ~A" (s-var "uuid"))
+    (jsown:filter (sparql:select (format nil "DISTINCT ~A" (s-var "uuid"))
                                  sparql-body
                                  :order-by (s-var "uuid")
                                  :limit limit

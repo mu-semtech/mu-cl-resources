@@ -13,7 +13,7 @@
            (resource-uri (s-url (format nil "~A~A"
                                         (raw-content (ld-resource-base resource))
                                         uuid))))
-      (sparql-insert-triples
+      (sparql:insert-triples
        `((,resource-uri ,(s-prefix "a") ,(ld-class resource))
          (,resource-uri ,(s-prefix "mu:uuid") ,(s-str uuid))
          ,@(loop for (predicates object)
@@ -42,7 +42,7 @@
 
 (defun find-resource-for-uuid (resource uuid)
   "Retrieves the resource hich specifies the supplied UUID in the database."
-  (let ((result (sparql-select (s-var "s")
+  (let ((result (sparql:select (s-var "s")
                                (format nil (s+ "?s mu:uuid ?uuid. "
                                                "FILTER(~A = str(?uuid))")
                                        (s-str uuid)))))
@@ -63,16 +63,16 @@
            (json-input (jsown:parse (post-body)))
            (attributes (jsown:filter json-input "data" "attributes"))
            (uri (s-url (find-resource-for-uuid resource uuid))))
-      (with-query-group
+      (sparql:with-query-group
         (let ((delete-vars (loop for key in (jsown:keywords attributes)
                               for i from 0
                               collect (s-var (format nil "gensym~A" i)))))
-          (sparql-delete-triples
+          (sparql:delete-triples
            (loop for key in (jsown:keywords attributes)
               for slot = (resource-slot-by-json-key resource key)
               for s-var in delete-vars
               collect `(,uri ,@(ld-property-list slot) ,s-var))))
-        (sparql-insert-triples
+        (sparql:insert-triples
          (loop for key in (jsown:keywords attributes)
             for slot = (resource-slot-by-json-key resource key)
             for value = (if (eq (jsown:val attributes key) :null)
@@ -102,10 +102,10 @@
                               resource-specification))
   (:method ((resource resource) uuid (link has-one-link) resource-specification)
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete-triples
+             (sparql:delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
            (insert-query (resource-uri link-uri new-linked-uri)
-             (sparql-insert-triples
+             (sparql:insert-triples
               `((,resource-uri ,@link-uri ,new-linked-uri)))))
       (let ((linked-resource (referred-resource link))
             (resource-uri (find-resource-for-uuid resource uuid)))
@@ -113,7 +113,7 @@
             ;; update content
             (let* ((new-linked-uuid (jsown:val resource-specification "id"))
                    (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
-              (with-query-group
+              (sparql:with-query-group
                 (delete-query (s-url resource-uri)
                               (ld-property-list link))
                 (insert-query (s-url resource-uri)
@@ -124,10 +124,10 @@
                           (ld-property-list link))))))
   (:method ((resource resource) uuid (link has-many-link) resource-specification)
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete-triples
+             (sparql:delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
            (insert-query (resource-uri link-uri new-linked-uris)
-             (sparql-insert-triples
+             (sparql:insert-triples
               (loop for new-link-uri in new-linked-uris
                  collect
                    `(,resource-uri ,@link-uri ,new-link-uri)))))
@@ -139,7 +139,7 @@
                    (new-linked-resources (mapcar (alexandria:curry #'find-resource-for-uuid
                                                                    linked-resource)
                                                  new-linked-uuids)))
-              (with-query-group
+              (sparql:with-query-group
                 (delete-query (s-url resource-uri)
                               (ld-property-list link))
                 (insert-query (s-url resource-uri)
@@ -175,7 +175,7 @@
             ;; seconds for a single solution.
             (find-resource-for-uuid resource uuid))
            (solution (first
-                      (sparql-select
+                      (sparql:select
                        "*"
                        (format nil
                                "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
@@ -238,7 +238,7 @@
                         (s-var (sparql-variable-name link)))
                   relation-content))
       (setf relation-content (reverse relation-content))
-      (sparql-delete
+      (sparql:delete
        (apply #'concatenate 'string
               (loop for triple-clause
                  in
@@ -271,7 +271,7 @@
     (show-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
     (let ((query-results
-           (sparql-select (s-var "uuid")
+           (sparql:select (s-var "uuid")
                           (format nil (s+ "~A ~{~A~,^/~} ?resource. "
                                           "?resource mu:uuid ?uuid. ")
                                   (s-url (find-resource-for-uuid resource id))
@@ -312,10 +312,10 @@
     (patch-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete-triples
+             (sparql:delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
            (insert-query (resource-uri link-uri new-linked-uri)
-             (sparql-insert-triples
+             (sparql:insert-triples
               `((,resource-uri ,@link-uri ,new-linked-uri)))))
       (let ((body (jsown:parse (post-body)))
             (linked-resource (referred-resource link))
@@ -325,7 +325,7 @@
             ;; update content
             (let* ((new-linked-uuid (jsown:filter body "data" "id"))
                    (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
-              (with-query-group
+              (sparql:with-query-group
                 (delete-query (s-url resource-uri) link-path)
                 (insert-query (s-url resource-uri) link-path
                               (s-url new-linked-uri))))
@@ -334,10 +334,10 @@
     (respond-no-content))
   (:method ((resource resource) id (link has-many-link))
     (flet ((delete-query (resource-uri link-uri)
-             (sparql-delete-triples
+             (sparql:delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
            (insert-query (resource-uri link-uri new-linked-uris)
-             (sparql-insert-triples
+             (sparql:insert-triples
               (loop for new-uri in new-linked-uris
                  collect `(,resource-uri ,@link-uri ,new-uri)))))
       (let ((body (jsown:parse (post-body)))
@@ -371,7 +371,7 @@
                                       (jsown:filter (jsown:parse (post-body))
                                                     "data" map "id")))))
       (when resources
-        (sparql-delete-triples
+        (sparql:delete-triples
          (loop for resource in resources
             collect
               `(,(s-url (find-resource-for-uuid resource id))
@@ -393,7 +393,7 @@
       (when resources
         (let ((source-url (find-resource-for-uuid resource id))
               (properties (ld-property-list link)))
-          (sparql-insert-triples
+          (sparql:insert-triples
            (loop for resource in resources
               collect
                 `(,(s-url source-url) ,@properties ,(s-url resource)))))))
