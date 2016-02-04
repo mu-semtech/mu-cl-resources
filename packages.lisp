@@ -1,20 +1,15 @@
 (defpackage :sparql
   (:use :cl :mu-support)
-  (:shadow :delete :insert)
-  (:export #:with-query-group
-           #:sparql-select
-           #:sparql-insert
-           #:sparql-insert-triples
-           #:sparql-delete
-           #:sparql-delete-triples
+  (:shadow :delete :insert :query)
+  (:export #:*application-graph*
+           #:with-query-group
            #:insert
            #:select
-           #:delete-triples
            #:delete
+           #:delete-triples
            #:insert-triples
-           #:sparql-query
-           #:*application-graph*))
+           #:query))
 
 (defpackage :mu-cl-resources
-  (:use :cl)
-  (:use :mu-support))
+  (:use :cl :mu-support)
+  (:export #:boot))

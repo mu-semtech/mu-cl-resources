@@ -15,12 +15,12 @@
        (fuseki:with-query-logging *error-output*
          (fuseki:query *repository* queries)))))
 
-(defun sparql-query (content)
+(defun query (content)
   "Executes a sparql query on the current repository, or pushes
    it on the set of queries to be executed in the query-group
    based on the current context.
 
-   NOTE: see sparql-select, sparql-insert and sparql-delete for
+   NOTE: see sparql:select, sparql:insert and sparql:delete for
          functions geared towards end-users."
   (if *query-group*
       (push content *query-group*)
@@ -31,22 +31,16 @@
   "Executes a SPARQL SELECT query on the current graph.
    Takes with-query-group into account."
   (declare (ignore order-by limit offset))
-  (sparql-query
+  (query
    (s-select variables args
              (s-graph *application-graph* body))))
-
-(defun sparql-select (&rest args)
-  (apply #'select args))
 
 (defun insert (body)
   "Executes a SPARQL INSERT DATA query on the current graph.
    Takes with-query-group into account."
-  (sparql-query
+  (query
    (s-insert
     (s-graph *application-graph* body))))
-
-(defun sparql-insert (&rest args)
-  (apply #'insert args))
 
 (defun insert-triples (triple-clauses)
   "Inserts a set of triples based on the provided triple-clauses.
@@ -61,10 +55,7 @@
                           object (s-inv predicate) subject)
                   (format nil "~4t~A ~A ~A.~%"
                           subject predicate object)))))
-    (sparql-insert (apply #'concatenate 'string patterns))))
-
-(defun sparql-insert-triples (&rest args)
-  (apply #'insert-triples args))
+    (insert-triples (apply #'concatenate 'string patterns))))
 
 (defun delete (clauses &optional where)
   "Executes a SPARQL DELETE query on the current graph.
@@ -72,11 +63,8 @@
   (let ((clauses (s-graph *application-graph* clauses))
         (where (when where
                  (s-graph *application-graph* where))))
-    (sparql-query
+    (query
      (s-delete clauses where))))
-
-(defun sparql-delete (&rest args)
-  (apply #'delete args))
 
 (defun delete-triples (triple-clauses)
   "Deletes a set of triples based on the provided triple-clauses.
@@ -91,8 +79,5 @@
                           object (s-inv predicate) subject)
                   (format nil "~4t~A ~A ~A.~%"
                           subject predicate object)))))
-    (sparql-delete (apply #'concatenate 'string patterns)
+    (delete (apply #'concatenate 'string patterns)
                    (apply #'concatenate 'string patterns))))
-
-(defun sparql-delete-triples (&rest args)
-  (apply #'delete-triples args))
