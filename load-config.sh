@@ -1,3 +1,3 @@
 #!/bin/bash
 
-cp -R /config/* /app/
+cp -R /config/* /app/framework/
