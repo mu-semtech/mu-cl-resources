@@ -8,7 +8,7 @@
   :serial t
   :depends-on (mu-support)
   :components ((:file "packages")
-               (:file "repository")
+               (:file "configuration/repository")
                (:file "configuration/settings")
                (:file "framework/error-codes")
                (:file "framework/support")
@@ -19,5 +19,4 @@
                (:file "framework/response-generation")
                (:file "framework/call-implementation")
                (:file "framework/call-specification")
-               (:file "configuration/support")
                (:file "configuration/domain")))
