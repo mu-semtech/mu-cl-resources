@@ -55,7 +55,7 @@
                           object (s-inv predicate) subject)
                   (format nil "~4t~A ~A ~A.~%"
                           subject predicate object)))))
-    (insert-triples (apply #'concatenate 'string patterns))))
+    (insert (apply #'concatenate 'string patterns))))
 
 (defun delete (clauses &optional where)
   "Executes a SPARQL DELETE query on the current graph.
