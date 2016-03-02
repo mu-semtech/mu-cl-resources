@@ -68,6 +68,16 @@
   (declare (ignore object))
   value)
 
+(define-typed-literal-importer "http://www.opengis.net/ont/geosparql#wktLiteral"
+    (value object)
+  (declare (ignore object))
+  value)
+;; virtuoso hack
+(define-typed-literal-importer "http://www.openlinksw.com/schemas/virtrdf#Geometry"
+    (value object)
+  (declare (ignore object))
+  value)
+
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#boolean"
     (value object)
   (declare (ignore object))

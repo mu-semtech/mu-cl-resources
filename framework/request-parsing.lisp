@@ -23,6 +23,8 @@
     (s-typed value (s-prefix "xsd:dateTime")))
   (:method ((slot resource-slot) (type (eql :date)) value)
     (s-typed value (s-prefix "xsd:date")))
+  (:method ((slot resource-slot) (type (eql :geometry)) value)
+    (s-typed value (s-prefix "geo:wktLiteral")))
   (:method ((slot resource-slot) (type (eql :boolean)) value)
     (s-from-json value)))
 
