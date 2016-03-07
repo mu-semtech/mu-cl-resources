@@ -1,23 +1,31 @@
 (in-package :mu-cl-resources)
 
 
-(defun from-sparql (object)
-  "Converts the supplied sparql value specification into a lisp value."
-  (let ((type (intern (string-upcase (jsown:val object "type"))
-                      :keyword))
-        (value (jsown:val object "value")))
-    (import-value-from-sparql-result type value object)))
+(defgeneric from-sparql (object resource-type)
+  (:documentation "Converts the supplied sparql value specification into a lisp value.")
+  (:method (values (resource-type (eql :language-typed-string-bag)))
+    (loop for value in values
+       collect (from-sparql value :language-typed-string)))
+  (:method (object resource-type)
+    (let ((type (intern (string-upcase (jsown:val object "type"))
+                        :keyword))
+          (value (jsown:val object "value")))
+      (import-value-from-sparql-result type resource-type value object))))
 
-(defgeneric import-value-from-sparql-result (type value object)
+(defgeneric import-value-from-sparql-result (type resource-type value object)
   (:documentation "imports the value from 'object' given its 'value'
    and 'type' to dispatch on.")
-  (:method ((type (eql :uri)) value object)
-    (declare (ignore object))
+  (:method ((type (eql :uri)) resource-type value object)
+    (declare (ignore object resource-type))
     value)
-  (:method ((type (eql :literal)) value object)
-    (declare (ignore object))
+  (:method ((type (eql :literal)) (resource-type (eql :language-typed-string)) value object)
+    (jsown:new-js
+      ("content" value)
+      ("language" (jsown:val object "xml:lang"))))
+  (:method ((type (eql :literal)) resource-type value object)
+    (declare (ignore resource-type object))
     value)
-  (:method ((type (eql :typed-literal)) value object)
+  (:method ((type (eql :typed-literal)) resource-type value object)
     (import-typed-literal-value-from-sparql-result
      (jsown:val object "datatype")
      value

@@ -42,6 +42,13 @@
   (:method ((link has-link))
     (request-path link)))
 
+(defgeneric single-value-slot-p (resource-slot)
+  (:documentation "indicates whether or not a resource-slot's value can
+   be constructed from a single value in the triple-store.")
+  (:method ((slot resource-slot))
+    ;; only the language-typed-string-bag has multiple values so far
+    (not (eql (resource-type slot) :language-typed-string-bag))))
+
 (defgeneric sparql-variable-name (resource-slot)
   (:documentation "retrieves the name of the json property as it
    could be used in a sparql query")

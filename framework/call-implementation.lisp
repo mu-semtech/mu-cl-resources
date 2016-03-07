@@ -180,6 +180,7 @@
                        (format nil
                                "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
                                (loop for slot in (ld-properties resource)
+                                  when (single-value-slot-p slot)
                                   append (list (s-url resource-url)
                                                (ld-property-list slot)
                                                (s-var (sparql-variable-name slot))))))))
@@ -189,13 +190,24 @@
                :resource resource
                :id uuid
                :type (json-type resource)))
+      (loop for slot in (ld-properties resource)
+         for variable-name = (sparql-variable-name slot)
+         unless (single-value-slot-p slot)
+         do
+           (setf (jsown:val solution variable-name)
+                 (mapcar (lambda (solution) (jsown:val solution variable-name))
+                         (sparql:select "*"
+                                        (format nil "~A ~{~A~,^/~} ~A."
+                                                (s-url resource-url)
+                                                (ld-property-list slot)
+                                                (s-var variable-name))))))
       (loop for property in (ld-properties resource)
          for sparql-var = (sparql-variable-name property)
          for json-var = (json-property-name property)
          if (jsown:keyp solution sparql-var)
          do
            (setf (jsown:val attributes json-var)
-                 (from-sparql (jsown:val solution sparql-var))))
+                 (from-sparql (jsown:val solution sparql-var) (resource-type property))))
       (let* ((resp-data (jsown:new-js
                           ("attributes" attributes)
                           ("id" uuid)
