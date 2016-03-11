@@ -3,7 +3,7 @@
 
 (defgeneric from-sparql (object resource-type)
   (:documentation "Converts the supplied sparql value specification into a lisp value.")
-  (:method (values (resource-type (eql :language-typed-string-bag)))
+  (:method (values (resource-type (eql :language-string-set)))
     (loop for value in values
        collect (from-sparql value :language-typed-string)))
   (:method (object resource-type)

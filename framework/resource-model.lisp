@@ -46,8 +46,8 @@
   (:documentation "indicates whether or not a resource-slot's value can
    be constructed from a single value in the triple-store.")
   (:method ((slot resource-slot))
-    ;; only the language-typed-string-bag has multiple values so far
-    (not (eql (resource-type slot) :language-typed-string-bag))))
+    ;; only the lang-string-set has multiple values so far
+    (not (eql (resource-type slot) :language-string-set))))
 
 (defgeneric sparql-variable-name (resource-slot)
   (:documentation "retrieves the name of the json property as it

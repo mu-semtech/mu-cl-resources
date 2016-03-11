@@ -25,7 +25,7 @@
     (s-typed value (s-prefix "xsd:date")))
   (:method ((slot resource-slot) (type (eql :geometry)) value)
     (s-typed value (s-prefix "geo:wktLiteral")))
-  (:method ((slot resource-slot) (type (eql :language-typed-string-bag)) values)
+  (:method ((slot resource-slot) (type (eql :language-string-set)) values)
     (apply #'s-values
            (loop for obj in values
               collect (s-str (jsown:val obj "content")
