@@ -152,8 +152,10 @@
 
 (define-resource format ()
   :class (s-prefix "dct:MediaTypeOrExtent")
-  :properties `((:name :string ,(s-prefix "rdfs:label")))
+  :properties `((:name :string ,(s-prefix "rdfs:label"))
+                (:labels :lang-string-set ,(s-prefix "dct:description")))
   :has-many `((distributions :via ,(s-prefix "dct:format")
                              :inverse t
                              :as "distributions"))
-  :on-path "formats")
+  :on-path "formats"
+  :resource-base (s-url "http://example.com/formats"))
