@@ -86,7 +86,7 @@
   "Constructs the sparql pattern for a filter constraint."
   (let ((search-var (s-genvar "search")))
    (cond ((string= "id" (car (last components)))
-          (format nil "~A ~{~A~^/~}/mu:uuid ~A. ~&"
+          (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
                   source-variable
                   (butlast (property-path-for-filter-components resource (butlast components)))
                   (s-str search)))
