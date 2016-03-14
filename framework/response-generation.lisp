@@ -85,18 +85,18 @@
 (defun sparql-pattern-filter-string (resource source-variable &key components search)
   "Constructs the sparql pattern for a filter constraint."
   (let ((search-var (s-genvar "search")))
-   (cond ((string= "id" (car (last components)))
-          (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
-                  source-variable
-                  (butlast (property-path-for-filter-components resource (butlast components)))
-                  (s-str search)))
-         (t
-          (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
-                  source-variable
-                  (property-path-for-filter-components resource components)
-                  search-var
-                  search-var
-                  (s-str search))))))
+    (cond ((string= "id" (car (last components)))
+           (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
+                   source-variable
+                   (butlast (property-path-for-filter-components resource (butlast components)))
+                   (s-str search)))
+          (t
+           (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
+                   source-variable
+                   (property-path-for-filter-components resource components)
+                   search-var
+                   search-var
+                   (s-str search))))))
 
 (defun extract-filters-from-request ()
   "Extracts the filters from the request.  The result is a list
