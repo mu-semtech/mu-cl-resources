@@ -174,6 +174,11 @@
             ("links" (jsown:new-js
                        ("self" (construct-resource-item-path resource uuid)))))))))
 
+(defun retrieve-item-by-spec (spec)
+  "Retrieves an item from its specification.
+   '(:type catalog :id \"ae12ee\")"
+  (retrieve-item (getf spec :type) (getf spec :id)))
+
 (defun retrieve-item (resource uuid &key included)
   ;; TODO: only returns first value for now
   "Returns (values item-json included-items)
@@ -300,9 +305,12 @@
   (:method ((resource-symbol symbol) id link)
     (show-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
-    (jsown:new-js
-      ("data" (retrieve-relation-items resource id link))
-      ("links" (build-links-object resource id link))))
+    (let ((item-spec (first (retrieve-relation-items resource id link))))
+      (jsown:new-js
+        ("data" (if item-spec
+                    (retrieve-item-by-spec item-spec)
+                    :null))
+        ("links" (build-links-object resource id link)))))
   (:method ((resource resource) id (link has-many-link))
     (paginated-collection-response
      :resource (referred-resource link)
@@ -328,18 +336,14 @@
     (retrieve-relation-items resource id (find-link-by-json-name resource link)))
   (:method ((resource resource) id (link has-one-link))
     (let ((query-results
-           (sparql:select (s-var "uuid")
-                          (format nil (s+ "~A ~{~A~,^/~} ?resource. "
-                                          "?resource mu:uuid ?uuid. ")
-                                  (s-url (find-resource-for-uuid resource id))
-                                  (ld-property-list link))))
-          (linked-resource (referred-resource link)))
-      (if query-results
-          ;; one result or more
-          (retrieve-item linked-resource
-                         (jsown:filter (first query-results)
-                                       "uuid" "value"))
-          :null))))
+           (first (sparql:select (s-var "uuid")
+                                 (format nil (s+ "~A ~{~A~,^/~} ?resource. "
+                                                 "?resource mu:uuid ?uuid. ")
+                                         (s-url (find-resource-for-uuid resource id))
+                                         (ld-property-list link)))))
+          (linked-resource (resource-name (referred-resource link))))
+      (and query-results
+           `((:type ,linked-resource :id ,(jsown:filter "uuid" "value")))))))
 
 (defgeneric patch-relation-call (resource id link)
   (:documentation "implementation of the PATCH request which
