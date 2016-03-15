@@ -249,7 +249,28 @@
    on the type of relation, and whether or not the relationship should
    be inlined.  Values to inline should be included directly.")
   (:method ((resource resource) uuid (link has-link) (included-p (eql nil)))
-    (jsown:new-js ("links" (build-links-object resource uuid link)))))
+    (jsown:new-js ("links" (build-links-object resource uuid link))))
+  (:method ((resource resource) uuid (link has-link) (included-p (eql t)))
+    (let ((related-items (retrieve-relation-items resource uuid link)))
+      (values
+       (jsown:new-js ("links" (build-links-object resource uuid link))
+                     ("data" (build-data-object-for-included-relation link related-items)))
+       related-items))))
+
+(defgeneric build-data-object-for-included-relation (link items)
+  (:documentation "Builds the data object for an included relation.
+   This object contains the references to the relationship.")
+  (:method ((link has-one-link) (items (eql nil)))
+    :null)
+  (:method ((link has-one-link) items)
+    (let ((item-spec (first items)))
+      (jsown:new-js ("type" (json-type (find-resource-by-name (getf item-spec :type))))
+                    ("id" (getf item-spec :id)))))
+  (:method ((link has-many-link) items)
+    (loop for item-spec in items
+       collect
+         (jsown:new-js ("type" (json-type (find-resource-by-name (getf item-spec :type))))
+                       ("id" (getf item-spec :id))))))
 
 (defgeneric build-links-object (resource identifier link)
   (:documentation "Builds the json object which represents the link
@@ -350,7 +371,7 @@
                                          (ld-property-list link)))))
           (linked-resource (resource-name (referred-resource link))))
       (and query-results
-           `((:type ,linked-resource :id ,(jsown:filter "uuid" "value"))))))
+           `((:type ,linked-resource :id ,(jsown:filter query-results "uuid" "value"))))))
   (:method ((resource resource) id (link has-many-link))
     (let ((query-results
            (sparql:select (s-var "uuid")
