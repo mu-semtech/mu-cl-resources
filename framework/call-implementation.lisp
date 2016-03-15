@@ -32,13 +32,7 @@
              (update-resource-relation resource uuid relation
                                        (jsown:filter json-input
                                                      "data" "relationships" relation "data"))))
-      (let ((show-content (retrieve-item resource uuid)))
-        ;; only need to set the id in attributes temporarily
-        (setf (jsown:val (jsown:val (jsown:val show-content "data")
-                                    "attributes")
-                         "id")
-              uuid)
-        show-content))))
+      (jsown:new-js ("data" (retrieve-item resource uuid))))))
 
 (defun find-resource-for-uuid (resource uuid)
   "Retrieves the resource hich specifies the supplied UUID in the database."
@@ -169,7 +163,16 @@
   (:method ((resource-symbol symbol) uuid)
     (show-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
-    (retrieve-item resource uuid)))
+    (let ((data (retrieve-item resource uuid)))
+      (if (eq data :null)
+          (error 'no-such-instance
+                 :resource resource
+                 :id uuid
+                 :type (json-type resource))
+          (jsown:new-js
+            ("data" data)
+            ("links" (jsown:new-js
+                       ("self" (construct-resource-item-path resource uuid)))))))))
 
 (defun retrieve-item (resource uuid &key included)
   ;; TODO: only returns first value for now
@@ -189,57 +192,52 @@
    ensures that the identifiers/types are included inline with
    the links response."
   (declare (ignore included))
-  (let* ((resource-url
-          ;; we search for a resource separately as searching it
-          ;; in one query is redonculously slow.  in the order of
-          ;; seconds for a single solution.
-          (find-resource-for-uuid resource uuid))
-         (solution (first
-                    (sparql:select
-                     "*"
-                     (format nil
-                             "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
-                             (loop for slot in (ld-properties resource)
-                                when (single-value-slot-p slot)
-                                append (list (s-url resource-url)
-                                             (ld-property-list slot)
-                                             (s-var (sparql-variable-name slot))))))))
-         (attributes (jsown:empty-object)))
-    (unless solution
-      (error 'no-such-instance
-             :resource resource
-             :id uuid
-             :type (json-type resource)))
-    (loop for slot in (ld-properties resource)
-       for variable-name = (sparql-variable-name slot)
-       unless (single-value-slot-p slot)
-       do
-         (setf (jsown:val solution variable-name)
-               (mapcar (lambda (solution) (jsown:val solution variable-name))
-                       (sparql:select "*"
-                                      (format nil "~A ~{~A~,^/~} ~A."
-                                              (s-url resource-url)
-                                              (ld-property-list slot)
-                                              (s-var variable-name))))))
-    (loop for property in (ld-properties resource)
-       for sparql-var = (sparql-variable-name property)
-       for json-var = (json-property-name property)
-       if (jsown:keyp solution sparql-var)
-       do
-         (setf (jsown:val attributes json-var)
-               (from-sparql (jsown:val solution sparql-var) (resource-type property))))
-    (let* ((resp-data (jsown:new-js
-                        ("attributes" attributes)
-                        ("id" uuid)
-                        ("type" (json-type resource))
-                        ("relationships" (jsown:empty-object)))))
-      (loop for link in (all-links resource)
+  (handler-bind
+      ((no-such-instance (lambda () :null)))
+    (let* ((resource-url
+            ;; we search for a resource separately as searching it
+            ;; in one query is redonculously slow.  in the order of
+            ;; seconds for a single solution.
+            (find-resource-for-uuid resource uuid))
+           (solution (first
+                      (sparql:select
+                       "*"
+                       (format nil
+                               "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
+                               (loop for slot in (ld-properties resource)
+                                  when (single-value-slot-p slot)
+                                  append (list (s-url resource-url)
+                                               (ld-property-list slot)
+                                               (s-var (sparql-variable-name slot))))))))
+           (attributes (jsown:empty-object)))
+      (loop for slot in (ld-properties resource)
+         for variable-name = (sparql-variable-name slot)
+         unless (single-value-slot-p slot)
          do
-           (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
-                 (jsown:new-js ("links" (build-links-object resource uuid link)))))
-      (jsown:new-js
-        ("data" resp-data)
-        ("links" (jsown:new-js ("self" (construct-resource-item-path resource uuid))))))))
+           (setf (jsown:val solution variable-name)
+                 (mapcar (lambda (solution) (jsown:val solution variable-name))
+                         (sparql:select "*"
+                                        (format nil "~A ~{~A~,^/~} ~A."
+                                                (s-url resource-url)
+                                                (ld-property-list slot)
+                                                (s-var variable-name))))))
+      (loop for property in (ld-properties resource)
+         for sparql-var = (sparql-variable-name property)
+         for json-var = (json-property-name property)
+         if (jsown:keyp solution sparql-var)
+         do
+           (setf (jsown:val attributes json-var)
+                 (from-sparql (jsown:val solution sparql-var) (resource-type property))))
+      (let* ((resp-data (jsown:new-js
+                          ("attributes" attributes)
+                          ("id" uuid)
+                          ("type" (json-type resource))
+                          ("relationships" (jsown:empty-object)))))
+        (loop for link in (all-links resource)
+           do
+             (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
+                   (jsown:new-js ("links" (build-links-object resource uuid link)))))
+        resp-data))))
 
 (defgeneric build-links-object (resource identifier link)
   (:documentation "Builds the json object which represents the link
@@ -338,10 +336,9 @@
           (linked-resource (referred-resource link)))
       (if query-results
           ;; one result or more
-          (jsown:val (retrieve-item linked-resource
-                                    (jsown:filter (first query-results)
-                                                  "uuid" "value"))
-                     "data")
+          (retrieve-item linked-resource
+                         (jsown:filter (first query-results)
+                                       "uuid" "value"))
           :null))))
 
 (defgeneric patch-relation-call (resource id link)
