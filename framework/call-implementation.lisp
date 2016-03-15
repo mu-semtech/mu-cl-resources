@@ -241,8 +241,15 @@
         (loop for link in (all-links resource)
            do
              (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
-                   (jsown:new-js ("links" (build-links-object resource uuid link)))))
+                   (build-relationships-object resource uuid link nil)))
         resp-data))))
+
+(defgeneric build-relationships-object (resource uuid link included-p)
+  (:documentation "Returns the content of one of the relationships based
+   on the type of relation, and whether or not the relationship should
+   be inlined.  Values to inline should be included directly.")
+  (:method ((resource resource) uuid (link has-link) (included-p (eql nil)))
+    (jsown:new-js ("links" (build-links-object resource uuid link)))))
 
 (defgeneric build-links-object (resource identifier link)
   (:documentation "Builds the json object which represents the link
