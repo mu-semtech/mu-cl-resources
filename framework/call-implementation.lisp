@@ -212,14 +212,20 @@
                           ("attributes" attributes)
                           ("id" uuid)
                           ("type" (json-type resource))
-                          ("relationships" (jsown:empty-object)))))
+                          ("relationships" (jsown:empty-object))))
+             (included (loop for item-spec
+                          in (included-for-request (list resp-data))
+                          collect
+                            (jsown:new-js ("id" (getf item-spec :id))
+                                          ("type" (json-type (find-resource-by-name (getf item-spec :type))))))))
         (loop for link in (all-links resource)
            do
              (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
                    (jsown:new-js ("links" (build-links-object resource uuid link)))))
         (jsown:new-js
           ("data" resp-data)
-          ("links" (jsown:new-js ("self" (construct-resource-item-path resource uuid)))))))))
+          ("links" (jsown:new-js ("self" (construct-resource-item-path resource uuid))))
+          ("included" included))))))
 
 (defgeneric build-links-object (resource identifier link)
   (:documentation "Builds the json object which represents the link
@@ -410,3 +416,107 @@
               collect
                 `(,(s-url source-url) ,@properties ,(s-url resource)))))))
     (respond-no-content)))
+
+;;;;
+;; support for 'included'
+;;
+;; - Objects which are to be included follow the following structure:
+;;   > (list :type 'catalog :id 56E6925A193F022772000001)
+;; - relation-spec follows the following structure (books.author):
+;;   > (list "books" "author")
+
+(defstruct included-items-store
+  (table (make-hash-table :test 'equal)))
+
+(defun included-items-store-contains (store item-spec)
+  "Returns non-nil ff <item-spec> is included in <store>."
+  (gethash item-spec (included-items-store-table store)))
+
+(defgeneric included-items-store-ensure (store ensured-content)
+  (:documentation "Ensures <item-spec> is contained in <store>.")
+  (:method ((store included-items-store) (item-spec list))
+    (setf (gethash item-spec (included-items-store-table store)) t))
+  (:method ((store included-items-store) (new-items included-items-store))
+    (dolist (item (included-items-store-list-items new-items))
+      (included-items-store-ensure store item))))
+
+(defgeneric included-items-store-subtract (store subtracted-content)
+  (:documentation "Subtracts <subtracted-content> from <store>.")
+  (:method ((store included-items-store) (item-spec list))
+    (remhash item-spec (included-items-store-table store)))
+  (:method ((store included-items-store) (subtracted-store included-items-store))
+    (mapcar (alexandria:curry #'included-items-store-subtract store)
+            (included-items-store-list-items subtracted-store))))
+
+(defun included-items-store-list-items (store)
+  "Retrieves all items in the included-items-store"
+  (loop for key being the hash-keys of (included-items-store-table store)
+     collect key))
+
+(defun make-included-items-store-from-list (items-list)
+  "Constructs a new included items store containing the list of
+   items in <items-list>."
+  (let ((store (make-included-items-store)))
+    (mapcar (alexandria:curry #'included-items-store-ensure store)
+            items-list)
+    store))
+
+(defun included-for-request (current-items)
+  "Returns the list containing all included objects for the currently
+   returned items and the current set of responses"
+  (let ((current-items-store (make-included-items-store))
+        (included-items-store (make-included-items-store)))
+    (dolist (item current-items)
+      (included-items-store-ensure
+       current-items-store
+       (list :type (resource-name (find-resource-by-path (jsown:val item "type")))
+             :id (jsown:val item "id"))))
+    (dolist (relation-spec (extract-included-from-request))
+      (augment-included included-items-store current-items-store relation-spec))
+    (included-items-store-subtract included-items-store current-items-store)
+    (included-items-store-list-items included-items-store)))
+
+(defun extract-included-from-request ()
+  "Extracts the filters from the request.  The result is a list
+   containing the :components and :search key.  The :components
+   key includes a left-to-right specification of the strings
+   between brackets.  The :search contains the content for that
+   specification."
+  (let ((include-parameter
+         (assoc "include" (hunchentoot:get-parameters*) :test #'string=)))
+    (and include-parameter
+         (mapcar (alexandria:curry #'split-sequence:split-sequence #\.)
+                 (split-sequence:split-sequence #\, (cdr include-parameter))))))
+
+(defun augment-included (current-included source-objects relation-spec)
+  "Adds all objects which match <relation> starting from <source-objects>
+   to <relation-spec>."
+  (if (not relation-spec)
+      current-included
+      (let ((items-to-ensure (find-included-items-by-relation source-objects
+                                                              (first relation-spec))))
+        (included-items-store-ensure current-included items-to-ensure)
+        (augment-included current-included items-to-ensure (rest relation-spec))
+        current-included)))
+
+(defun find-included-items-by-relation (source-objects relation-string)
+  "Finds the included items by a specific relation string for each of the source-objects.
+   The items which are to be included are returned in the store which is returned."
+  (let ((new-items (make-included-items-store)))
+    (dolist (item (included-items-store-list-items source-objects))
+      (let ((item-type (getf item :type))
+            (uuid (getf item :id)))
+        (let* ((resource (find-resource-by-name item-type))
+               (relation (find-resource-link-by-json-key resource relation-string))
+               (target-type (resource-name relation)))
+          (dolist (new-uuid
+                    (jsown:filter
+                     (sparql:select (s-var "target")
+                                    (format nil (s+ "?s mu:uuid ~A."
+                                                    "?s ~{~A/~}mu:uuid ?target")
+                                            (s-str uuid)
+                                            (ld-property-list relation)))
+                     map "target" "value"))
+            (included-items-store-ensure new-items
+                                         `(:type ,target-type :id ,new-uuid))))))
+    new-items))
