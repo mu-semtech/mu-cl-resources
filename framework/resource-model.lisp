@@ -30,7 +30,8 @@
    (json-type :initarg :json-type :reader json-type)
    (has-many-links :initarg :has-many :reader has-many-links)
    (has-one-links :initarg :has-one :reader has-one-links)
-   (request-path :initarg :request-path :reader request-path)))
+   (request-path :initarg :request-path :reader request-path)
+   (name :initarg :resource-name :reader resource-name)))
 
 (defgeneric json-property-name (resource-slot)
   (:documentation "retrieves the name of the json property of the
@@ -193,7 +194,8 @@
                                   :has-many has-many-links
                                   :has-one has-one-links
                                   :json-type on-path ; (symbol-to-camelcase name :cap-first t)
-                                  :request-path on-path)))
+                                  :request-path on-path
+                                  :resource-name name)))
     (setf (gethash name *resources*) resource)))
 
 (defmacro define-resource (name options &key class properties resource-base has-many has-one on-path)
@@ -241,4 +243,3 @@
   (:method ((resource resource) identifier)
     (format nil "/~A/~A"
             (request-path resource) identifier)))
-
