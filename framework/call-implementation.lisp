@@ -343,7 +343,18 @@
                                          (ld-property-list link)))))
           (linked-resource (resource-name (referred-resource link))))
       (and query-results
-           `((:type ,linked-resource :id ,(jsown:filter "uuid" "value")))))))
+           `((:type ,linked-resource :id ,(jsown:filter "uuid" "value"))))))
+  (:method ((resource resource) id (link has-many-link))
+    (let ((query-results
+           (sparql:select (s-var "uuid")
+                          (format nil (s+ "~A ~{~A~,^/~} ?resource. "
+                                          "?resource mu:uuid ?uuid. ")
+                                  (s-url (find-resource-for-uuid resource id))
+                                  (ld-property-list link))))
+          (linked-resource (resource-name (referred-resource link))))
+      (loop for uuid in (jsown:filter query-results map "uuid" "value")
+         collect
+           `(:type ,linked-resource :id ,uuid)))))
 
 (defgeneric patch-relation-call (resource id link)
   (:documentation "implementation of the PATCH request which
