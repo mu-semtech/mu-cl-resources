@@ -163,7 +163,9 @@
   (:method ((resource-symbol symbol) uuid)
     (show-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
-    (let ((data (retrieve-item resource uuid)))
+    (multiple-value-bind (data included-items)
+        (retrieve-item resource uuid)
+      (declare (ignore included-items))
       (if (eq data :null)
           (error 'no-such-instance
                  :resource resource
@@ -237,12 +239,16 @@
                           ("attributes" attributes)
                           ("id" uuid)
                           ("type" (json-type resource))
-                          ("relationships" (jsown:empty-object)))))
+                          ("relationships" (jsown:empty-object))))
+             included-items)
         (loop for link in (all-links resource)
            do
-             (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
-                   (build-relationships-object resource uuid link nil)))
-        resp-data))))
+             (multiple-value-bind (relationship-object new-included-items)
+                 (build-relationships-object resource uuid link t)
+               (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
+                     relationship-object)
+               (setf (getf included-items (json-key link)) new-included-items)))
+        (values resp-data included-items)))))
 
 (defgeneric build-relationships-object (resource uuid link included-p)
   (:documentation "Returns the content of one of the relationships based
