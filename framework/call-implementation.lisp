@@ -302,28 +302,9 @@
   (:method ((resource-symbol symbol) id link)
     (show-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
-    (let ((query-results
-           (sparql:select (s-var "uuid")
-                          (format nil (s+ "~A ~{~A~,^/~} ?resource. "
-                                          "?resource mu:uuid ?uuid. ")
-                                  (s-url (find-resource-for-uuid resource id))
-                                  (ld-property-list link))))
-          (linked-resource (referred-resource link)))
-      (if query-results
-          ;; one result or more
-          (jsown:new-js
-            ("data" (jsown:val (retrieve-item linked-resource
-                                              (jsown:filter (first query-results)
-                                                            "uuid" "value"))
-                               "data")
-                    ;; (jsown:new-js
-                    ;;   ("id" (jsown:filter (first query-results) "uuid" "value"))
-                    ;;   ("type" (json-type (referred-resource link))))
-                    )
-            ("links" (build-links-object resource id link)))
-          (jsown:new-js
-            ("data" :null)
-            ("links" (build-links-object resource id link))))))
+    (jsown:new-js
+      ("data" (retrieve-relation-items resource id link))
+      ("links" (build-links-object resource id link))))
   (:method ((resource resource) id (link has-many-link))
     (paginated-collection-response
      :resource (referred-resource link)
@@ -336,6 +317,32 @@
                    :source-variable (s-var "resource")
                    :resource (referred-resource link))
      :link-defaults (build-links-object resource id link))))
+
+(defgeneric retrieve-relation-items (resource id link)
+  (:documentation "retrieves the item descriptions of the items
+    which are connected to <resource> <id> through link <link>.
+    This yields the high-level description of the items, not
+    their contents.
+    Note that this method does not support pagination.")
+  (:method ((resource-symbol symbol) id link)
+    (retrieve-relation-items (find-resource-by-name resource-symbol) id link))
+  (:method ((resource resource) id (link string))
+    (retrieve-relation-items resource id (find-link-by-json-name resource link)))
+  (:method ((resource resource) id (link has-one-link))
+    (let ((query-results
+           (sparql:select (s-var "uuid")
+                          (format nil (s+ "~A ~{~A~,^/~} ?resource. "
+                                          "?resource mu:uuid ?uuid. ")
+                                  (s-url (find-resource-for-uuid resource id))
+                                  (ld-property-list link))))
+          (linked-resource (referred-resource link)))
+      (if query-results
+          ;; one result or more
+          (jsown:val (retrieve-item linked-resource
+                                    (jsown:filter (first query-results)
+                                                  "uuid" "value"))
+                     "data")
+          :null))))
 
 (defgeneric patch-relation-call (resource id link)
   (:documentation "implementation of the PATCH request which
