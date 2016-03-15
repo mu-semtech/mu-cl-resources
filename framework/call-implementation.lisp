@@ -32,7 +32,7 @@
              (update-resource-relation resource uuid relation
                                        (jsown:filter json-input
                                                      "data" "relationships" relation "data"))))
-      (let ((show-content (show-call resource uuid)))
+      (let ((show-content (retrieve-item resource uuid)))
         ;; only need to set the id in attributes temporarily
         (setf (jsown:val (jsown:val (jsown:val show-content "data")
                                     "attributes")
@@ -169,63 +169,77 @@
   (:method ((resource-symbol symbol) uuid)
     (show-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
-    (let* ((resource-url
-            ;; we search for a resource separately as searching it
-            ;; in one query is redonculously slow.  in the order of
-            ;; seconds for a single solution.
-            (find-resource-for-uuid resource uuid))
-           (solution (first
-                      (sparql:select
-                       "*"
-                       (format nil
-                               "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
-                               (loop for slot in (ld-properties resource)
-                                  when (single-value-slot-p slot)
-                                  append (list (s-url resource-url)
-                                               (ld-property-list slot)
-                                               (s-var (sparql-variable-name slot))))))))
-           (attributes (jsown:empty-object)))
-      (unless solution
-        (error 'no-such-instance
-               :resource resource
-               :id uuid
-               :type (json-type resource)))
-      (loop for slot in (ld-properties resource)
-         for variable-name = (sparql-variable-name slot)
-         unless (single-value-slot-p slot)
+    (retrieve-item resource uuid)))
+
+(defun retrieve-item (resource uuid &key included)
+  ;; TODO: only returns first value for now
+  "Returns (values item-json included-items)
+   item-json contains the description of the specified item with
+     necessary links from <included>.
+   included-items is an alist with the json name of a realtion as
+     its keys and a list of item specifications as its values.
+     (eg: '((\"catalogs\" (:type catalog :id \"ae12ee\")
+                          (:type catalog :id \"123456\"))
+            (\"users\" (:type user :id \"42\")
+                       (:type user :id \"1337\"))))
+
+   The included key contains a list of keys which aught to be
+   retrieved in the included portion of the response.  This
+   ensures the included-items portion is returned, but also
+   ensures that the identifiers/types are included inline with
+   the links response."
+  (declare (ignore included))
+  (let* ((resource-url
+          ;; we search for a resource separately as searching it
+          ;; in one query is redonculously slow.  in the order of
+          ;; seconds for a single solution.
+          (find-resource-for-uuid resource uuid))
+         (solution (first
+                    (sparql:select
+                     "*"
+                     (format nil
+                             "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
+                             (loop for slot in (ld-properties resource)
+                                when (single-value-slot-p slot)
+                                append (list (s-url resource-url)
+                                             (ld-property-list slot)
+                                             (s-var (sparql-variable-name slot))))))))
+         (attributes (jsown:empty-object)))
+    (unless solution
+      (error 'no-such-instance
+             :resource resource
+             :id uuid
+             :type (json-type resource)))
+    (loop for slot in (ld-properties resource)
+       for variable-name = (sparql-variable-name slot)
+       unless (single-value-slot-p slot)
+       do
+         (setf (jsown:val solution variable-name)
+               (mapcar (lambda (solution) (jsown:val solution variable-name))
+                       (sparql:select "*"
+                                      (format nil "~A ~{~A~,^/~} ~A."
+                                              (s-url resource-url)
+                                              (ld-property-list slot)
+                                              (s-var variable-name))))))
+    (loop for property in (ld-properties resource)
+       for sparql-var = (sparql-variable-name property)
+       for json-var = (json-property-name property)
+       if (jsown:keyp solution sparql-var)
+       do
+         (setf (jsown:val attributes json-var)
+               (from-sparql (jsown:val solution sparql-var) (resource-type property))))
+    (let* ((resp-data (jsown:new-js
+                        ("attributes" attributes)
+                        ("id" uuid)
+                        ("type" (json-type resource))
+                        ("relationships" (jsown:empty-object)))))
+      (loop for link in (all-links resource)
          do
-           (setf (jsown:val solution variable-name)
-                 (mapcar (lambda (solution) (jsown:val solution variable-name))
-                         (sparql:select "*"
-                                        (format nil "~A ~{~A~,^/~} ~A."
-                                                (s-url resource-url)
-                                                (ld-property-list slot)
-                                                (s-var variable-name))))))
-      (loop for property in (ld-properties resource)
-         for sparql-var = (sparql-variable-name property)
-         for json-var = (json-property-name property)
-         if (jsown:keyp solution sparql-var)
-         do
-           (setf (jsown:val attributes json-var)
-                 (from-sparql (jsown:val solution sparql-var) (resource-type property))))
-      (let* ((resp-data (jsown:new-js
-                          ("attributes" attributes)
-                          ("id" uuid)
-                          ("type" (json-type resource))
-                          ("relationships" (jsown:empty-object))))
-             (included (loop for item-spec
-                          in (included-for-request (list resp-data))
-                          collect
-                            (jsown:new-js ("id" (getf item-spec :id))
-                                          ("type" (json-type (find-resource-by-name (getf item-spec :type))))))))
-        (loop for link in (all-links resource)
-           do
-             (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
-                   (jsown:new-js ("links" (build-links-object resource uuid link)))))
-        (jsown:new-js
-          ("data" resp-data)
-          ("links" (jsown:new-js ("self" (construct-resource-item-path resource uuid))))
-          ("included" included))))))
+           (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
+                 (jsown:new-js ("links" (build-links-object resource uuid link)))))
+      (jsown:new-js
+        ("data" resp-data)
+        ("links" (jsown:new-js ("self" (construct-resource-item-path resource uuid))))))))
 
 (defgeneric build-links-object (resource identifier link)
   (:documentation "Builds the json object which represents the link
@@ -298,9 +312,9 @@
       (if query-results
           ;; one result or more
           (jsown:new-js
-            ("data" (jsown:val (show-call linked-resource
-                                          (jsown:filter (first query-results)
-                                                        "uuid" "value"))
+            ("data" (jsown:val (retrieve-item linked-resource
+                                              (jsown:filter (first query-results)
+                                                            "uuid" "value"))
                                "data")
                     ;; (jsown:new-js
                     ;;   ("id" (jsown:filter (first query-results) "uuid" "value"))
