@@ -1,5 +1,27 @@
 (in-package :mu-cl-resources)
 
+;;;;
+;; item specs
+
+(defclass item-spec ()
+  ((uuid :accessor uuid :initarg :uuid)
+   (type :accessor resource-name :initarg :type))
+  (:documentation "Represents an item that should be loaded."))
+
+(defun make-item-spec (&key uuid type)
+  "Creates a new item-spec instance."
+  (make-instance 'item-spec :type type :uuid uuid))
+
+(defun item-spec-hash-key (item-spec)
+  "Creates a key which can be compared through #'equal."
+  (list (resource-name item-spec) (uuid item-spec)))
+
+(defmethod resource ((spec item-spec))
+  (find-resource-by-name (resource-name spec)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;
+;; call implementation
 
 (defgeneric create-call (resource)
   (:documentation "implementation of the POST request which
@@ -33,6 +55,7 @@
                                        (jsown:filter json-input
                                                      "data" "relationships" relation "data"))))
       (jsown:new-js ("data" (retrieve-item resource uuid))))))
+
 
 (defun find-resource-for-uuid (resource uuid)
   "Retrieves the resource hich specifies the supplied UUID in the database."
@@ -179,7 +202,7 @@
 (defun retrieve-item-by-spec (spec)
   "Retrieves an item from its specification.
    '(:type catalog :id \"ae12ee\")"
-  (retrieve-item (getf spec :type) (getf spec :id)))
+  (retrieve-item (resource-name spec) (uuid spec)))
 
 (defun retrieve-item (resource uuid &key included)
   "Returns (values item-json included-items)
@@ -262,20 +285,23 @@
                      ("data" (build-data-object-for-included-relation link related-items)))
        related-items))))
 
+(defgeneric jsown-inline-item-spec (item-spec)
+  (:documentation "Yields the inline id/type to indicate a particular
+   resource")
+  (:method ((item-spec item-spec))
+    (jsown:new-js ("type" (json-type (resource item-spec)))
+                  ("id" (uuid item-spec)))))
+
 (defgeneric build-data-object-for-included-relation (link items)
   (:documentation "Builds the data object for an included relation.
-   This object contains the references to the relationship.")
+   This object contains the references to the relationship.
+   <items> should be a list of item-spec instances.")
   (:method ((link has-one-link) (items (eql nil)))
     :null)
   (:method ((link has-one-link) items)
-    (let ((item-spec (first items)))
-      (jsown:new-js ("type" (json-type (find-resource-by-name (getf item-spec :type))))
-                    ("id" (getf item-spec :id)))))
+    (jsown-inline-item-spec (first items)))
   (:method ((link has-many-link) items)
-    (loop for item-spec in items
-       collect
-         (jsown:new-js ("type" (json-type (find-resource-by-name (getf item-spec :type))))
-                       ("id" (getf item-spec :id))))))
+    (mapcar #'jsown-inline-item-spec items)))
 
 (defgeneric build-links-object (resource identifier link)
   (:documentation "Builds the json object which represents the link
@@ -495,29 +521,33 @@
   (table (make-hash-table :test 'equal)))
 
 (defun included-items-store-contains (store item-spec)
-  "Returns non-nil ff <item-spec> is included in <store>."
-  (gethash item-spec (included-items-store-table store)))
+  "Returns item-spec iff <item-spec> is included in <store>.
+   Returns nil otherwise"
+  (gethash (item-spec-hash-key item-spec) (included-items-store-table store)))
 
 (defgeneric included-items-store-ensure (store ensured-content)
   (:documentation "Ensures <item-spec> is contained in <store>.")
-  (:method ((store included-items-store) (item-spec list))
-    (setf (gethash item-spec (included-items-store-table store)) t))
+  (:method ((store included-items-store) (item-spec item-spec))
+    (setf (gethash (item-spec-hash-key item-spec)
+                   (included-items-store-table store))
+          item-spec))
   (:method ((store included-items-store) (new-items included-items-store))
     (dolist (item (included-items-store-list-items new-items))
       (included-items-store-ensure store item))))
 
 (defgeneric included-items-store-subtract (store subtracted-content)
   (:documentation "Subtracts <subtracted-content> from <store>.")
-  (:method ((store included-items-store) (item-spec list))
-    (remhash item-spec (included-items-store-table store)))
+  (:method ((store included-items-store) (item-spec item-spec))
+    (remhash (item-spec-hash-key item-spec)
+             (included-items-store-table store)))
   (:method ((store included-items-store) (subtracted-store included-items-store))
     (mapcar (alexandria:curry #'included-items-store-subtract store)
             (included-items-store-list-items subtracted-store))))
 
 (defun included-items-store-list-items (store)
   "Retrieves all items in the included-items-store"
-  (loop for key being the hash-keys of (included-items-store-table store)
-     collect key))
+  (loop for item-spec being the hash-values of (included-items-store-table store)
+     collect item-spec))
 
 (defun make-included-items-store-from-list (items-list)
   "Constructs a new included items store containing the list of
@@ -535,8 +565,8 @@
     (dolist (item current-items)
       (included-items-store-ensure
        current-items-store
-       (list :type (resource-name (find-resource-by-path (jsown:val item "type")))
-             :id (jsown:val item "id"))))
+       (make-item-spec :uuid (jsown:val item "id")
+                       :type (resource-name (find-resource-by-path (jsown:val item "type"))))))
     (dolist (relation-spec (extract-included-from-request))
       (augment-included included-items-store current-items-store relation-spec))
     (included-items-store-subtract included-items-store current-items-store)
@@ -570,19 +600,17 @@
    The items which are to be included are returned in the store which is returned."
   (let ((new-items (make-included-items-store)))
     (dolist (item (included-items-store-list-items source-objects))
-      (let ((item-type (getf item :type))
-            (uuid (getf item :id)))
-        (let* ((resource (find-resource-by-name item-type))
-               (relation (find-resource-link-by-json-key resource relation-string))
-               (target-type (resource-name relation)))
-          (dolist (new-uuid
-                    (jsown:filter
-                     (sparql:select (s-var "target")
-                                    (format nil (s+ "?s mu:uuid ~A."
-                                                    "?s ~{~A/~}mu:uuid ?target")
-                                            (s-str uuid)
-                                            (ld-property-list relation)))
-                     map "target" "value"))
-            (included-items-store-ensure new-items
-                                         `(:type ,target-type :id ,new-uuid))))))
+      (let* ((resource (resource item))
+             (relation (find-resource-link-by-json-key resource relation-string))
+             (target-type (resource-name relation)))
+        (dolist (new-uuid
+                  (jsown:filter
+                   (sparql:select (s-var "target")
+                                  (format nil (s+ "?s mu:uuid ~A."
+                                                  "?s ~{~A/~}mu:uuid ?target")
+                                          (s-str (uuid item))
+                                          (ld-property-list relation)))
+                   map "target" "value"))
+          (included-items-store-ensure new-items
+                                       (make-item-spec :uuid new-uuid :type target-type)))))
     new-items))
