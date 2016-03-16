@@ -526,14 +526,19 @@
   (gethash (item-spec-hash-key item-spec) (included-items-store-table store)))
 
 (defgeneric included-items-store-ensure (store ensured-content)
-  (:documentation "Ensures <item-spec> is contained in <store>.")
+  (:documentation "Ensures <item-spec> is contained in <store>.
+   If an <item-spec> which matches the same item-spec-hash-key is
+   already stored, then the one from the store is returned,
+   otherwise, the new ensured-content is returned.")
   (:method ((store included-items-store) (item-spec item-spec))
-    (setf (gethash (item-spec-hash-key item-spec)
-                   (included-items-store-table store))
-          item-spec))
+    (let ((table (included-items-store-table store))
+          (key (item-spec-hash-key item-spec)))
+      (or (gethash key table)
+          (setf (gethash key table) item-spec))))
   (:method ((store included-items-store) (new-items included-items-store))
-    (dolist (item (included-items-store-list-items new-items))
-      (included-items-store-ensure store item))))
+    (loop for item-spec in (included-items-store-list-items new-items)
+       collect
+         (included-items-store-ensure store item-spec))))
 
 (defgeneric included-items-store-subtract (store subtracted-content)
   (:documentation "Subtracts <subtracted-content> from <store>.")
@@ -562,14 +567,19 @@
    returned items and the current set of responses"
   (let ((current-items-store (make-included-items-store))
         (included-items-store (make-included-items-store)))
+    ;; drop current-items in a store
     (dolist (item current-items)
       (included-items-store-ensure
        current-items-store
        (make-item-spec :uuid (jsown:val item "id")
                        :type (resource-name (find-resource-by-path (jsown:val item "type"))))))
+    ;; put all included items in the included-items-store
     (dolist (relation-spec (extract-included-from-request))
       (augment-included included-items-store current-items-store relation-spec))
+    ;; subtract items which were already in the included-items-store
+    ;; as they will already be inlined in the main response
     (included-items-store-subtract included-items-store current-items-store)
+    ;; return the /list/ of new items
     (included-items-store-list-items included-items-store)))
 
 (defun extract-included-from-request ()
@@ -606,11 +616,12 @@
         (dolist (new-uuid
                   (jsown:filter
                    (sparql:select (s-var "target")
-                                  (format nil (s+ "?s mu:uuid ~A."
-                                                  "?s ~{~A/~}mu:uuid ?target")
+                                  (format nil (s+ "?s mu:uuid ~A. "
+                                                  "?s ~{~A/~}mu:uuid ?target. ")
                                           (s-str (uuid item))
                                           (ld-property-list relation)))
                    map "target" "value"))
           (included-items-store-ensure new-items
-                                       (make-item-spec :uuid new-uuid :type target-type)))))
+                                       (make-item-spec :uuid new-uuid
+                                                       :type target-type)))))
     new-items))
