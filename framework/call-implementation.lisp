@@ -182,7 +182,6 @@
   (retrieve-item (getf spec :type) (getf spec :id)))
 
 (defun retrieve-item (resource uuid &key included)
-  ;; TODO: only returns first value for now
   "Returns (values item-json included-items)
    item-json contains the description of the specified item with
      necessary links from <included>.
