@@ -228,17 +228,20 @@
             ;; in one query is redonculously slow.  in the order of
             ;; seconds for a single solution.
             (find-resource-for-uuid resource uuid))
-           (solution (first
-                      (sparql:select
-                       "*"
-                       (format nil
-                               "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
-                               (loop for slot in (ld-properties resource)
-                                  when (single-value-slot-p slot)
-                                  append (list (s-url resource-url)
-                                               (ld-property-list slot)
-                                               (s-var (sparql-variable-name slot))))))))
+           (solution
+            ;; simple attributes
+            (first
+             (sparql:select
+              "*"
+              (format nil
+                      "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
+                      (loop for slot in (ld-properties resource)
+                         when (single-value-slot-p slot)
+                         append (list (s-url resource-url)
+                                      (ld-property-list slot)
+                                      (s-var (sparql-variable-name slot))))))))
            (attributes (jsown:empty-object)))
+      ;; read simple attributes from sparql query
       (loop for slot in (ld-properties resource)
          for variable-name = (sparql-variable-name slot)
          unless (single-value-slot-p slot)
@@ -250,6 +253,7 @@
                                                 (s-url resource-url)
                                                 (ld-property-list slot)
                                                 (s-var variable-name))))))
+      ;; read extended variables through separate sparql query
       (loop for property in (ld-properties resource)
          for sparql-var = (sparql-variable-name property)
          for json-var = (json-property-name property)
@@ -257,16 +261,18 @@
          do
            (setf (jsown:val attributes json-var)
                  (from-sparql (jsown:val solution sparql-var) (resource-type property))))
+      ;; build response data object
       (let* ((resp-data (jsown:new-js
                           ("attributes" attributes)
                           ("id" uuid)
                           ("type" (json-type resource))
                           ("relationships" (jsown:empty-object))))
              included-items)
+        ;; find all links and their included objects
         (loop for link in (all-links resource)
            do
              (multiple-value-bind (relationship-object new-included-items)
-                 (build-relationships-object resource uuid link t)
+                 (build-relationships-object resource uuid link nil)  ; TODO: included-p should be calculated
                (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
                      relationship-object)
                (setf (getf included-items (json-key link)) new-included-items)))
@@ -402,7 +408,9 @@
                                          (ld-property-list link)))))
           (linked-resource (resource-name (referred-resource link))))
       (and query-results
-           `((:type ,linked-resource :id ,(jsown:filter query-results "uuid" "value"))))))
+           (list
+            (make-item-spec :type linked-resource
+                            :uuid (jsown:filter query-results "uuid" "value"))))))
   (:method ((resource resource) id (link has-many-link))
     (let ((query-results
            (sparql:select (s-var "uuid")
@@ -413,7 +421,7 @@
           (linked-resource (resource-name (referred-resource link))))
       (loop for uuid in (jsown:filter query-results map "uuid" "value")
          collect
-           `(:type ,linked-resource :id ,uuid)))))
+           (make-item-spec :type linked-resource :uuid uuid)))))
 
 (defgeneric patch-relation-call (resource id link)
   (:documentation "implementation of the PATCH request which
