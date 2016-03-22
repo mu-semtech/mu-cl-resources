@@ -264,12 +264,15 @@
       ;; build response data object
       (let ((relationships-object (jsown:empty-object)))
         (loop for link in (all-links resource)
+           for (related-items related-items-p)
+             = (multiple-value-list (related-items item-spec link))
            do
              ;; TODO: build-relationships-object should receive all the included items for
              ;;   this relationship instead of calculating them.  it should include the
              ;;   partial data descriptions.
              (setf (jsown:val relationships-object (json-key link))
-                   (build-relationships-object resource uuid link nil)))
+                   (build-relationships-object resource uuid link
+                                               related-items related-items-p)))
         (jsown:new-js
           ("attributes" attributes)
           ("id" uuid)
@@ -302,18 +305,15 @@
       (values (item-spec-to-jsown (first data-item-specs))
               (mapcar #'item-spec-to-jsown included-item-specs)))))
 
-(defgeneric build-relationships-object (resource uuid link included-p)
+(defgeneric build-relationships-object (resource uuid link included-items included-items-p)
   (:documentation "Returns the content of one of the relationships based
    on the type of relation, and whether or not the relationship should
    be inlined.  Values to inline should be included directly.")
-  (:method ((resource resource) uuid (link has-link) (included-p (eql nil)))
-    (jsown:new-js ("links" (build-links-object resource uuid link))))
-  (:method ((resource resource) uuid (link has-link) (included-p (eql t)))
-    (let ((related-items (retrieve-relation-items resource uuid link)))
-      (values
-       (jsown:new-js ("links" (build-links-object resource uuid link))
-                     ("data" (build-data-object-for-included-relation link related-items)))
-       related-items))))
+  (:method ((resource resource) uuid (link has-link) included-items included-items-p)
+    (if included-items-p
+        (jsown:new-js ("links" (build-links-object resource uuid link))
+                      ("data" (mapcar #'jsown-inline-item-spec included-items)))
+        (jsown:new-js ("links" (build-links-object resource uuid link))))))
 
 (defgeneric jsown-inline-item-spec (item-spec)
   (:documentation "Yields the inline id/type to indicate a particular
@@ -322,6 +322,7 @@
     (jsown:new-js ("type" (json-type (resource item-spec)))
                   ("id" (uuid item-spec)))))
 
+  ;; TODO probably not used anymore
 (defgeneric build-data-object-for-included-relation (link items)
   (:documentation "Builds the data object for an included relation.
    This object contains the references to the relationship.
@@ -635,18 +636,22 @@
   (let* ((resource (resource item-spec))
          (uuid (uuid item-spec))
          (relation (find-resource-link-by-json-key resource relation-string))
-         (target-type (resource-name relation)))
-    (loop for new-uuid
-       in (jsown:filter
-           (sparql:select (s-var "target")
-                          (format nil (s+ "?s mu:uuid ~A. "
-                                          "?s ~{~A/~}mu:uuid ?target. ")
-                                  (s-str uuid)
-                                  (ld-property-list relation)))
-           map "target" "value")
-       collect (included-items-store-ensure included-items-store
-                                            (make-item-spec :uuid new-uuid
-                                                            :type target-type)))))
+         (target-type (resource-name relation))
+         (related-objects
+          (loop for new-uuid
+             in (jsown:filter
+                 (sparql:select (s-var "target")
+                                (format nil (s+ "?s mu:uuid ~A. "
+                                                "?s ~{~A/~}mu:uuid ?target. ")
+                                        (s-str uuid)
+                                        (ld-property-list relation)))
+                 map "target" "value")
+             collect (included-items-store-ensure included-items-store
+                                                  (make-item-spec :uuid new-uuid
+                                                                  :type target-type)))))
+    (setf (gethash relation (related-items-table item-spec))
+          related-objects)
+    related-objects))
 
 (defun included-for-request (current-items)
   "Returns the list containing all included objects for the currently
