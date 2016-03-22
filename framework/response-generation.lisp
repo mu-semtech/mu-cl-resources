@@ -34,43 +34,47 @@
                  :property-path (ld-property-list (resource-slot-by-json-key resource
                                                                              attribute-name)))))))
 
-(defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number order-info)
-  (let ((limit page-size)
-        (offset (* page-size page-number))
-        (order-variables (loop for info in order-info
+(defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number order-info source-variable)
+  "Returns the paginated uuids for the supplied sparql body and
+   side constraints."
+  (let ((order-variables (loop for info in order-info
                             for name = (getf info :name)
                             collect
                               (s-genvar name))))
-    (if order-info
-        (jsown:filter (sparql:select (format nil "DISTINCT ~{~A~^, ~}" (cons (s-var "uuid")
-                                                                             order-variables))
-                                     (format nil "~A~% ~A mu:uuid ~A; ~{~{~{~A~^/~} ~A~}~^;~}."
-                                             sparql-body
-                                             (s-genvar "subject")
-                                             (s-var "uuid")
-                                             (loop for info in order-info
-                                                for variable in order-variables
-                                                collect
-                                                  (list (getf info :property-path) variable)))
-                                     :order-by (format nil "~{~A(~A) ~}"
-                                                       (loop for info in order-info
-                                                          for variable in order-variables
-                                                          append
-                                                            (list (if (eql (getf info :order)
-                                                                           :ascending)
-                                                                      "ASC" "DESC")
-                                                                  variable)))
-                                     :group-by (s-var "uuid")
-                                     :limit limit
-                                     :offset offset)
-                      map "uuid" "value")                
-        (jsown:filter (sparql:select (format nil "DISTINCT ~A" (s-var "uuid"))
-                                     sparql-body
-                                     :order-by (s-var "uuid")
-                                     :group-by (s-var "uuid")
-                                     :limit limit
-                                     :offset offset)
-                      map "uuid" "value"))))
+    ;; looking ath the implementation, much of it is split
+    ;; between having to sort (order-info) and not having
+    ;; to sort.  some logic is shared.
+    (let ((sparql-variables (if order-info
+                                (format nil "DISTINCT ~{~A~^, ~}"
+                                        (cons (s-var "uuid") order-variables))
+                                (format nil "DISTINCT ~A" (s-var "uuid"))))
+          (sparql-body (if order-info
+                           (format nil "~A~% ~A ~{~{~{~A~^/~} ~A~}~^; ~}."
+                                   sparql-body
+                                   source-variable
+                                   (loop for info in order-info
+                                      for variable in order-variables
+                                      collect
+                                        (list (getf info :property-path) variable)))
+                           sparql-body))
+          (order-by (if order-info
+                        (format nil "~{~A(~A) ~}"
+                                (loop for info in order-info
+                                   for variable in order-variables
+                                   append
+                                     (list (if (eql (getf info :order)
+                                                    :ascending)
+                                               "ASC" "DESC")
+                                           variable)))))
+          (group-by (s-var "uuid"))
+          (limit page-size)
+          (offset (* page-size page-number)))
+      (jsown:filter (sparql:select sparql-variables sparql-body
+                                   :order-by order-by
+                                   :group-by group-by
+                                   :limit limit
+                                   :offset offset)
+                    map "uuid" "value"))))
 
 (defun build-pagination-links (base-path &key page-number page-size total-count)
   "Builds a links object containing the necessary pagination
@@ -96,7 +100,7 @@
                 (build-url :page-number (1+ page-number))))
         links))))
 
-(defun paginated-collection-response (&key resource sparql-body link-defaults)
+(defun paginated-collection-response (&key resource sparql-body link-defaults source-variable)
   "Constructs the paginated response for a collection listing."
   (destructuring-bind (page-size page-number)
       (extract-pagination-info-from-request)
@@ -105,6 +109,7 @@
             (uuids (paginate-uuids-for-sparql-body :sparql-body sparql-body
                                                    :page-size page-size
                                                    :page-number page-number
+                                                   :source-variable source-variable
                                                    :order-info order-info))
             (resource-type (resource-name resource)))
         (multiple-value-bind (data-item-specs included-item-specs)

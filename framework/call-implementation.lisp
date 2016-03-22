@@ -165,7 +165,8 @@
                    :sparql-body  (format nil "?s mu:uuid ?uuid; a ~A."
                                          (ld-class resource))
                    :source-variable (s-var "s")
-                   :resource resource))))
+                   :resource resource)
+     :source-variable (s-var "s"))))
 
 (defgeneric show-call (resource uuid)
   (:documentation "implementation of the GET request which
@@ -374,6 +375,7 @@
                                           (ld-property-list link))
                      :source-variable (s-var "resource")
                      :resource (referred-resource link))
+       :source-variable (s-var "resource")
        :link-defaults (build-links-object (make-item-spec :type (resource-name resource)
                                                           :uuid id)
                                           link)))))
