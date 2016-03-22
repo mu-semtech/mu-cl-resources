@@ -40,6 +40,7 @@
     (let* ((jsown:*parsed-null-value* :null)
            (json-input (jsown:parse (post-body)))
            (uuid (mu-support:make-uuid)) 
+           (item-spec (make-item-spec :uuid uuid :type (resource-name resource)))
            (resource-uri (s-url (format nil "~A~A"
                                         (raw-content (ld-resource-base resource))
                                         uuid))))
@@ -62,7 +63,7 @@
              (update-resource-relation resource uuid relation
                                        (jsown:filter json-input
                                                      "data" "relationships" relation "data"))))
-      (jsown:new-js ("data" (retrieve-item resource uuid))))))
+      (jsown:new-js ("data" (retrieve-item item-spec))))))
 
 
 (defun find-resource-for-uuid (resource uuid)
@@ -194,26 +195,22 @@
   (:method ((resource-symbol symbol) uuid)
     (show-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
-    (multiple-value-bind (data included-items)
-        (retrieve-item resource uuid)
-      (if (eq data :null)
-          (error 'no-such-instance
-                 :resource resource
-                 :id uuid
-                 :type (json-type resource))
-          (let ((response
-                 (jsown:new-js
-                   ("data" data)
-                   ("links" (jsown:new-js
-                              ("self" (construct-resource-item-path resource uuid)))))))
-            (when included-items
-              (setf (jsown:val response "included") included-items))
-            response)))))
-
-(defun retrieve-item-by-spec (spec)
-  "Retrieves an item from its specification.
-   '(:type catalog :id \"ae12ee\")"
-  (retrieve-item (resource-name spec) (uuid spec)))
+    (let ((item-spec (make-item-spec :uuid uuid :type (resource-name resource))))
+      (multiple-value-bind (data included-items)
+          (retrieve-item item-spec)
+        (if (eq data :null)
+            (error 'no-such-instance
+                   :resource resource
+                   :id uuid
+                   :type (json-type resource))
+            (let ((response
+                   (jsown:new-js
+                     ("data" data)
+                     ("links" (jsown:new-js
+                                ("self" (construct-resource-item-path resource uuid)))))))
+              (when included-items
+                (setf (jsown:val response "included") included-items))
+              response))))))
 
 (defun item-spec-to-jsown (item-spec)
   "Returns the jsown representation of the attributes and
@@ -273,29 +270,15 @@
           ("type" (json-type resource))
           ("relationships" relationships-object))))))
 
-(defun retrieve-item (resource uuid &key included)
+(defun retrieve-item (item-spec)
   "Returns (values item-json included-items)
    item-json contains the description of the specified item with
-     necessary links from <included>.
-   included-items is an alist with the json name of a realtion as
-     its keys and a list of item specifications as its values.
-     (eg: '((\"catalogs\" (:type catalog :id \"ae12ee\")
-                          (:type catalog :id \"123456\"))
-            (\"users\" (:type user :id \"42\")
-                       (:type user :id \"1337\"))))
-
-   The included key contains a list of keys which aught to be
-   retrieved in the included portion of the response.  This
-   ensures the included-items portion is returned, but also
-   ensures that the identifiers/types are included inline with
-   the links response."
-  (declare (ignore included))
+     necessary links from <included>."
   (handler-bind
       ((no-such-instance (lambda () :null)))
     (multiple-value-bind (data-item-specs included-item-specs)
         (augment-data-with-attached-info
-         (list (make-item-spec :uuid uuid
-                               :type (resource-name resource))))
+         (list item-spec))
       (values (item-spec-to-jsown (first data-item-specs))
               (mapcar #'item-spec-to-jsown included-item-specs)))))
 
@@ -397,7 +380,7 @@
     (let ((item-spec (first (retrieve-relation-items resource id link))))
       (jsown:new-js
         ("data" (if item-spec
-                    (retrieve-item-by-spec item-spec)
+                    (retrieve-item item-spec)
                     :null))
         ("links" (build-links-object resource id link)))))
   (:method ((resource resource) id (link has-many-link))
