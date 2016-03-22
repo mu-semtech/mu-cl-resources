@@ -30,18 +30,6 @@
                                  :offset offset)
                   map "uuid" "value")))
 
-(defun retrieve-data-for-uuids (resource uuids)
-  "Retrieves the object description for all found uuids in the
-   set of supplied uuids.
-   If a uuid could not be found, it is not returned in the set of
-   results."
-  (loop for uuid in uuids
-     for shown = (handler-case
-                     (show-call resource uuid)
-                   (no-such-instance () nil))
-     when shown
-     collect (jsown:val shown "data")))
-
 (defun build-pagination-links (base-path &key page-number page-size total-count)
   "Builds a links object containing the necessary pagination
    links.  It bases itself on the base-path for the targetted
@@ -73,14 +61,24 @@
     (let ((uuid-count (count-matches (s-var "uuid") sparql-body))
           (uuids (paginate-uuids-for-sparql-body :sparql-body sparql-body
                                                  :page-size page-size
-                                                 :page-number page-number)))
-      (jsown:new-js ("data" (retrieve-data-for-uuids resource uuids))
-                    ("links" (merge-jsown-objects
-                              (build-pagination-links (hunchentoot:script-name*)
-                                                      :total-count uuid-count
-                                                      :page-size page-size
-                                                      :page-number page-number)
-                              link-defaults))))))
+                                                 :page-number page-number))
+          (resource-type (resource-name resource)))
+      (multiple-value-bind (data-item-specs included-item-specs)
+          (augment-data-with-attached-info
+           (loop for uuid in uuids
+              collect (make-item-spec :uuid uuid :type resource-type)))
+        (let ((response
+               (jsown:new-js ("data" (mapcar #'item-spec-to-jsown data-item-specs))
+                             ("links" (merge-jsown-objects
+                                       (build-pagination-links (hunchentoot:script-name*)
+                                                               :total-count uuid-count
+                                                               :page-size page-size
+                                                               :page-number page-number)
+                                       link-defaults)))))
+          (when included-item-specs
+            (setf (jsown:val response "included")
+                  (mapcar #'item-spec-to-jsown included-item-specs)))
+          response)))))
 
 (defun sparql-pattern-filter-string (resource source-variable &key components search)
   "Constructs the sparql pattern for a filter constraint."
