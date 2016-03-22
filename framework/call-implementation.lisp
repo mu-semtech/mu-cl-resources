@@ -191,63 +191,86 @@
                 (setf (jsown:val response "included") included-items))
               response))))))
 
+(defun sparse-fields-for-resource (item-spec)
+  "Returns the sparse fieldsets for the supplied item-spec.
+   Returns two values, the first being the attributes to return,
+   the second being non-nil iff the fields for this item-spec
+   were returned."
+  (let ((spec (hunchentoot:get-parameter
+               (format nil "fields[~A]"
+                       (json-type (resource item-spec))))))
+    (values (and spec
+                 (loop for key in (cl-ppcre:split "," spec)
+                    collect
+                      (or (resource-slot-by-json-key (resource item-spec) key)
+                          (find-link-by-json-name (resource item-spec) key))))
+            (and spec t))))
+
 (defun item-spec-to-jsown (item-spec)
   "Returns the jsown representation of the attributes and
    non-filled relationships of item-spec.  This is the default
    way of fetching the database contents of a single item."
   (handler-bind
       ((no-such-instance (lambda () :null)))
-    (let* ((resource (resource item-spec))
-           (uuid (uuid item-spec))
-           (resource-url
-            ;; we search for a resource separately as searching it
-            ;; in one query is redonculously slow.  in the order of
-            ;; seconds for a single solution.
-            (find-resource-for-uuid item-spec))
-           (solution
-            ;; simple attributes
-            (first
-             (sparql:select
-              "*"
-              (format nil
-                      "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
-                      (loop for slot in (ld-properties resource)
-                         when (single-value-slot-p slot)
-                         append (list (s-url resource-url)
-                                      (ld-property-list slot)
-                                      (s-var (sparql-variable-name slot))))))))
-           (attributes (jsown:empty-object)))
-      ;; read simple attributes from sparql query
-      (loop for slot in (ld-properties resource)
-         for variable-name = (sparql-variable-name slot)
-         unless (single-value-slot-p slot)
-         do
-           (setf (jsown:val solution variable-name)
-                 (mapcar (lambda (solution) (jsown:val solution variable-name))
-                         (sparql:select "*"
-                                        (format nil "~A ~{~A~,^/~} ~A."
-                                                (s-url resource-url)
-                                                (ld-property-list slot)
-                                                (s-var variable-name))))))
-      ;; read extended variables through separate sparql query
-      (loop for property in (ld-properties resource)
-         for sparql-var = (sparql-variable-name property)
-         for json-var = (json-property-name property)
-         if (jsown:keyp solution sparql-var)
-         do
-           (setf (jsown:val attributes json-var)
-                 (from-sparql (jsown:val solution sparql-var) (resource-type property))))
-      ;; build response data object
-      (let ((relationships-object (jsown:empty-object)))
-        (loop for link in (all-links resource)
-           do
-             (setf (jsown:val relationships-object (json-key link))
-                   (build-relationships-object item-spec link)))
-        (jsown:new-js
-          ("attributes" attributes)
-          ("id" uuid)
-          ("type" (json-type resource))
-          ("relationships" relationships-object))))))
+    (multiple-value-bind (requested-fields sparse-fields-p)
+        (sparse-fields-for-resource item-spec)
+      (flet ((field-requested-p (field)
+               (or (not sparse-fields-p)
+                   (find field requested-fields))))
+        (let* ((resource (resource item-spec))
+               (uuid (uuid item-spec))
+               (resource-url
+                ;; we search for a resource separately as searching it
+                ;; in one query is redonculously slow.  in the order of
+                ;; seconds for a single solution.
+                (find-resource-for-uuid item-spec))
+               (solution
+                ;; simple attributes
+                (first
+                 (sparql:select
+                  "*"
+                  (format nil
+                          "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
+                          (loop for slot in (ld-properties resource)
+                             when (and (single-value-slot-p slot)
+                                       (field-requested-p slot))
+                             append (list (s-url resource-url)
+                                          (ld-property-list slot)
+                                          (s-var (sparql-variable-name slot))))))))
+               (attributes (jsown:empty-object)))
+          ;; read extended variables through separate sparql query
+          (loop for slot in (ld-properties resource)
+             for variable-name = (sparql-variable-name slot)
+             if (and (not (single-value-slot-p slot))
+                     (field-requested-p slot))
+             do
+               (setf (jsown:val solution variable-name)
+                     (mapcar (lambda (solution) (jsown:val solution variable-name))
+                             (sparql:select "*"
+                                            (format nil "~A ~{~A~,^/~} ~A."
+                                                    (s-url resource-url)
+                                                    (ld-property-list slot)
+                                                    (s-var variable-name))))))
+          ;; read simple attributes from sparql query
+          (loop for property in (ld-properties resource)
+             for sparql-var = (sparql-variable-name property)
+             for json-var = (json-property-name property)
+             if (jsown:keyp solution sparql-var)
+             do
+               (setf (jsown:val attributes json-var)
+                     (from-sparql (jsown:val solution sparql-var) (resource-type property))))
+          ;; build response data object
+          (let ((relationships-object (jsown:empty-object)))
+            (loop for link in (all-links resource)
+               if (field-requested-p link)
+               do
+                 (setf (jsown:val relationships-object (json-key link))
+                       (build-relationships-object item-spec link)))
+            (jsown:new-js
+              ("attributes" attributes)
+              ("id" uuid)
+              ("type" (json-type resource))
+              ("relationships" relationships-object))))))))
 
 (defun retrieve-item (item-spec)
   "Returns (values item-json included-items)
