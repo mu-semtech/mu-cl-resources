@@ -264,15 +264,9 @@
       ;; build response data object
       (let ((relationships-object (jsown:empty-object)))
         (loop for link in (all-links resource)
-           for (related-items related-items-p)
-             = (multiple-value-list (related-items item-spec link))
            do
-             ;; TODO: build-relationships-object should receive all the included items for
-             ;;   this relationship instead of calculating them.  it should include the
-             ;;   partial data descriptions.
              (setf (jsown:val relationships-object (json-key link))
-                   (build-relationships-object resource uuid link
-                                               related-items related-items-p)))
+                   (build-relationships-object item-spec link)))
         (jsown:new-js
           ("attributes" attributes)
           ("id" uuid)
@@ -305,15 +299,20 @@
       (values (item-spec-to-jsown (first data-item-specs))
               (mapcar #'item-spec-to-jsown included-item-specs)))))
 
-(defgeneric build-relationships-object (resource uuid link included-items included-items-p)
+(defgeneric build-relationships-object (item-spec link)
   (:documentation "Returns the content of one of the relationships based
    on the type of relation, and whether or not the relationship should
    be inlined.  Values to inline should be included directly.")
-  (:method ((resource resource) uuid (link has-link) included-items included-items-p)
-    (if included-items-p
-        (jsown:new-js ("links" (build-links-object resource uuid link))
-                      ("data" (mapcar #'jsown-inline-item-spec included-items)))
-        (jsown:new-js ("links" (build-links-object resource uuid link))))))
+  (:method ((item-spec item-spec) (link has-link))
+    (let ((links-object (build-links-object (resource item-spec)
+                                            (uuid item-spec)
+                                            link)))
+      (multiple-value-bind (included-items included-items-p)
+          (related-items item-spec link)
+        (if included-items-p
+            (jsown:new-js ("links" links-object)
+                          ("data" (mapcar #'jsown-inline-item-spec included-items)))
+            (jsown:new-js ("links" links-object)))))))
 
 (defgeneric jsown-inline-item-spec (item-spec)
   (:documentation "Yields the inline id/type to indicate a particular
