@@ -5,7 +5,10 @@
 
 (defclass item-spec ()
   ((uuid :accessor uuid :initarg :uuid)
-   (type :accessor resource-name :initarg :type))
+   (type :accessor resource-name :initarg :type)
+   (related-items :accessor related-items-table
+                  :initform (make-hash-table :test 'equal)
+                  :initarg :related-items))
   (:documentation "Represents an item that should be loaded."))
 
 (defun make-item-spec (&key uuid type)
@@ -18,6 +21,11 @@
 
 (defmethod resource ((spec item-spec))
   (find-resource-by-name (resource-name spec)))
+
+(defgeneric related-items (item-spec relation)
+  (:documentation "Returns the related items for the given relation")
+  (:method ((item-spec item-spec) relation)
+    (gethash relation (related-items-table item-spec) nil)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -548,7 +556,16 @@
    data-item-specs: the current items of the main data portion.
    included-item-specs: items in the included portion of the
    response."
-  (values item-specs nil))
+  (let ((included-items-store (make-included-items-store-from-list item-specs)))
+    (dolist (included-spec (extract-included-from-request))
+      (include-items-for-included included-items-store item-specs included-spec))
+    (let ((items (included-items-store-list-items included-items-store)))
+      (values (loop for item in items
+                 if (find item item-specs)
+                 collect item)
+              (loop for item in items
+                 unless (find item item-specs)
+                 collect item)))))
 
 (defstruct included-items-store
   (table (make-hash-table :test 'equal)))
@@ -594,6 +611,42 @@
     (mapcar (alexandria:curry #'included-items-store-ensure store)
             items-list)
     store))
+
+(defun include-items-for-included (included-items-store item-specs included-spec)
+  "Traverses the included-spec with the items in item-specs and ensures
+   they're recursively included.  The item-specs also get to know which
+   items have to be added."
+  (dolist (item item-specs)
+    (let (linked-items)
+      ;; fill in current path
+      (setf linked-items
+            (union linked-items
+               (include-items-for-single-included included-items-store item
+                                                  (first included-spec))))
+      ;; traverse included-spec path
+      (when (rest included-spec)
+        (include-items-for-included included-items-store linked-items
+                                    (rest included-spec))))))
+
+(defun include-items-for-single-included (included-items-store item-spec relation-string)
+  "Adds the items which are linked to item-spec by relation included-spec
+   to included-items-store.  Returns the list of items which are linked
+   through item-spec."
+  (let* ((resource (resource item-spec))
+         (uuid (uuid item-spec))
+         (relation (find-resource-link-by-json-key resource relation-string))
+         (target-type (resource-name relation)))
+    (loop for new-uuid
+       in (jsown:filter
+           (sparql:select (s-var "target")
+                          (format nil (s+ "?s mu:uuid ~A. "
+                                          "?s ~{~A/~}mu:uuid ?target. ")
+                                  (s-str uuid)
+                                  (ld-property-list relation)))
+           map "target" "value")
+       collect (included-items-store-ensure included-items-store
+                                            (make-item-spec :uuid new-uuid
+                                                            :type target-type)))))
 
 (defun included-for-request (current-items)
   "Returns the list containing all included objects for the currently
