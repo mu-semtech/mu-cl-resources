@@ -188,16 +188,19 @@
   (:method ((resource resource) (uuid string))
     (multiple-value-bind (data included-items)
         (retrieve-item resource uuid)
-      (declare (ignore included-items))
       (if (eq data :null)
           (error 'no-such-instance
                  :resource resource
                  :id uuid
                  :type (json-type resource))
-          (jsown:new-js
-            ("data" data)
-            ("links" (jsown:new-js
-                       ("self" (construct-resource-item-path resource uuid)))))))))
+          (let ((response
+                 (jsown:new-js
+                   ("data" data)
+                   ("links" (jsown:new-js
+                              ("self" (construct-resource-item-path resource uuid)))))))
+            (when included-items
+              (setf (jsown:val response "included") included-items))
+            response)))))
 
 (defun retrieve-item-by-spec (spec)
   "Retrieves an item from its specification.
@@ -284,7 +287,12 @@
   (declare (ignore included))
   (handler-bind
       ((no-such-instance (lambda () :null)))
-    (item-spec-to-jsown (make-item-spec :uuid uuid :type (resource-name resource)))))
+    (multiple-value-bind (data-item-specs included-item-specs)
+        (augment-data-with-attached-info
+         (list (make-item-spec :uuid uuid
+                               :type (resource-name resource))))
+      (values (item-spec-to-jsown (first data-item-specs))
+              (mapcar #'item-spec-to-jsown included-item-specs)))))
 
 (defgeneric build-relationships-object (resource uuid link included-p)
   (:documentation "Returns the content of one of the relationships based
@@ -532,6 +540,15 @@
 ;;   > (list :type 'catalog :id 56E6925A193F022772000001)
 ;; - relation-spec follows the following structure (books.author):
 ;;   > (list "books" "author")
+
+(defun augment-data-with-attached-info (item-specs)
+  "Augments the current item-specs with extra information on which
+   attached items to include in the relationships.
+   Returns (values data-item-specs included-item-specs).
+   data-item-specs: the current items of the main data portion.
+   included-item-specs: items in the included portion of the
+   response."
+  (values item-specs nil))
 
 (defstruct included-items-store
   (table (make-hash-table :test 'equal)))
