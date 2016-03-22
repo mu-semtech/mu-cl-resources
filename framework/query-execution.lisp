@@ -27,10 +27,10 @@
       (fuseki:with-query-logging *error-output*
         (fuseki:query *repository* content))))
 
-(defun select (variables body &rest args &key order-by limit offset)
+(defun select (variables body &rest args &key order-by limit offset group-by)
   "Executes a SPARQL SELECT query on the current graph.
    Takes with-query-group into account."
-  (declare (ignore order-by limit offset))
+  (declare (ignore order-by limit offset group-by))
   (query
    (s-select variables args
              (s-graph *application-graph* body))))
