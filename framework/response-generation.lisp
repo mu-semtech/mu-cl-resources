@@ -20,15 +20,57 @@
         (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
     (list page-size page-number)))
 
-(defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number)
+(defun extract-order-info-from-request (resource)
+  "Extracts the order info from the current requset object."
+  (alexandria:when-let ((sort (hunchentoot:get-parameter "sort")))
+    (loop for sort-string in (cl-ppcre:split "," sort)
+       collect
+         (let* ((descending-p (char= (aref sort-string 0) #\-))
+                (attribute-name (if descending-p
+                                    (subseq sort-string 1)
+                                    sort-string)))
+           (list :order (if descending-p :descending :ascending)
+                 :name attribute-name
+                 :property-path (ld-property-list (resource-slot-by-json-key resource
+                                                                             attribute-name)))))))
+
+(defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number order-info)
   (let ((limit page-size)
-        (offset (* page-size page-number)))
-    (jsown:filter (sparql:select (format nil "DISTINCT ~A" (s-var "uuid"))
-                                 sparql-body
-                                 :order-by (s-var "uuid")
-                                 :limit limit
-                                 :offset offset)
-                  map "uuid" "value")))
+        (offset (* page-size page-number))
+        (order-variables (loop for info in order-info
+                            for name = (getf info :name)
+                            collect
+                              (s-genvar name))))
+    (if order-info
+        (jsown:filter (sparql:select (format nil "DISTINCT ~{~A~^, ~}" (cons (s-var "uuid")
+                                                                             order-variables))
+                                     (format nil "~A~% ~A mu:uuid ~A; ~{~{~{~A~^/~} ~A~}~^;~}."
+                                             sparql-body
+                                             (s-genvar "subject")
+                                             (s-var "uuid")
+                                             (loop for info in order-info
+                                                for variable in order-variables
+                                                collect
+                                                  (list (getf info :property-path) variable)))
+                                     :order-by (format nil "~{~A(~A) ~}"
+                                                       (loop for info in order-info
+                                                          for variable in order-variables
+                                                          append
+                                                            (list (if (eql (getf info :order)
+                                                                           :ascending)
+                                                                      "ASC" "DESC")
+                                                                  variable)))
+                                     :group-by (s-var "uuid")
+                                     :limit limit
+                                     :offset offset)
+                      map "uuid" "value")                
+        (jsown:filter (sparql:select (format nil "DISTINCT ~A" (s-var "uuid"))
+                                     sparql-body
+                                     :order-by (s-var "uuid")
+                                     :group-by (s-var "uuid")
+                                     :limit limit
+                                     :offset offset)
+                      map "uuid" "value"))))
 
 (defun build-pagination-links (base-path &key page-number page-size total-count)
   "Builds a links object containing the necessary pagination
@@ -58,27 +100,29 @@
   "Constructs the paginated response for a collection listing."
   (destructuring-bind (page-size page-number)
       (extract-pagination-info-from-request)
-    (let ((uuid-count (count-matches (s-var "uuid") sparql-body))
-          (uuids (paginate-uuids-for-sparql-body :sparql-body sparql-body
-                                                 :page-size page-size
-                                                 :page-number page-number))
-          (resource-type (resource-name resource)))
-      (multiple-value-bind (data-item-specs included-item-specs)
-          (augment-data-with-attached-info
-           (loop for uuid in uuids
-              collect (make-item-spec :uuid uuid :type resource-type)))
-        (let ((response
-               (jsown:new-js ("data" (mapcar #'item-spec-to-jsown data-item-specs))
-                             ("links" (merge-jsown-objects
-                                       (build-pagination-links (hunchentoot:script-name*)
-                                                               :total-count uuid-count
-                                                               :page-size page-size
-                                                               :page-number page-number)
-                                       link-defaults)))))
-          (when included-item-specs
-            (setf (jsown:val response "included")
-                  (mapcar #'item-spec-to-jsown included-item-specs)))
-          response)))))
+    (let ((order-info (extract-order-info-from-request resource)))
+      (let ((uuid-count (count-matches (s-var "uuid") sparql-body))
+            (uuids (paginate-uuids-for-sparql-body :sparql-body sparql-body
+                                                   :page-size page-size
+                                                   :page-number page-number
+                                                   :order-info order-info))
+            (resource-type (resource-name resource)))
+        (multiple-value-bind (data-item-specs included-item-specs)
+            (augment-data-with-attached-info
+             (loop for uuid in uuids
+                collect (make-item-spec :uuid uuid :type resource-type)))
+          (let ((response
+                 (jsown:new-js ("data" (mapcar #'item-spec-to-jsown data-item-specs))
+                               ("links" (merge-jsown-objects
+                                         (build-pagination-links (hunchentoot:script-name*)
+                                                                 :total-count uuid-count
+                                                                 :page-size page-size
+                                                                 :page-number page-number)
+                                         link-defaults)))))
+            (when included-item-specs
+              (setf (jsown:val response "included")
+                    (mapcar #'item-spec-to-jsown included-item-specs)))
+            response))))))
 
 (defun sparql-pattern-filter-string (resource source-variable &key components search)
   "Constructs the sparql pattern for a filter constraint."
@@ -112,7 +156,7 @@
    between brackets.  The :search contains the content for that
    specification."
   (loop for (param . value) in (hunchentoot:get-parameters hunchentoot:*request*)
-     if (string= "filter" (subseq param 0 (length "filter")))
+     if (eql (search "filter" param :test #'char=) 0)
      collect (list :components
                    (mapcar (lambda (str)
                              (subseq str 0 (1- (length str))))
