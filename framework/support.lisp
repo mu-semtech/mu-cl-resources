@@ -90,3 +90,80 @@
            else
            append (list k v))
         (list* key new-value place))))
+
+
+;;;;
+;; item specs
+
+(defclass item-spec ()
+  ((uuid :accessor uuid :initarg :uuid)
+   (type :accessor resource-name :initarg :type)
+   (related-items :accessor related-items-table
+                  :initform (make-hash-table :test 'equal)
+                  :initarg :related-items))
+  (:documentation "Represents an item that should be loaded."))
+
+(defun make-item-spec (&key uuid type)
+  "Creates a new item-spec instance."
+  (make-instance 'item-spec :type type :uuid uuid))
+
+(defun item-spec-hash-key (item-spec)
+  "Creates a key which can be compared through #'equal."
+  (list (resource-name item-spec) (uuid item-spec)))
+
+(defmethod resource ((spec item-spec))
+  (find-resource-by-name (resource-name spec)))
+
+(defgeneric related-items (item-spec relation)
+  (:documentation "Returns the related items for the given relation")
+  (:method ((item-spec item-spec) relation)
+    (gethash relation (related-items-table item-spec) nil)))
+
+
+;;;;
+;; included items store
+(defstruct included-items-store
+  (table (make-hash-table :test 'equal)))
+
+(defun included-items-store-contains (store item-spec)
+  "Returns item-spec iff <item-spec> is included in <store>.
+   Returns nil otherwise"
+  (gethash (item-spec-hash-key item-spec) (included-items-store-table store)))
+
+(defgeneric included-items-store-ensure (store ensured-content)
+  (:documentation "Ensures <item-spec> is contained in <store>.
+   If an <item-spec> which matches the same item-spec-hash-key is
+   already stored, then the one from the store is returned,
+   otherwise, the new ensured-content is returned.")
+  (:method ((store included-items-store) (item-spec item-spec))
+    (let ((table (included-items-store-table store))
+          (key (item-spec-hash-key item-spec)))
+      (or (gethash key table)
+          (setf (gethash key table) item-spec))))
+  (:method ((store included-items-store) (new-items included-items-store))
+    (loop for item-spec in (included-items-store-list-items new-items)
+       collect
+         (included-items-store-ensure store item-spec))))
+
+(defgeneric included-items-store-subtract (store subtracted-content)
+  (:documentation "Subtracts <subtracted-content> from <store>.")
+  (:method ((store included-items-store) (item-spec item-spec))
+    (remhash (item-spec-hash-key item-spec)
+             (included-items-store-table store)))
+  (:method ((store included-items-store) (subtracted-store included-items-store))
+    (mapcar (alexandria:curry #'included-items-store-subtract store)
+            (included-items-store-list-items subtracted-store))))
+
+(defun included-items-store-list-items (store)
+  "Retrieves all items in the included-items-store"
+  (loop for item-spec being the hash-values of (included-items-store-table store)
+     collect item-spec))
+
+(defun make-included-items-store-from-list (items-list)
+  "Constructs a new included items store containing the list of
+   items in <items-list>."
+  (let ((store (make-included-items-store)))
+    (mapcar (alexandria:curry #'included-items-store-ensure store)
+            items-list)
+    store))
+
