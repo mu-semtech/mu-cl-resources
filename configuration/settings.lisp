@@ -1,5 +1,7 @@
 (in-package :mu-cl-resources)
 
+(defparameter *allow-xsd-in-uuids* nil
+  "when non-nil, allow uuids to have the xsd:string type attached when reading.")
 
 (defparameter *camelcase-json-variables* nil
   "when non-nil, json variable names should be camelcased, rather than dasherized.")

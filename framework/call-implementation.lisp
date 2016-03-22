@@ -43,9 +43,11 @@
 (defun find-resource-for-uuid (item-spec)
   "Retrieves the uri-resource which specifies the supplied item-spec."
   (let ((result (sparql:select (s-var "s")
-                               (format nil (s+ "?s mu:uuid ?uuid. "
-                                               "FILTER(~A = str(?uuid))")
-                                       (s-str (uuid item-spec))))))
+                               (if *allow-xsd-in-uuids*
+                                   (format nil (s+ "?s mu:uuid ?uuid. "
+                                                   "FILTER(~A = str(?uuid))")
+                                           (s-str (uuid item-spec)))
+                                   (format nil "?s mu:uuid ~A. " (s-str (uuid item-spec)))))))
     (unless result
       (error 'no-such-instance
              :resource (resource item-spec)
