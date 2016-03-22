@@ -542,31 +542,7 @@
     (respond-no-content)))
 
 ;;;;
-;; support for 'included'
-;;
-;; - Objects which are to be included follow the following structure:
-;;   > (list :type 'catalog :id 56E6925A193F022772000001)
-;; - relation-spec follows the following structure (books.author):
-;;   > (list "books" "author")
-
-(defun augment-data-with-attached-info (item-specs)
-  "Augments the current item-specs with extra information on which
-   attached items to include in the relationships.
-   Returns (values data-item-specs included-item-specs).
-   data-item-specs: the current items of the main data portion.
-   included-item-specs: items in the included portion of the
-   response."
-  (let ((included-items-store (make-included-items-store-from-list item-specs)))
-    (dolist (included-spec (extract-included-from-request))
-      (include-items-for-included included-items-store item-specs included-spec))
-    (let ((items (included-items-store-list-items included-items-store)))
-      (values (loop for item in items
-                 if (find item item-specs)
-                 collect item)
-              (loop for item in items
-                 unless (find item item-specs)
-                 collect item)))))
-
+;; included items store
 (defstruct included-items-store
   (table (make-hash-table :test 'equal)))
 
@@ -612,6 +588,32 @@
             items-list)
     store))
 
+;;;;
+;; support for 'included'
+;;
+;; - Objects which are to be included follow the following structure:
+;;   > (list :type 'catalog :id 56E6925A193F022772000001)
+;; - relation-spec follows the following structure (books.author):
+;;   > (list "books" "author")
+
+(defun augment-data-with-attached-info (item-specs)
+  "Augments the current item-specs with extra information on which
+   attached items to include in the relationships.
+   Returns (values data-item-specs included-item-specs).
+   data-item-specs: the current items of the main data portion.
+   included-item-specs: items in the included portion of the
+   response."
+  (let ((included-items-store (make-included-items-store-from-list item-specs)))
+    (dolist (included-spec (extract-included-from-request))
+      (include-items-for-included included-items-store item-specs included-spec))
+    (let ((items (included-items-store-list-items included-items-store)))
+      (values (loop for item in items
+                 if (find item item-specs)
+                 collect item)
+              (loop for item in items
+                 unless (find item item-specs)
+                 collect item)))))
+
 (defun include-items-for-included (included-items-store item-specs included-spec)
   "Traverses the included-spec with the items in item-specs and ensures
    they're recursively included.  The item-specs also get to know which
@@ -652,26 +654,6 @@
           related-objects)
     related-objects))
 
-(defun included-for-request (current-items)
-  "Returns the list containing all included objects for the currently
-   returned items and the current set of responses"
-  (let ((current-items-store (make-included-items-store))
-        (included-items-store (make-included-items-store)))
-    ;; drop current-items in a store
-    (dolist (item current-items)
-      (included-items-store-ensure
-       current-items-store
-       (make-item-spec :uuid (jsown:val item "id")
-                       :type (resource-name (find-resource-by-path (jsown:val item "type"))))))
-    ;; put all included items in the included-items-store
-    (dolist (relation-spec (extract-included-from-request))
-      (augment-included included-items-store current-items-store relation-spec))
-    ;; subtract items which were already in the included-items-store
-    ;; as they will already be inlined in the main response
-    (included-items-store-subtract included-items-store current-items-store)
-    ;; return the /list/ of new items
-    (included-items-store-list-items included-items-store)))
-
 (defun extract-included-from-request ()
   "Extracts the filters from the request.  The result is a list
    containing the :components and :search key.  The :components
@@ -683,35 +665,3 @@
     (and include-parameter
          (mapcar (alexandria:curry #'split-sequence:split-sequence #\.)
                  (split-sequence:split-sequence #\, (cdr include-parameter))))))
-
-(defun augment-included (current-included source-objects relation-spec)
-  "Adds all objects which match <relation> starting from <source-objects>
-   to <relation-spec>."
-  (if (not relation-spec)
-      current-included
-      (let ((items-to-ensure (find-included-items-by-relation source-objects
-                                                              (first relation-spec))))
-        (included-items-store-ensure current-included items-to-ensure)
-        (augment-included current-included items-to-ensure (rest relation-spec))
-        current-included)))
-
-(defun find-included-items-by-relation (source-objects relation-string)
-  "Finds the included items by a specific relation string for each of the source-objects.
-   The items which are to be included are returned in the store which is returned."
-  (let ((new-items (make-included-items-store)))
-    (dolist (item (included-items-store-list-items source-objects))
-      (let* ((resource (resource item))
-             (relation (find-resource-link-by-json-key resource relation-string))
-             (target-type (resource-name relation)))
-        (dolist (new-uuid
-                  (jsown:filter
-                   (sparql:select (s-var "target")
-                                  (format nil (s+ "?s mu:uuid ~A. "
-                                                  "?s ~{~A/~}mu:uuid ?target. ")
-                                          (s-str (uuid item))
-                                          (ld-property-list relation)))
-                   map "target" "value"))
-          (included-items-store-ensure new-items
-                                       (make-item-spec :uuid new-uuid
-                                                       :type target-type)))))
-    new-items))
