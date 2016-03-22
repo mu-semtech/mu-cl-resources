@@ -25,30 +25,32 @@
               collect `(,resource-uri ,@predicates ,object))))
       (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
       (setf (hunchentoot:header-out :location)
-            (construct-resource-item-path resource uuid))
+            (construct-resource-item-path item-spec))
       (when (and (jsown:keyp json-input "data")
                  (jsown:keyp (jsown:val json-input "data") "relationships"))
         (loop for relation in (jsown:keywords (jsown:filter json-input "data" "relationships"))
            if (jsown:keyp (jsown:filter json-input "data" "relationships" relation)
                           "data")
            do
-             (update-resource-relation resource uuid relation
+             (update-resource-relation (make-item-spec :type (resource-name resource)
+                                                       :uuid uuid)
+                                       relation
                                        (jsown:filter json-input
                                                      "data" "relationships" relation "data"))))
       (jsown:new-js ("data" (retrieve-item item-spec))))))
 
 
-(defun find-resource-for-uuid (resource uuid)
-  "Retrieves the resource hich specifies the supplied UUID in the database."
+(defun find-resource-for-uuid (item-spec)
+  "Retrieves the uri-resource which specifies the supplied item-spec."
   (let ((result (sparql:select (s-var "s")
                                (format nil (s+ "?s mu:uuid ?uuid. "
                                                "FILTER(~A = str(?uuid))")
-                                       (s-str uuid)))))
+                                       (s-str (uuid item-spec))))))
     (unless result
       (error 'no-such-instance
-             :resource resource
-             :id uuid
-             :type (json-type resource)))
+             :resource (resource item-spec)
+             :id (uuid item-spec)
+             :type (json-type (resource item-spec))))
     (jsown:filter (first result) "s" "value")))
 
 (defgeneric update-call (resource uuid)
@@ -57,10 +59,11 @@
   (:method ((resource-symbol symbol) uuid)
     (update-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
-    (let* ((jsown:*parsed-null-value* :null)
+    (let* ((item-spec (make-item-spec :type (resource-name resource) :uuid uuid))
+           (jsown:*parsed-null-value* :null)
            (json-input (jsown:parse (post-body)))
            (attributes (jsown:filter json-input "data" "attributes"))
-           (uri (s-url (find-resource-for-uuid resource uuid))))
+           (uri (s-url (find-resource-for-uuid item-spec))))
       (sparql:with-query-group
         (let ((delete-vars (loop for key in (jsown:keywords attributes)
                               for i from 0
@@ -86,19 +89,18 @@
            if (jsown:keyp (jsown:filter json-input "data" "relationships" relation)
                           "data")
            do
-             (update-resource-relation resource uuid relation
+             (update-resource-relation item-spec relation
                                        (jsown:filter json-input
                                                      "data" "relationships" relation "data")))))
     (respond-no-content)))
 
-(defgeneric update-resource-relation (resource uuid relation resource-specification)
+(defgeneric update-resource-relation (item-spec relation resource-specification)
   (:documentation "updates the specified relation with the given specification.")
-  (:method ((resource resource) uuid (relation string) resource-specification)
-    (update-resource-relation resource
-                              uuid
-                              (find-link-by-json-name resource relation)
+  (:method ((item-spec item-spec) (relation string) resource-specification)
+    (update-resource-relation item-spec
+                              (find-link-by-json-name (resource item-spec) relation)
                               resource-specification))
-  (:method ((resource resource) uuid (link has-one-link) resource-specification)
+  (:method ((item-spec item-spec) (link has-one-link) resource-specification)
     (flet ((delete-query (resource-uri link-uri)
              (sparql:delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
@@ -106,11 +108,13 @@
              (sparql:insert-triples
               `((,resource-uri ,@link-uri ,new-linked-uri)))))
       (let ((linked-resource (referred-resource link))
-            (resource-uri (find-resource-for-uuid resource uuid)))
+            (resource-uri (find-resource-for-uuid item-spec)))
         (if resource-specification
             ;; update content
             (let* ((new-linked-uuid (jsown:val resource-specification "id"))
-                   (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
+                   (new-linked-uri (find-resource-for-uuid
+                                    (make-item-spec :type (resource-name linked-resource)
+                                                    :uuid new-linked-uuid))))
               (sparql:with-query-group
                 (delete-query (s-url resource-uri)
                               (ld-property-list link))
@@ -120,7 +124,7 @@
             ;; delete content
             (delete-query (s-url resource-uri)
                           (ld-property-list link))))))
-  (:method ((resource resource) uuid (link has-many-link) resource-specification)
+  (:method ((item-spec item-spec) (link has-many-link) resource-specification)
     (flet ((delete-query (resource-uri link-uri)
              (sparql:delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
@@ -130,7 +134,7 @@
                  collect
                    `(,resource-uri ,@link-uri ,new-link-uri)))))
       (let ((linked-resource (referred-resource link))
-            (resource-uri (find-resource-for-uuid resource uuid)))
+            (resource-uri (find-resource-for-uuid item-spec)))
         (if resource-specification
             ;; update content
             (let* ((new-linked-uuids (jsown:filter resource-specification map "id"))
@@ -179,7 +183,7 @@
                    (jsown:new-js
                      ("data" data)
                      ("links" (jsown:new-js
-                                ("self" (construct-resource-item-path resource uuid)))))))
+                                ("self" (construct-resource-item-path item-spec)))))))
               (when included-items
                 (setf (jsown:val response "included") included-items))
               response))))))
@@ -196,7 +200,7 @@
             ;; we search for a resource separately as searching it
             ;; in one query is redonculously slow.  in the order of
             ;; seconds for a single solution.
-            (find-resource-for-uuid resource uuid))
+            (find-resource-for-uuid item-spec))
            (solution
             ;; simple attributes
             (first
@@ -259,9 +263,7 @@
    on the type of relation, and whether or not the relationship should
    be inlined.  Values to inline should be included directly.")
   (:method ((item-spec item-spec) (link has-link))
-    (let ((links-object (build-links-object (resource item-spec)
-                                            (uuid item-spec)
-                                            link)))
+    (let ((links-object (build-links-object item-spec link)))
       (multiple-value-bind (included-items included-items-p)
           (related-items item-spec link)
         (if included-items-p
@@ -288,18 +290,20 @@
   (:method ((link has-many-link) items)
     (mapcar #'jsown-inline-item-spec items)))
 
-(defgeneric build-links-object (resource identifier link)
+(defgeneric build-links-object (item-spec link)
   (:documentation "Builds the json object which represents the link
     in a json object.")
-  (:method ((resource resource) identifier (link has-link))
-    (jsown:new-js ("self" (format nil "/~A/~A/links/~A"
-                                  (request-path resource)
-                                  identifier
-                                  (request-path link)))
-                  ("related" (format nil "/~A/~A/~A"
-                                     (request-path resource)
-                                     identifier
-                                     (request-path link))))))
+  (:method ((item-spec item-spec) (link has-link))
+    (let ((resource (resource item-spec))
+          (uuid (uuid item-spec)))
+      (jsown:new-js ("self" (format nil "/~A/~A/links/~A"
+                                    (request-path resource)
+                                    uuid
+                                    (request-path link)))
+                    ("related" (format nil "/~A/~A/~A"
+                                       (request-path resource)
+                                       uuid
+                                       (request-path link)))))))
 
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
@@ -349,53 +353,55 @@
   (:method ((resource-symbol symbol) id link)
     (show-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
-    (let ((item-spec (first (retrieve-relation-items resource id link))))
-      (jsown:new-js
-        ("data" (if item-spec
-                    (retrieve-item item-spec)
-                    :null))
-        ("links" (build-links-object resource id link)))))
+    (let ((item-spec (make-item-spec :type (resource-name resource) :uuid id)))
+      (let ((relation-item-spec (first (retrieve-relation-items item-spec link))))
+        (jsown:new-js
+          ("data" (if relation-item-spec
+                      (retrieve-item relation-item-spec)
+                      :null))
+          ("links" (build-links-object item-spec link))))))
   (:method ((resource resource) id (link has-many-link))
-    (paginated-collection-response
-     :resource (referred-resource link)
-     :sparql-body (filter-body-for-search
-                   :sparql-body (format nil
-                                        (s+ "~A ~{~A~,^/~} ?resource. "
-                                            "?resource mu:uuid ?uuid.")
-                                        (s-url (find-resource-for-uuid resource id))
-                                        (ld-property-list link))
-                   :source-variable (s-var "resource")
-                   :resource (referred-resource link))
-     :link-defaults (build-links-object resource id link))))
+    (let ((item-spec (make-item-spec :type (resource-name resource) :uuid id)))
+      (paginated-collection-response
+       :resource (referred-resource link)
+       :sparql-body (filter-body-for-search
+                     :sparql-body (format nil
+                                          (s+ "~A ~{~A~,^/~} ?resource. "
+                                              "?resource mu:uuid ?uuid.")
+                                          (s-url (find-resource-for-uuid item-spec))
+                                          (ld-property-list link))
+                     :source-variable (s-var "resource")
+                     :resource (referred-resource link))
+       :link-defaults (build-links-object (make-item-spec :type (resource-name resource)
+                                                          :uuid id)
+                                          link)))))
 
-(defgeneric retrieve-relation-items (resource id link)
+(defgeneric retrieve-relation-items (item-spec link)
   (:documentation "retrieves the item descriptions of the items
     which are connected to <resource> <id> through link <link>.
     This yields the high-level description of the items, not
     their contents.
     Note that this method does not support pagination.")
-  (:method ((resource-symbol symbol) id link)
-    (retrieve-relation-items (find-resource-by-name resource-symbol) id link))
-  (:method ((resource resource) id (link string))
-    (retrieve-relation-items resource id (find-link-by-json-name resource link)))
-  (:method ((resource resource) id (link has-one-link))
+  (:method ((item-spec item-spec) (link string))
+    (retrieve-relation-items item-spec (find-link-by-json-name (resource item-spec) link)))
+  (:method ((item-spec item-spec) (link has-one-link))
     (let ((query-results
            (first (sparql:select (s-var "uuid")
                                  (format nil (s+ "~A ~{~A~,^/~} ?resource. "
                                                  "?resource mu:uuid ?uuid. ")
-                                         (s-url (find-resource-for-uuid resource id))
+                                         (s-url (find-resource-for-uuid item-spec))
                                          (ld-property-list link)))))
           (linked-resource (resource-name (referred-resource link))))
       (and query-results
            (list
             (make-item-spec :type linked-resource
                             :uuid (jsown:filter query-results "uuid" "value"))))))
-  (:method ((resource resource) id (link has-many-link))
+  (:method ((item-spec item-spec) (link has-many-link))
     (let ((query-results
            (sparql:select (s-var "uuid")
                           (format nil (s+ "~A ~{~A~,^/~} ?resource. "
                                           "?resource mu:uuid ?uuid. ")
-                                  (s-url (find-resource-for-uuid resource id))
+                                  (s-url (find-resource-for-uuid item-spec))
                                   (ld-property-list link))))
           (linked-resource (resource-name (referred-resource link))))
       (loop for uuid in (jsown:filter query-results map "uuid" "value")
@@ -414,53 +420,60 @@
            (insert-query (resource-uri link-uri new-linked-uri)
              (sparql:insert-triples
               `((,resource-uri ,@link-uri ,new-linked-uri)))))
-      (let ((body (jsown:parse (post-body)))
-            (linked-resource (referred-resource link))
-            (resource-uri (find-resource-for-uuid resource id))
-            (link-path (ld-property-list link)))
-        (if (jsown:val body "data")
-            ;; update content
-            (let* ((new-linked-uuid (jsown:filter body "data" "id"))
-                   (new-linked-uri (find-resource-for-uuid linked-resource new-linked-uuid)))
-              (sparql:with-query-group
-                (delete-query (s-url resource-uri) link-path)
-                (insert-query (s-url resource-uri) link-path
-                              (s-url new-linked-uri))))
-            ;; delete content
-            (delete-query (s-url resource-uri) link-path))))
+      (let ((item-spec (make-item-spec :type (resource-name resource)
+                                       :uuid id)))
+        (let ((body (jsown:parse (post-body)))
+              (linked-resource (referred-resource link))
+              (resource-uri (find-resource-for-uuid item-spec))
+              (link-path (ld-property-list link)))
+          (if (jsown:val body "data")
+              ;; update content
+              (let* ((new-linked-uuid (jsown:filter body "data" "id"))
+                     (new-linked-uri (find-resource-for-uuid
+                                      (make-item-spec :type (resource-name linked-resource)
+                                                      :uuid new-linked-uuid))))
+                (sparql:with-query-group
+                  (delete-query (s-url resource-uri) link-path)
+                  (insert-query (s-url resource-uri) link-path
+                                (s-url new-linked-uri))))
+              ;; delete content
+              (delete-query (s-url resource-uri) link-path)))))
     (respond-no-content))
   (:method ((resource resource) id (link has-many-link))
-    (flet ((delete-query (resource-uri link-uri)
-             (sparql:delete-triples
-              `((,resource-uri ,@link-uri ,(s-var "s")))))
-           (insert-query (resource-uri link-uri new-linked-uris)
-             (sparql:insert-triples
-              (loop for new-uri in new-linked-uris
-                 collect `(,resource-uri ,@link-uri ,new-uri)))))
-      (let ((body (jsown:parse (post-body)))
-            (linked-resource (referred-resource link))
-            (resource-uri (find-resource-for-uuid resource id))
-            (link-path (ld-property-list link)))
-        (if (jsown:val body "data")
-            ;; update content
-            (let* ((new-linked-uuids (jsown:filter body "data" map "id"))
-                   (new-linked-resources (mapcar (alexandria:curry #'find-resource-for-uuid
-                                                                   linked-resource)
-                                                 new-linked-uuids)))
-              (delete-query (s-url resource-uri) link-path)
-              (insert-query (s-url resource-uri)
-                            link-path
-                            (mapcar #'s-url new-linked-resources)))
-            ;; delete content
-            (delete-query (s-url resource-uri)
-                          link-path))))
+    (let ((item-spec (make-item-spec :type (resource-name resource) :uuid id)))
+      (flet ((delete-query (resource-uri link-uri)
+               (sparql:delete-triples
+                `((,resource-uri ,@link-uri ,(s-var "s")))))
+             (insert-query (resource-uri link-uri new-linked-uris)
+               (sparql:insert-triples
+                (loop for new-uri in new-linked-uris
+                   collect `(,resource-uri ,@link-uri ,new-uri)))))
+        (let ((body (jsown:parse (post-body)))
+              (linked-resource (referred-resource link))
+              (resource-uri (find-resource-for-uuid item-spec))
+              (link-path (ld-property-list link)))
+          (if (jsown:val body "data")
+              ;; update content
+              (let* ((new-linked-uuids (jsown:filter body "data" map "id"))
+                     (new-linked-resources (mapcar (alexandria:curry #'find-resource-for-uuid
+                                                                     linked-resource)
+                                                   new-linked-uuids)))
+                (delete-query (s-url resource-uri) link-path)
+                (insert-query (s-url resource-uri)
+                              link-path
+                              (mapcar #'s-url new-linked-resources)))
+              ;; delete content
+              (delete-query (s-url resource-uri)
+                            link-path)))))
     (respond-no-content)))
 
 (defgeneric delete-relation-call (resource id link)
   (:documentation "Performs a delete call on a relation, thereby
     removing a set of linked resources.")
   (:method ((resource resource) id (link has-many-link))
-    (let* ((linked-resource (referred-resource link))
+    (let* ((item-spec (make-item-spec :type (resource-name resource)
+                                      :uuid id))
+           (linked-resource (referred-resource link))
            (resources (mapcar
                        (alexandria:curry #'find-resource-for-uuid
                                          linked-resource)
@@ -471,7 +484,7 @@
         (sparql:delete-triples
          (loop for resource in resources
             collect
-              `(,(s-url (find-resource-for-uuid resource id))
+              `(,(s-url (find-resource-for-uuid item-spec))
                  ,@(ld-property-list link)
                  ,resource)))))
     (respond-no-content)))
@@ -480,15 +493,19 @@
   (:documentation "Performs the addition call on a relation, thereby
     adding a set of linked resources.")
   (:method ((resource resource) id (link has-many-link))
-    (let* ((linked-resource (referred-resource link))
-           (resources (mapcar
-                       (alexandria:curry #'find-resource-for-uuid
-                                         linked-resource)
-                       (remove-if-not #'identity
-                                      (jsown:filter (jsown:parse (post-body))
-                                                    "data" map "id")))))
+    (let* ((item-spec (make-item-spec :type (resource-name resource)
+                                      :uuid id))
+           (linked-resource (referred-resource link))
+           (resources (loop for uuid
+                         in (remove-if-not #'identity
+                                           (jsown:filter (jsown:parse (post-body))
+                                                         "data" map "id"))
+                         collect
+                           (find-resource-for-uuid
+                            (make-item-spec :uuid uuid
+                                            :type (resource-name linked-resource))))))
       (when resources
-        (let ((source-url (find-resource-for-uuid resource id))
+        (let ((source-url (find-resource-for-uuid item-spec))
               (properties (ld-property-list link)))
           (sparql:insert-triples
            (loop for resource in resources

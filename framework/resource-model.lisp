@@ -237,9 +237,10 @@
                     slot
                     (jsown:val attributes (json-property-name slot))))))))
 
-(defgeneric construct-resource-item-path (resource identifier)
+(defgeneric construct-resource-item-path (item-spec)
   (:documentation "Constructs the path on which information can
    be fetched for a specific instance of a resource.")
-  (:method ((resource resource) identifier)
+  (:method ((item-spec item-spec))
     (format nil "/~A/~A"
-            (request-path resource) identifier)))
+            (request-path (resource item-spec))
+            (uuid item-spec))))
