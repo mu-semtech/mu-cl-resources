@@ -204,26 +204,15 @@
    '(:type catalog :id \"ae12ee\")"
   (retrieve-item (resource-name spec) (uuid spec)))
 
-(defun retrieve-item (resource uuid &key included)
-  "Returns (values item-json included-items)
-   item-json contains the description of the specified item with
-     necessary links from <included>.
-   included-items is an alist with the json name of a realtion as
-     its keys and a list of item specifications as its values.
-     (eg: '((\"catalogs\" (:type catalog :id \"ae12ee\")
-                          (:type catalog :id \"123456\"))
-            (\"users\" (:type user :id \"42\")
-                       (:type user :id \"1337\"))))
-
-   The included key contains a list of keys which aught to be
-   retrieved in the included portion of the response.  This
-   ensures the included-items portion is returned, but also
-   ensures that the identifiers/types are included inline with
-   the links response."
-  (declare (ignore included))
+(defun item-spec-to-jsown (item-spec)
+  "Returns the jsown representation of the attributes and
+   non-filled relationships of item-spec.  This is the default
+   way of fetching the database contents of a single item."
   (handler-bind
       ((no-such-instance (lambda () :null)))
-    (let* ((resource-url
+    (let* ((resource (resource item-spec))
+           (uuid (uuid item-spec))
+           (resource-url
             ;; we search for a resource separately as searching it
             ;; in one query is redonculously slow.  in the order of
             ;; seconds for a single solution.
@@ -262,21 +251,40 @@
            (setf (jsown:val attributes json-var)
                  (from-sparql (jsown:val solution sparql-var) (resource-type property))))
       ;; build response data object
-      (let* ((resp-data (jsown:new-js
-                          ("attributes" attributes)
-                          ("id" uuid)
-                          ("type" (json-type resource))
-                          ("relationships" (jsown:empty-object))))
-             included-items)
-        ;; find all links and their included objects
+      (let ((relationships-object (jsown:empty-object)))
         (loop for link in (all-links resource)
            do
-             (multiple-value-bind (relationship-object new-included-items)
-                 (build-relationships-object resource uuid link nil)  ; TODO: included-p should be calculated
-               (setf (jsown:val (jsown:val resp-data "relationships") (json-key link))
-                     relationship-object)
-               (setf (getf included-items (json-key link)) new-included-items)))
-        (values resp-data included-items)))))
+             ;; TODO: build-relationships-object should receive all the included items for
+             ;;   this relationship instead of calculating them.  it should include the
+             ;;   partial data descriptions.
+             (setf (jsown:val relationships-object (json-key link))
+                   (build-relationships-object resource uuid link nil)))
+        (jsown:new-js
+          ("attributes" attributes)
+          ("id" uuid)
+          ("type" (json-type resource))
+          ("relationships" relationships-object))))))
+
+(defun retrieve-item (resource uuid &key included)
+  "Returns (values item-json included-items)
+   item-json contains the description of the specified item with
+     necessary links from <included>.
+   included-items is an alist with the json name of a realtion as
+     its keys and a list of item specifications as its values.
+     (eg: '((\"catalogs\" (:type catalog :id \"ae12ee\")
+                          (:type catalog :id \"123456\"))
+            (\"users\" (:type user :id \"42\")
+                       (:type user :id \"1337\"))))
+
+   The included key contains a list of keys which aught to be
+   retrieved in the included portion of the response.  This
+   ensures the included-items portion is returned, but also
+   ensures that the identifiers/types are included inline with
+   the links response."
+  (declare (ignore included))
+  (handler-bind
+      ((no-such-instance (lambda () :null)))
+    (item-spec-to-jsown (make-item-spec :uuid uuid :type (resource-name resource)))))
 
 (defgeneric build-relationships-object (resource uuid link included-p)
   (:documentation "Returns the content of one of the relationships based
