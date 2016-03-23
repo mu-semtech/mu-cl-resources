@@ -69,15 +69,17 @@
 (defun delete-triples (triple-clauses)
   "Deletes a set of triples based on the provided triple-clauses.
    Provide a pattern containing triple patterns and variables as
-   per 's-var."
+   per 's-var.
+   If a triple pattern isn't available, the whole deletion will
+   not stop working."
   (let ((patterns
          (loop for triple-clause in triple-clauses
             for (subject predicate object) = triple-clause
-            collect
-              (if (s-inv-p predicate)
-                  (format nil "~4t~A ~A ~A.~%"
-                          object (s-inv predicate) subject)
-                  (format nil "~4t~A ~A ~A.~%"
-                          subject predicate object)))))
+            for pattern = (if (s-inv-p predicate)
+                              (format nil "~A ~A ~A."
+                                      object (s-inv predicate) subject)
+                              (format nil "~A ~A ~A."
+                                      subject predicate object))
+            collect pattern)))
     (delete (apply #'concatenate 'string patterns)
-                   (apply #'concatenate 'string patterns))))
+        (format nil "~{~4tOPTIONAL { ~A }~%~}" patterns))))
