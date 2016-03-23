@@ -140,9 +140,11 @@
         (if resource-specification
             ;; update content
             (let* ((new-linked-uuids (jsown:filter resource-specification map "id"))
-                   (new-linked-resources (mapcar (alexandria:curry #'find-resource-for-uuid
-                                                                   linked-resource)
-                                                 new-linked-uuids)))
+                   (new-linked-resources (loop for uuid in new-linked-uuids
+                                            for spec = (make-item-spec :type linked-resource
+                                                                       :uuid uuid)
+                                            collect
+                                              (find-resource-for-uuid spec))))
               (sparql:with-query-group
                 (delete-query (s-url resource-uri)
                               (ld-property-list link))
@@ -482,9 +484,11 @@
           (if (jsown:val body "data")
               ;; update content
               (let* ((new-linked-uuids (jsown:filter body "data" map "id"))
-                     (new-linked-resources (mapcar (alexandria:curry #'find-resource-for-uuid
-                                                                     linked-resource)
-                                                   new-linked-uuids)))
+                     (new-linked-resources (loop for uuid in new-linked-uuids
+                                              for spec = (make-item-spec :type linked-resource
+                                                                         :uuid uuid)
+                                              collect
+                                                (find-resource-for-uuid spec))))
                 (delete-query (s-url resource-uri) link-path)
                 (insert-query (s-url resource-uri)
                               link-path
@@ -501,12 +505,12 @@
     (let* ((item-spec (make-item-spec :type (resource-name resource)
                                       :uuid id))
            (linked-resource (referred-resource link))
-           (resources (mapcar
-                       (alexandria:curry #'find-resource-for-uuid
-                                         linked-resource)
-                       (remove-if-not #'identity
+           (resources (loop for uuid in (remove-if-not #'identity
                                       (jsown:filter (jsown:parse (post-body))
-                                                    "data" map "id")))))
+                                                    "data" map "id"))
+                         for spec = (make-item-spec :type linked-resource
+                                                    :uuid uuid)
+                         collect (find-resource-for-uuid spec))))
       (when resources
         (sparql:delete-triples
          (loop for resource in resources
