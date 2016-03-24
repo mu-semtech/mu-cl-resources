@@ -1,5 +1,55 @@
 (in-package :mu-cl-resources)
 
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; authorization support
+(defun session-uri ()
+  "returns a session uri which can be used in a query directly."
+  (if (find :docker *features*)
+      (s-url (hunchentoot:header-in* "mu-session-id"))
+      (s-url "http://tst.mu.semte.ch/current-session")))
+
+(defun build-authorization-query-string (token source &key (allow-target-inheritance t))
+  "Constructs the query for authorizing a resource.
+   Token and Source should be things which can be put in a query,
+   either a variable, or a resource.
+   @see: authorization-query, which is probably the method you'll
+         want to use."
+  (let ((token-var (s-genvar "tokenAssignment")))
+    (format nil (s+ "~A session:account/a?/auth:belongsToGroup*/auth:hasRight ~A. ~&"
+                    "~A auth:hasToken ~A. ~&"
+                    "~A auth:operatesOn/^auth:belongsToGroup*~:[~;/^a?~] ~A.")
+            (session-uri) token-var
+            token-var token
+            token-var allow-target-inheritance source)))
+
+(defgeneric authorization-query (object operation source)
+  (:documentation "query which has to be matched to have authorization
+   for <operation> on <object>.  <source> is the variable or url which
+   is used in the query so far, to contain the resource to be validated.")
+  (:method ((item-spec item-spec) operation source-variable)
+    (authorization-query (resource item-spec) operation source-variable))
+  (:method ((resource resource) operation source-variable)
+    (build-authorization-query-string (authorization-token resource operation)
+                                      source-variable))
+  (:method ((resource resource) (operation (eql :create)) source-variable)
+    (declare (ignore source-variable))
+    (build-authorization-query-string (authorization-token resource operation)
+                                      (ld-class resource)
+                                      :allow-target-inheritance nil)))
+
+(defun check-access-rights-for-item-spec (item-spec token)
+  (let ((resource-url (s-url (find-resource-for-uuid item-spec)))
+        (resource (resource item-spec))
+        (uuid (uuid item-spec)))
+   (alexandria:when-let ((query (authorization-query item-spec token resource-url)))
+     (unless (sparql:ask query)
+       (error 'access-denied
+              :operation token
+              :resource resource
+              :id uuid
+              :type (json-type resource))))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; call implementation
 

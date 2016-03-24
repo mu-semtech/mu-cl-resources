@@ -21,3 +21,7 @@
 (add-prefix "vcard" "http://www.w3.org/2006/vcard/ns#")
 (add-prefix "xsd" "http://www.w3.org/2001/XMLSchema#")
 (add-prefix "geo" "http://www.opengis.net/ont/geosparql#")
+
+
+(add-prefix "session" "http://mu.semte.ch/vocabulary/core/session/")
+(add-prefix "auth" "http://mu.semte.ch/vocabulary/authorization/")
