@@ -58,6 +58,18 @@
               :id uuid
               :type (json-type resource))))))
 
+(defun check-access-rights-for-resource (resource token)
+  "Checks the access rights for <token> on <resource>.
+   This has to be a class-based check.  Hence it only works for
+   create at this point."
+  (alexandria:when-let ((query (authorization-query resource token nil)))
+    (unless (sparql:ask query)
+      (error 'access-denied
+             :operation token
+             :resource resource
+             :id nil
+             :type (json-type resource)))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; call implementation
