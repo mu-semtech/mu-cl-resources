@@ -103,6 +103,18 @@
                                      ("code" "500"))))
                        (or jsown-object (jsown:empty-object))))
 
+(defun respond-access-denied (&optional jsown-object)
+  "Returns a 403 Access Denied response.  The supplied
+   jsown-object is merged with th ersponse if it is supplied.
+   This allows you to extend the response and tailor it to your
+   needs."
+  (setf (hunchentoot:return-code*) 403)
+  (merge-jsown-objects (jsown:new-js
+                         ("errors" (jsown:new-js
+                                     ("status" "Access Denied")
+                                     ("code" "403"))))
+                       (or jsown-object (jsown:empty-object))))
+
 (defun verify-json-api-content-type ()
   "Throws an error if the Content Type is not the required
    application/vnd.api+json Accept header."

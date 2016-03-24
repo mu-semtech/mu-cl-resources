@@ -1,5 +1,13 @@
 (in-package :mu-cl-resources)
 
+(defun response-for-access-denied-condition (condition)
+  (respond-access-denied
+   (jsown:new-js
+     ("errors" (jsown:new-js
+                 ("title" (format nil "Access for ~A operation on ~A ~@[with id ~A ~]was denied."
+                                  (operation condition)
+                                  (json-type (resource condition))
+                                  (target-id condition))))))))
 
 (defcall :get (base-path)
   (handler-case
@@ -8,6 +16,8 @@
         (list-call (find-resource-by-path base-path)))
     (no-such-resource ()
       (respond-not-found))
+    (access-denied (condition)
+      (response-for-access-denied-condition condition))
     (configuration-error (condition)
       (respond-server-error
        (jsown:new-js
@@ -25,6 +35,8 @@
         (show-call (find-resource-by-path base-path) id))
     (no-such-resource ()
       (respond-not-found))
+    (access-denied (condition)
+      (response-for-access-denied-condition condition))
     (configuration-error (condition)
       (respond-server-error
        (jsown:new-js
@@ -53,6 +65,8 @@
                                          ("title" (format nil
                                                           "Resource for path (~A) not found"
                                                           base-path)))))))
+      (access-denied (condition)
+        (response-for-access-denied-condition condition))
       (configuration-error (condition)
         (respond-server-error
          (jsown:new-js
@@ -97,6 +111,8 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (access-denied (condition)
+        (response-for-access-denied-condition condition))
       (configuration-error (condition)
         (respond-server-error
          (jsown:new-js
@@ -137,6 +153,8 @@
        (jsown:new-js
          ("errors" (jsown:new-js
                      ("title" (s+ "Server configuration issue: " (description condition))))))))
+    (access-denied (condition)
+      (response-for-access-denied-condition condition))
     (no-such-resource ()
       (respond-forbidden (jsown:new-js
                            ("errors" (jsown:new-js
@@ -193,6 +211,8 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (access-denied (condition)
+        (response-for-access-denied-condition condition))
       (configuration-error (condition)
         (respond-server-error
          (jsown:new-js
@@ -245,6 +265,8 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (access-denied (condition)
+        (response-for-access-denied-condition condition))
       (configuration-error (condition)
         (respond-server-error
          (jsown:new-js
@@ -297,6 +319,8 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (access-denied (condition)
+        (response-for-access-denied-condition condition))
       (configuration-error (condition)
         (respond-server-error
          (jsown:new-js
