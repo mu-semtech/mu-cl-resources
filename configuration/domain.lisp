@@ -54,6 +54,10 @@
   :has-many `((dataset :via ,(s-prefix "dcat:dataset")
                        :as "datasets"))
   :resource-base (s-url "http://your-data-stories.eu/catalogs/")
+  :authorization (list :show (s-prefix "auth:show")
+                       :update (s-prefix "auth:update")
+                       :create (s-prefix "auth:create")
+                       :delete (s-prefix "auth:delete"))
   :on-path "catalogs")
 
 (define-resource dataset ()
