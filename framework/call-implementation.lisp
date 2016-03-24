@@ -80,6 +80,7 @@
   (:method ((resource-symbol symbol))
     (create-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
+    (check-access-rights-for-resource resource :create)
     (let* ((jsown:*parsed-null-value* :null)
            (json-input (jsown:parse (post-body)))
            (uuid (mu-support:make-uuid)) 
@@ -137,6 +138,7 @@
            (json-input (jsown:parse (post-body)))
            (attributes (jsown:filter json-input "data" "attributes"))
            (uri (s-url (find-resource-for-uuid item-spec))))
+      (check-access-rights-for-item-spec item-spec :update)
       (sparql:with-query-group
         (let ((delete-vars (loop for key in (jsown:keywords attributes)
                               for i from 0
@@ -174,6 +176,7 @@
                               (find-link-by-json-name (resource item-spec) relation)
                               resource-specification))
   (:method ((item-spec item-spec) (link has-one-link) resource-specification)
+    (check-access-rights-for-item-spec item-spec :update)
     (flet ((delete-query (resource-uri link-uri)
              (sparql:delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
@@ -198,6 +201,7 @@
             (delete-query (s-url resource-uri)
                           (ld-property-list link))))))
   (:method ((item-spec item-spec) (link has-many-link) resource-specification)
+    (check-access-rights-for-item-spec item-spec :update)
     (flet ((delete-query (resource-uri link-uri)
              (sparql:delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
@@ -235,8 +239,9 @@
     (paginated-collection-response
      :resource resource
      :sparql-body (filter-body-for-search
-                   :sparql-body  (format nil "?s mu:uuid ?uuid; a ~A."
-                                         (ld-class resource))
+                   :sparql-body  (format nil "?s mu:uuid ?uuid; a ~A. ~@[~A~]"
+                                         (ld-class resource)
+                                         (authorization-query resource :show (s-var "s")))
                    :source-variable (s-var "s")
                    :resource resource)
      :source-variable (s-var "s"))))
@@ -248,6 +253,7 @@
     (show-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
     (let ((item-spec (make-item-spec :uuid uuid :type (resource-name resource))))
+      (check-access-rights-for-item-spec item-spec :show)
       (multiple-value-bind (data included-items)
           (retrieve-item item-spec)
         (if (eq data :null)
@@ -410,6 +416,9 @@
   (:method ((resource-symbol symbol) uuid)
     (delete-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
+    (check-access-rights-for-item-spec (make-item-spec :type (resource-name resource)
+                                                       :uuid uuid)
+                                       :delete)
     (let (relation-content)
       (loop for slot in (ld-properties resource)
          do (push (list (ld-property-list slot)
@@ -453,6 +462,7 @@
     (show-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
     (let ((item-spec (make-item-spec :type (resource-name resource) :uuid id)))
+      (check-access-rights-for-item-spec item-spec :show)
       (let ((relation-item-spec (first (retrieve-relation-items item-spec link))))
         (jsown:new-js
           ("data" (if relation-item-spec
@@ -460,15 +470,18 @@
                       :null))
           ("links" (build-links-object item-spec link))))))
   (:method ((resource resource) id (link has-many-link))
-    (let ((item-spec (make-item-spec :type (resource-name resource) :uuid id)))
+    (let* ((item-spec (make-item-spec :type (resource-name resource) :uuid id))
+           (resource-url (s-url (find-resource-for-uuid item-spec))))
       (paginated-collection-response
        :resource (referred-resource link)
        :sparql-body (filter-body-for-search
                      :sparql-body (format nil
                                           (s+ "~A ~{~A~,^/~} ?resource. "
-                                              "?resource mu:uuid ?uuid.")
-                                          (s-url (find-resource-for-uuid item-spec))
-                                          (ld-property-list link))
+                                              "?resource mu:uuid ?uuid. "
+                                              "~@[~A~] ")
+                                          resource-url
+                                          (ld-property-list link)
+                                          (authorization-query resource :show resource-url))
                      :source-variable (s-var "resource")
                      :resource (referred-resource link))
        :source-variable (s-var "resource")
@@ -485,25 +498,31 @@
   (:method ((item-spec item-spec) (link string))
     (retrieve-relation-items item-spec (find-link-by-json-name (resource item-spec) link)))
   (:method ((item-spec item-spec) (link has-one-link))
-    (let ((query-results
-           (first (sparql:select (s-var "uuid")
-                                 (format nil (s+ "~A ~{~A~,^/~} ?resource. "
-                                                 "?resource mu:uuid ?uuid. ")
-                                         (s-url (find-resource-for-uuid item-spec))
-                                         (ld-property-list link)))))
-          (linked-resource (resource-name (referred-resource link))))
+    (let* ((resource-url (s-url (find-resource-for-uuid item-spec)))
+           (query-results
+            (first (sparql:select (s-var "uuid")
+                                  (format nil (s+ "~A ~{~A~,^/~} ?resource. "
+                                                  "?resource mu:uuid ?uuid. "
+                                                  "~@[~A~] ")
+                                          resource-url
+                                          (ld-property-list link)
+                                          (authorization-query item-spec :show resource-url)))))
+           (linked-resource (resource-name (referred-resource link))))
       (and query-results
            (list
             (make-item-spec :type linked-resource
                             :uuid (jsown:filter query-results "uuid" "value"))))))
   (:method ((item-spec item-spec) (link has-many-link))
-    (let ((query-results
-           (sparql:select (s-var "uuid")
-                          (format nil (s+ "~A ~{~A~,^/~} ?resource. "
-                                          "?resource mu:uuid ?uuid. ")
-                                  (s-url (find-resource-for-uuid item-spec))
-                                  (ld-property-list link))))
-          (linked-resource (resource-name (referred-resource link))))
+    (let* ((resource-url (s-url (find-resource-for-uuid item-spec)))
+           (query-results
+            (sparql:select (s-var "uuid")
+                           (format nil (s+ "~A ~{~A~,^/~} ?resource. "
+                                           "?resource mu:uuid ?uuid. "
+                                           "~@[~A~] ")
+                                   resource-url
+                                   (ld-property-list link)
+                                   (authorization-query item-spec :show resource-url))))
+           (linked-resource (resource-name (referred-resource link))))
       (loop for uuid in (jsown:filter query-results map "uuid" "value")
          collect
            (make-item-spec :type linked-resource :uuid uuid)))))
@@ -522,6 +541,7 @@
               `((,resource-uri ,@link-uri ,new-linked-uri)))))
       (let ((item-spec (make-item-spec :type (resource-name resource)
                                        :uuid id)))
+        (check-access-rights-for-item-spec item-spec :update)
         (let ((body (jsown:parse (post-body)))
               (linked-resource (referred-resource link))
               (resource-uri (find-resource-for-uuid item-spec))
@@ -541,6 +561,7 @@
     (respond-no-content))
   (:method ((resource resource) id (link has-many-link))
     (let ((item-spec (make-item-spec :type (resource-name resource) :uuid id)))
+      (check-access-rights-for-item-spec item-spec :update)
       (flet ((delete-query (resource-uri link-uri)
                (sparql:delete-triples
                 `((,resource-uri ,@link-uri ,(s-var "s")))))
@@ -573,46 +594,48 @@
   (:documentation "Performs a delete call on a relation, thereby
     removing a set of linked resources.")
   (:method ((resource resource) id (link has-many-link))
-    (let* ((item-spec (make-item-spec :type (resource-name resource)
-                                      :uuid id))
-           (linked-resource (referred-resource link))
-           (resources (loop for uuid in (remove-if-not #'identity
-                                      (jsown:filter (jsown:parse (post-body))
-                                                    "data" map "id"))
-                         for spec = (make-item-spec :type linked-resource
-                                                    :uuid uuid)
-                         collect (find-resource-for-uuid spec))))
-      (when resources
-        (sparql:delete-triples
-         (loop for resource in resources
-            collect
-              `(,(s-url (find-resource-for-uuid item-spec))
-                 ,@(ld-property-list link)
-                 ,resource)))))
+    (let ((item-spec (make-item-spec :type (resource-name resource)
+                                     :uuid id)))
+      (check-access-rights-for-item-spec item-spec :update)
+      (let* ((linked-resource (referred-resource link))
+             (resources (loop for uuid in (remove-if-not #'identity
+                                                      (jsown:filter (jsown:parse (post-body))
+                                                                    "data" map "id"))
+                           for spec = (make-item-spec :type linked-resource
+                                                      :uuid uuid)
+                           collect (find-resource-for-uuid spec))))
+        (when resources
+          (sparql:delete-triples
+           (loop for resource in resources
+              collect
+                `(,(s-url (find-resource-for-uuid item-spec))
+                   ,@(ld-property-list link)
+                   ,resource))))))
     (respond-no-content)))
 
 (defgeneric add-relation-call (resource id link)
   (:documentation "Performs the addition call on a relation, thereby
     adding a set of linked resources.")
   (:method ((resource resource) id (link has-many-link))
-    (let* ((item-spec (make-item-spec :type (resource-name resource)
-                                      :uuid id))
-           (linked-resource (referred-resource link))
-           (resources (loop for uuid
-                         in (remove-if-not #'identity
-                                           (jsown:filter (jsown:parse (post-body))
-                                                         "data" map "id"))
-                         collect
-                           (find-resource-for-uuid
-                            (make-item-spec :uuid uuid
-                                            :type (resource-name linked-resource))))))
-      (when resources
-        (let ((source-url (find-resource-for-uuid item-spec))
-              (properties (ld-property-list link)))
-          (sparql:insert-triples
-           (loop for resource in resources
-              collect
-                `(,(s-url source-url) ,@properties ,(s-url resource)))))))
+    (let ((item-spec (make-item-spec :type (resource-name resource)
+                                     :uuid id)))
+      (check-access-rights-for-item-spec item-spec :update)
+      (let* ((linked-resource (referred-resource link))
+             (resources (loop for uuid
+                           in (remove-if-not #'identity
+                                             (jsown:filter (jsown:parse (post-body))
+                                                           "data" map "id"))
+                           collect
+                             (find-resource-for-uuid
+                              (make-item-spec :uuid uuid
+                                              :type (resource-name linked-resource))))))
+        (when resources
+          (let ((source-url (find-resource-for-uuid item-spec))
+                (properties (ld-property-list link)))
+            (sparql:insert-triples
+             (loop for resource in resources
+                collect
+                  `(,(s-url source-url) ,@properties ,(s-url resource))))))))
     (respond-no-content)))
 
 
@@ -671,9 +694,11 @@
              in (jsown:filter
                  (sparql:select (s-var "target")
                                 (format nil (s+ "?s mu:uuid ~A. "
-                                                "?s ~{~A/~}mu:uuid ?target. ")
+                                                "?s ~{~A/~}mu:uuid ?target. "
+                                                "~@[~A~] ")
                                         (s-str uuid)
-                                        (ld-property-list relation)))
+                                        (ld-property-list relation)
+                                        (authorization-query resource :show (s-var "s"))))
                  map "target" "value")
              collect (included-items-store-ensure included-items-store
                                                   (make-item-spec :uuid new-uuid
