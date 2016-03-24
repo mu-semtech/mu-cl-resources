@@ -15,9 +15,18 @@
    @see: authorization-query, which is probably the method you'll
          want to use."
   (let ((token-var (s-genvar "tokenAssignment")))
-    (format nil (s+ "~A session:account/a?/auth:belongsToGroup*/auth:hasRight ~A. ~&"
+    ;; Why don't you use a? in these queries, you ask?  Let me tell you a story
+    ;; about a little kid named Virtuoso.  Virtuoso is a bit of a complex kid,
+    ;; it likes to eat a lot of candy, but sometimes its brain twitches a bit.
+    ;; Virtuoso can answer complex questions, but on some questions -- like most
+    ;; of us -- it barfs.  It fails to answer them.  Turns out a? in combination
+    ;; with a foo* portion in a path makes Virtuoso sad.  With this convoluted
+    ;; piece of query, we're making Virtuoso a happy kid.  This should be
+    ;; removed in the future, when https://github.com/openlink/virtuoso-opensource/issues/180
+    ;; is solved.  -- 2016/03/24-15:43
+    (format nil (s+ "~A session:account/((a/auth:belongsToGroup*/auth:hasRight)|(auth:belongsToGroup*/auth:hasRight)) ~A. ~&"
                     "~A auth:hasToken ~A. ~&"
-                    "~A auth:operatesOn/^auth:belongsToGroup*~:[~;/^a?~] ~A.")
+                    "~A auth:operatesOn/(~:[~;(^auth:belongsToGroup*/^a)|~](^auth:belongsToGroup*)) ~A. ")
             (session-uri) token-var
             token-var token
             token-var allow-target-inheritance source)))
