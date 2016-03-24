@@ -64,3 +64,10 @@
   (:documentation "Indicates the id in the request does not match
     the id of the supplied content."))
 
+(define-condition access-denied (error)
+  ((type :initarg :type :reader target-type)
+   (id :initarg :id :reader target-id)
+   (resource :initarg :resource :reader resource)
+   (operation :initarg :operation :reader operation))
+  (:documentation "Indicates access to the requested was denied."))
+
