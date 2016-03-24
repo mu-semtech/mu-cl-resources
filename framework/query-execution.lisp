@@ -27,6 +27,11 @@
       (fuseki:with-query-logging *error-output*
         (fuseki:query *repository* content))))
 
+(defun ask (body)
+  "Executes a SPARQL ASK query on the current graph."
+  (fuseki:with-query-logging *error-output*
+    (fuseki:ask *repository* (format nil "ASK WHERE { ~A }" body))))
+
 (defun select (variables body &rest args &key order-by limit offset group-by)
   "Executes a SPARQL SELECT query on the current graph.
    Takes with-query-group into account."

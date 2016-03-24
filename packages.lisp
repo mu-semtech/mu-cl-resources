@@ -8,7 +8,8 @@
            #:delete
            #:delete-triples
            #:insert-triples
-           #:query))
+           #:query
+           #:ask))
 
 (defpackage :mu-cl-resources
   (:use :cl :mu-support)
