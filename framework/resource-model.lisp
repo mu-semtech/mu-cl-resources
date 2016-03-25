@@ -66,6 +66,24 @@
     ;; only the lang-string-set has multiple values so far
     (not (eql (resource-type slot) :language-string-set))))
 
+(defun multi-value-slot-p (resource-slot)
+  "inverse of single-value-slot-p."
+  (not (single-value-slot-p resource-slot)))
+
+(defun slot-value-represents-triples-p (resource-slot value)
+  "non-nil if a <value> for <resource-slot> would need one one or
+   more triples to be set in the triplestore to indicate that
+   that content is present.  if <value> is the default value of a
+   property, this would be nil.
+   <value> should be the json representation of the value.
+   eg: a lang-string-set with no options would yield nil here."
+  (not (or (eq value :null)                        ; :null is always default
+         (and (multi-value-slot-p resource-slot) ; an empty array is default when we have
+              (eql value nil)))))                ; multiple values but :null is allowed too
+
+(defgeneric multi-value-slot-p (resource-slot)
+  (:documentation "inverse of single-value-slot-p"))
+
 (defgeneric sparql-variable-name (resource-slot)
   (:documentation "retrieves the name of the json property as it
    could be used in a sparql query")
@@ -249,7 +267,7 @@
        if primitive-value
        collect
          (list (ld-property-list slot)
-               (if (eq primitive-value :null)
+               (if (slot-value-represents-triples-p slot primitive-value)
                    :null
                    (interpret-json-value
                     slot

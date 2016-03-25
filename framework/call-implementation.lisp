@@ -151,11 +151,12 @@
         (sparql:insert-triples
          (loop for key in (jsown:keywords attributes)
             for slot = (resource-slot-by-json-key resource key)
-            for value = (if (eq (jsown:val attributes key) :null)
+            for json-value = (jsown:val attributes key)
+            for value = (if (eq json-value :null)
                             :null
-                            (interpret-json-value slot (jsown:val attributes key)))
+                            (interpret-json-value slot json-value))
             for property-list = (ld-property-list slot)
-            unless (eq value :null)
+            if (slot-value-represents-triples-p slot json-value)
             collect
               `(,uri ,@property-list ,value))))
       (when (and (jsown:keyp json-input "data")
