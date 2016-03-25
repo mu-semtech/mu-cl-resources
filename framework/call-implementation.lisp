@@ -324,13 +324,14 @@
              if (and (not (single-value-slot-p slot))
                      (field-requested-p slot))
              do
-               (setf (jsown:val solution variable-name)
-                     (mapcar (lambda (solution) (jsown:val solution variable-name))
-                             (sparql:select "*"
-                                            (format nil "~A ~{~A~,^/~} ~A."
-                                                    (s-url resource-url)
-                                                    (ld-property-list slot)
-                                                    (s-var variable-name))))))
+               (let ((value (mapcar (lambda (solution) (jsown:val solution variable-name))
+                                    (sparql:select "*"
+                                                   (format nil "~A ~{~A~,^/~} ~A."
+                                                           (s-url resource-url)
+                                                           (ld-property-list slot)
+                                                           (s-var variable-name))))))
+                 (when value
+                   (setf (jsown:val solution variable-name) value))))
           ;; read simple attributes from sparql query
           (loop for property in (ld-properties resource)
              for sparql-var = (sparql-variable-name property)
