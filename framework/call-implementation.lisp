@@ -111,6 +111,30 @@
                                                      "data" "relationships" relation "data"))))
       (jsown:new-js ("data" (retrieve-item item-spec))))))
 
+(defun find-resource-for-uuid-through-sparql (item-spec)
+  "retrieves the resource url through a sparql query.
+   @see: you probably want to use node-url instead."
+  (let ((result (sparql:select (s-var "s")
+                               (if *allow-xsd-in-uuids*
+                                   (format nil (s+ "?s mu:uuid ?uuid. "
+                                                   "FILTER(~A = str(?uuid))")
+                                           (s-str (uuid item-spec)))
+                                   (format nil "?s mu:uuid ~A. " (s-str (uuid item-spec)))))))
+    (unless result
+      (error 'no-such-instance
+             :resource (resource item-spec)
+             :id (uuid item-spec)
+             :type (json-type (resource item-spec))))
+    (jsown:filter (first result) "s" "value")))
+
+(defgeneric node-url (item-spec)
+  (:documentation "yields the node url for the supplied item-spec")
+  (:method ((item-spec item-spec))
+    (if (slot-boundp item-spec 'node-url)
+        (slot-value item-spec 'node-url)
+        (setf (slot-value item-spec 'node-url)
+              (find-resource-for-uuid-through-sparql item-spec)))))
+
 
 (defun find-resource-for-uuid (item-spec)
   "Retrieves the uri-resource which specifies the supplied item-spec."

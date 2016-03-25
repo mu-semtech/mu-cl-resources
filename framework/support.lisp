@@ -100,7 +100,8 @@
    (type :accessor resource-name :initarg :type)
    (related-items :accessor related-items-table
                   :initform (make-hash-table :test 'equal)
-                  :initarg :related-items))
+                  :initarg :related-items)
+   (node-url))
   (:documentation "Represents an item that should be loaded."))
 
 (defun make-item-spec (&key uuid type)
