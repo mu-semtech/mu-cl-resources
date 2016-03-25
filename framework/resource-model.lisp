@@ -265,10 +265,10 @@
        collect
          (list (ld-property-list slot)
                (if (slot-value-represents-triples-p slot primitive-value)
-                   :null
                    (interpret-json-value
                     slot
-                    (jsown:val attributes (json-property-name slot))))))))
+                    (jsown:val attributes (json-property-name slot)))
+                   :null)))))
 
 (defgeneric construct-resource-item-path (item-spec)
   (:documentation "Constructs the path on which information can
