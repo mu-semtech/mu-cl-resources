@@ -81,9 +81,6 @@
          (and (multi-value-slot-p resource-slot) ; an empty array is default when we have
               (eql value nil)))))                ; multiple values but :null is allowed too
 
-(defgeneric multi-value-slot-p (resource-slot)
-  (:documentation "inverse of single-value-slot-p"))
-
 (defgeneric sparql-variable-name (resource-slot)
   (:documentation "retrieves the name of the json property as it
    could be used in a sparql query")
