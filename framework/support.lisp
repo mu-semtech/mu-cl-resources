@@ -1,6 +1,19 @@
 (in-package :mu-cl-resources)
 
 
+(defun debug-execute-breakpoint (name content code)
+  (declare (optimize (debug 3) (safety 3) (speed 0)))
+  (break "~A yielded: ~A ~&~A" name content code))
+
+(defmacro debug-break (name &body block)
+  "Executes the code in <block> and reports it as a break-point
+   with name <name>."
+  (let ((output-symbol (gensym (string-downcase (symbol-name name)))))
+    `(progn (declaim (optimize (debug 3) (safety 3) (speed 0)))
+        (let ((,output-symbol (progn ,@block)))
+          (debug-execute-breakpoint ',name ,output-symbol ',block)
+          ,output-symbol))))
+
 (defun symbol-to-camelcase (content &key (cap-first nil))
   "builds a javascript variable from anything string-like"
   (format nil "~{~A~}"
