@@ -194,7 +194,8 @@
               `((,resource-uri ,@link-uri ,new-linked-uri)))))
       (let ((linked-resource (referred-resource link))
             (resource-uri (node-url item-spec)))
-        (if resource-specification
+        (if (and resource-specification
+                 (not (eq resource-specification :null)))
             ;; update content
             (let* ((new-linked-uuid (jsown:val resource-specification "id"))
                    (new-linked-uri (node-url
@@ -221,7 +222,8 @@
                    `(,resource-uri ,@link-uri ,new-link-uri)))))
       (let ((linked-resource (referred-resource link))
             (resource-uri (node-url item-spec)))
-        (if resource-specification
+        (if (and resource-specification
+                 (not (eq resource-specification :null)))
             ;; update content
             (let* ((new-linked-uuids (jsown:filter resource-specification map "id"))
                    (new-linked-resources (loop for uuid in new-linked-uuids
