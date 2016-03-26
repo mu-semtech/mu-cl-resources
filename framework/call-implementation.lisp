@@ -85,16 +85,17 @@
            (json-input (jsown:parse (post-body)))
            (uuid (mu-support:make-uuid)) 
            (item-spec (make-item-spec :uuid uuid :type (resource-name resource)))
-           (resource-uri (s-url (format nil "~A~A"
-                                        (raw-content (ld-resource-base resource))
-                                        uuid))))
+           (resource-uri (format nil "~A~A"
+                                 (raw-content (ld-resource-base resource))
+                                 uuid))
+           (s-resource-uri (s-url resource-uri)))
       (sparql:insert-triples
-       `((,resource-uri ,(s-prefix "a") ,(ld-class resource))
-         (,resource-uri ,(s-prefix "mu:uuid") ,(s-str uuid))
+       `((,s-resource-uri ,(s-prefix "a") ,(ld-class resource))
+         (,s-resource-uri ,(s-prefix "mu:uuid") ,(s-str uuid))
          ,@(loop for (predicates object)
               in (attribute-properties-for-json-input resource json-input)
               unless (eq object :null)
-              collect `(,resource-uri ,@predicates ,object))))
+              collect `(,s-resource-uri ,@predicates ,object))))
       (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
       (setf (hunchentoot:header-out :location)
             (construct-resource-item-path item-spec))
@@ -105,7 +106,8 @@
                           "data")
            do
              (update-resource-relation (make-item-spec :type (resource-name resource)
-                                                       :uuid uuid)
+                                                       :uuid uuid
+                                                       :node-url resource-uri)
                                        relation
                                        (jsown:filter json-input
                                                      "data" "relationships" relation "data"))))

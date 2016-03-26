@@ -114,12 +114,13 @@
    (related-items :accessor related-items-table
                   :initform (make-hash-table :test 'equal)
                   :initarg :related-items)
-   (node-url))
+   (node-url :initarg :node-url))
   (:documentation "Represents an item that should be loaded."))
 
-(defun make-item-spec (&key uuid type)
+(defun make-item-spec (&rest args &key uuid type node-url)
   "Creates a new item-spec instance."
-  (make-instance 'item-spec :type type :uuid uuid))
+  (declare (ignore uuid type node-url))
+  (apply #'make-instance 'item-spec args))
 
 (defun item-spec-hash-key (item-spec)
   "Creates a key which can be compared through #'equal."
