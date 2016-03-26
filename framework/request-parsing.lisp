@@ -23,6 +23,8 @@
     (s-typed value (s-prefix "xsd:dateTime")))
   (:method ((slot resource-slot) (type (eql :date)) value)
     (s-typed value (s-prefix "xsd:date")))
+  (:method ((slot resource-slot) (type (eql :g-year)) value)
+    (s-typed value (s-prefix "xsd:gYear")))
   (:method ((slot resource-slot) (type (eql :geometry)) value)
     (s-typed value (s-prefix "geo:wktLiteral")))
   (:method ((slot resource-slot) (type (eql :language-string-set)) values)

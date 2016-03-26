@@ -99,3 +99,8 @@
   (if (or (string= value "1")
           (string= value "true"))
       :true :false))
+
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#gYear"
+    (value object)
+  (declare (ignore object))
+  (format nil "~A" (parse-integer (cl-ppcre:scan-to-strings "-?\\d+" value))))
