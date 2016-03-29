@@ -72,7 +72,7 @@
 
 (defun slot-value-represents-triples-p (resource-slot value)
   "non-nil if a <value> for <resource-slot> would need one one or
-   more triples to be set in the triplestore to indicate that
+   more triples to be set in the triple-store to indicate that
    that content is present.  if <value> is the default value of a
    property, this would be nil.
    <value> should be the json representation of the value.

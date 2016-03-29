@@ -21,7 +21,7 @@
     (list page-size page-number)))
 
 (defun extract-order-info-from-request (resource)
-  "Extracts the order info from the current requset object."
+  "Extracts the order info from the current request object."
   (alexandria:when-let ((sort (hunchentoot:get-parameter "sort")))
     (loop for sort-string in (cl-ppcre:split "," sort)
        collect
@@ -41,7 +41,7 @@
                             for name = (getf info :name)
                             collect
                               (s-genvar name))))
-    ;; looking ath the implementation, much of it is split
+    ;; looking at the implementation, much of it is split
     ;; between having to sort (order-info) and not having
     ;; to sort.  some logic is shared.
     (let ((sparql-variables (if order-info
@@ -78,7 +78,7 @@
 
 (defun build-pagination-links (base-path &key page-number page-size total-count)
   "Builds a links object containing the necessary pagination
-   links.  It bases itself on the base-path for the targetted
+   links.  It bases itself on the base-path for the targeted
    request."
   (flet ((build-url (&key page-number)
            (let ((get-parameters (alist-to-plist (hunchentoot:get-parameters hunchentoot:*request*))))

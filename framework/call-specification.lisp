@@ -141,7 +141,7 @@
         (respond-conflict
          (jsown:new-js
            ("errors" (jsown:new-js
-                       ("title" (format nil "id in data (~A) did ot match id in path (~A)."
+                       ("title" (format nil "id in data (~A) did not match id in path (~A)."
                                         (content-defined-id condition)
                                         (path-defined-id condition)))))))))))
 

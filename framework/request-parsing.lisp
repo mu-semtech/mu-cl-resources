@@ -107,7 +107,7 @@
 
 (defun respond-access-denied (&optional jsown-object)
   "Returns a 403 Access Denied response.  The supplied
-   jsown-object is merged with th ersponse if it is supplied.
+   jsown-object is merged with the response if it is supplied.
    This allows you to extend the response and tailor it to your
    needs."
   (setf (hunchentoot:return-code*) 403)
