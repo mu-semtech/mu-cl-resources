@@ -84,10 +84,12 @@
     (let* ((jsown:*parsed-null-value* :null)
            (json-input (jsown:parse (post-body)))
            (uuid (mu-support:make-uuid)) 
-           (item-spec (make-item-spec :uuid uuid :type (resource-name resource)))
            (resource-uri (format nil "~A~A"
                                  (raw-content (ld-resource-base resource))
                                  uuid))
+           (item-spec (make-item-spec :uuid uuid
+                                      :type (resource-name resource)
+                                      :node-url resource-uri))
            (s-resource-uri (s-url resource-uri)))
       (sparql:insert-triples
        `((,s-resource-uri ,(s-prefix "a") ,(ld-class resource))
