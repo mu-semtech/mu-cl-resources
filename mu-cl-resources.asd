@@ -10,6 +10,7 @@
   :components ((:file "packages")
                (:file "configuration/repository")
                (:file "configuration/settings")
+               (:file "framework/callbacks")
                (:file "framework/error-codes")
                (:file "framework/support")
                (:file "framework/query-execution")
