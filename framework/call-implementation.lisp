@@ -24,9 +24,9 @@
     ;; piece of query, we're making Virtuoso a happy kid.  This should be
     ;; removed in the future, when https://github.com/openlink/virtuoso-opensource/issues/180
     ;; is solved.  -- 2016/03/24-15:43
-    (format nil (s+ "~A session:account/((a/auth:belongsToGroup*/auth:hasRight)|(auth:belongsToGroup*/auth:hasRight)) ~A. ~&"
+    (format nil (s+ "~A session:account/^foaf:account/((a/auth:belongsToActorGroup*/auth:hasRight)|(auth:belongsToActorGroup*/auth:hasRight)) ~A. ~&"
                     "~A auth:hasToken ~A. ~&"
-                    "~A auth:operatesOn/(~:[~;(^auth:belongsToGroup*/^a)|~](^auth:belongsToGroup*)) ~A. ")
+                    "~A auth:operatesOn/(~:[~;(^auth:belongsToArtifactGroup*/^a)|~](^auth:belongsToArtifactGroup*)) ~A. ")
             (session-uri) token-var
             token-var token
             token-var allow-target-inheritance source)))

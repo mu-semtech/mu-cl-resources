@@ -23,5 +23,5 @@
 (add-prefix "geo" "http://www.opengis.net/ont/geosparql#")
 
 
-(add-prefix "session" "http://mu.semte.ch/vocabulary/core/session/")
-(add-prefix "auth" "http://mu.semte.ch/vocabulary/authorization/")
+(add-prefix "session" "http://mu.semte.ch/vocabularies/session/")
+(add-prefix "auth" "http://mu.semte.ch/vocabularies/authorization/")
