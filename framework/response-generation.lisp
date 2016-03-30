@@ -49,13 +49,12 @@
                                         (cons (s-var "uuid") order-variables))
                                 (format nil "DISTINCT ~A" (s-var "uuid"))))
           (sparql-body (if order-info
-                           (format nil "~A~% ~A ~{~{~{~A~^/~} ~A~}~^; ~}."
+                           (format nil "~A~%~{OPTIONAL {~{~A ~{~A~^/~} ~A~}.}~%~}"
                                    sparql-body
-                                   source-variable
                                    (loop for info in order-info
                                       for variable in order-variables
                                       collect
-                                        (list (getf info :property-path) variable)))
+                                        (list source-variable (getf info :property-path) variable)))
                            sparql-body))
           (order-by (if order-info
                         (format nil "~{~A(~A) ~}"
