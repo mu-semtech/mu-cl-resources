@@ -171,8 +171,12 @@
                 (:content :string ,(s-prefix "cms:pageContent")))
   :on-path "pages")
 
-;; (around (:show page) (&rest args)
-;;   (break "This is page showing with ~A" args)
-;;   (let ((response (yield)))
-;;     (break "The response should be ~A" (jsown:to-json response))
-;;     (jsown:new-js ("ok" t))))
+(around (:show page) (&rest args)
+  (break "This is page showing with ~A" args)
+  (let ((response (yield)))
+    (break "The response should be ~A" (jsown:to-json response))
+    (jsown:new-js ("ok" t))))
+
+(after (:show page) (&rest args)
+  (declare (ignore args))
+  (jsown:new-js ("ok" :false)))

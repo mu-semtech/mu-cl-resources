@@ -55,11 +55,15 @@
    this hook.  The hook code is ran in the environment provided by
    the call-next-method hook.  This allows for overriding special
    variables.
-   Each argument in specification is evaluated twice.  Just before
-   running the before-hook and just before running the after hook.
-   Arguments is evaluated twice, once just before calling the
-   before-hook and once right before calling the after-hook."
-  (let ((result-var (gensym "surrounding-hook-result")))
+   Each argument in specification is evaluated three times.  Just
+   before running the before-hook, just before running the around
+   hook, and just before running the after hook.
+   Each argument in arguments is evaluated three times too.  Just
+   before running the before-hook, just before running the around
+   hook, and just before running the after hook."
+  (let ((result-var (gensym "surrounding-hook-result"))
+        (new-result-var (gensym "surrounding-hook-new-result"))
+        (hook-p (gensym "hook-p")))
     `(progn (run-hook (list :before ,@specification)
                   (list ,@arguments))
         (let ((,result-var
@@ -67,9 +71,10 @@
                    (list :around ,@specification)
                    (list ,@arguments)
                  ,@body)))
-          (run-hook (list :after ,@specification)
-                    (list ,@arguments ,result-var))
-          ,result-var))))
+          (multiple-value-bind (,new-result-var ,hook-p)
+              (run-hook (list :after ,@specification)
+                        (list ,@arguments ,result-var))
+            (if ,hook-p ,new-result-var ,result-var))))))
 
 (defmacro before ((&rest specification) (&rest variables) &body body)
   "Implements a before macro.  This makes code run before a
