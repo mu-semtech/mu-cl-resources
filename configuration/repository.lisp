@@ -25,3 +25,5 @@
 
 (add-prefix "session" "http://mu.semte.ch/vocabularies/session/")
 (add-prefix "auth" "http://mu.semte.ch/vocabularies/authorization/")
+(add-prefix "cms" "http://mu.semte.ch/vocabulary/cms/")
+

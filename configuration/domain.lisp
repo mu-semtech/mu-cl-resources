@@ -163,3 +163,16 @@
                              :as "distributions"))
   :on-path "formats"
   :resource-base (s-url "http://example.com/formats"))
+
+(define-resource page ()
+  :class (s-url "http://mu.semte.ch/vocabulary/cms/Page")
+  :resource-base (s-url "http://mu.semte.ch/cms/resources/pages/")
+  :properties `((:title :string ,(s-prefix "dcterms:title"))
+                (:content :string ,(s-prefix "cms:pageContent")))
+  :on-path "pages")
+
+;; (around (:show page) (&rest args)
+;;   (break "This is page showing with ~A" args)
+;;   (let ((response (yield)))
+;;     (break "The response should be ~A" (jsown:to-json response))
+;;     (jsown:new-js ("ok" t))))
