@@ -255,7 +255,14 @@
                       (jsown:val attributes (json-property-name slot)))))))
 
 (defun attribute-properties-for-json-input (resource json-input)
-  (let ((attributes (jsown:filter json-input "data" "attributes")))
+  "Retrieves the values for the attributes of the supplied json
+   input which will be filled in <resource> as an object.  For
+   each found key, the property list is connected to the value
+   which should be set."
+  (let ((attributes
+         (if (jsown:keyp (jsown:val json-input "data") "attributes")
+             (jsown:filter json-input "data" "attributes")
+             (jsown:empty-object))))
     (loop for slot
        in (ld-properties resource)
        for primitive-value =

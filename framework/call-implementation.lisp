@@ -150,31 +150,34 @@
     (let* ((item-spec (make-item-spec :type (resource-name resource) :uuid uuid))
            (jsown:*parsed-null-value* :null)
            (json-input (jsown:parse (post-body)))
-           (attributes (jsown:filter json-input "data" "attributes"))
+           (attributes (if (jsown:keyp (jsown:val json-input "data") "attributes")
+                           (jsown:filter json-input "data" "attributes")
+                           (jsown:empty-object)))
            (uri (s-url (node-url item-spec))))
       (check-access-rights-for-item-spec item-spec :update)
       (with-surrounding-hook (:update (resource-name resource))
           (json-input item-spec)
-        (sparql:with-query-group
-          (let ((delete-vars (loop for key in (jsown:keywords attributes)
-                                for i from 0
-                                collect (s-var (format nil "gensym~A" i)))))
-            (sparql:delete-triples
+        (when (jsown:keywords attributes)
+          (sparql:with-query-group
+            (let ((delete-vars (loop for key in (jsown:keywords attributes)
+                                  for i from 0
+                                  collect (s-var (format nil "gensym~A" i)))))
+              (sparql:delete-triples
+               (loop for key in (jsown:keywords attributes)
+                  for slot = (resource-slot-by-json-key resource key)
+                  for s-var in delete-vars
+                  collect `(,uri ,@(ld-property-list slot) ,s-var))))
+            (sparql:insert-triples
              (loop for key in (jsown:keywords attributes)
                 for slot = (resource-slot-by-json-key resource key)
-                for s-var in delete-vars
-                collect `(,uri ,@(ld-property-list slot) ,s-var))))
-          (sparql:insert-triples
-           (loop for key in (jsown:keywords attributes)
-              for slot = (resource-slot-by-json-key resource key)
-              for json-value = (jsown:val attributes key)
-              for value = (if (eq json-value :null)
-                              :null
-                              (interpret-json-value slot json-value))
-              for property-list = (ld-property-list slot)
-              if (slot-value-represents-triples-p slot json-value)
-              collect
-                `(,uri ,@property-list ,value))))
+                for json-value = (jsown:val attributes key)
+                for value = (if (eq json-value :null)
+                                :null
+                                (interpret-json-value slot json-value))
+                for property-list = (ld-property-list slot)
+                if (slot-value-represents-triples-p slot json-value)
+                collect
+                  `(,uri ,@property-list ,value)))))
         (when (and (jsown:keyp json-input "data")
                    (jsown:keyp (jsown:val json-input "data") "relationships"))
           (loop for relation in (jsown:keywords (jsown:filter json-input "data" "relationships"))
