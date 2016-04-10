@@ -144,16 +144,16 @@
                  search-var
                  search-components)))
       ;; search for single id
-      ((string= "id" last-component)
+      ((or (string= "id" last-component)
+           (string= ":id:" last-component))
        (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
                source-variable
                (butlast (property-path-for-filter-components resource (butlast components)))
                (s-str search)))
       ;; exact search
-      ((and (> (length last-component) 0)
-            (char= (elt last-component 0) #\:))
+      ((search ":exact:" last-component)
        (let ((new-components (append (butlast components)
-                                     (list (subseq last-component 1)))))
+                                     (list (subseq last-component (length ":exact:"))))))
          (format nil "~A ~{~A~^/~} ~A. ~&"
                  source-variable
                  (property-path-for-filter-components resource new-components)
