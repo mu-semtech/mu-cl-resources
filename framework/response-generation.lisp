@@ -143,6 +143,10 @@
                  search-var
                  search-var
                  search-components)))
+      ;; search for url
+      ((string= ":uri:" last-component)
+       (format nil "VALUES ~A { ~A } ~&"
+               source-variable (s-url search)))
       ;; search for single id
       ((or (string= "id" last-component)
            (string= ":id:" last-component))
