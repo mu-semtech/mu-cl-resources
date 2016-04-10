@@ -145,8 +145,14 @@
                  search-components)))
       ;; search for url
       ((string= ":uri:" last-component)
-       (format nil "VALUES ~A { ~A } ~&"
-               source-variable (s-url search)))
+       (if (> (length components) 1)
+           (format nil "~A ~{~A~^/~} ~A.  VALUES ~A { ~A } ~&"
+                   source-variable
+                   (butlast (property-path-for-filter-components resource (butlast components)))
+                   search-var
+                   search-var (s-url search))
+           (format nil "VALUES ~A { ~A } ~&"
+                   source-variable (s-url search))))
       ;; search for single id
       ((or (string= "id" last-component)
            (string= ":id:" last-component))
