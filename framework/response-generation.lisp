@@ -130,36 +130,42 @@
 
 (defun sparql-pattern-filter-string (resource source-variable &key components search)
   "Constructs the sparql pattern for a filter constraint."
-  (let ((search-var (s-genvar "search")))
-    (cond ((and (string= "id" (car (last components)))
-                (find #\, search :test #'char=))
-           (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search))))
-             (format nil "~A ~{~A/~}mu:uuid ~A FILTER ( ~A IN (~{~A~^, ~}) ) ~&"
-                     source-variable
-                     (butlast (property-path-for-filter-components resource (butlast components)))
-                     search-var
-                     search-var
-                     search-components)))
-          ((string= "id" (car (last components)))
-           (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
-                   source-variable
-                   (butlast (property-path-for-filter-components resource (butlast components)))
-                   (s-str search)))
-          ((and (> (length (car (last components))) 0)
-                (char= (elt (car (last components)) 0) #\:))
-           (let ((new-components (append (butlast components)
-                                         (list (subseq (car (last components)) 1)))))
-             (format nil "~A ~{~A~^/~} ~A. ~&"
-                     source-variable
-                     (property-path-for-filter-components resource new-components)
-                     (s-str search))))
-          (t
-           (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
-                   source-variable
-                   (property-path-for-filter-components resource components)
-                   search-var
-                   search-var
-                   (s-str search))))))
+  (let ((search-var (s-genvar "search"))
+        (last-component (car (last components))))
+    (cond
+      ;; search for multiple ids
+      ((and (string= "id" last-component)
+            (find #\, search :test #'char=))
+       (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search))))
+         (format nil "~A ~{~A/~}mu:uuid ~A FILTER ( ~A IN (~{~A~^, ~}) ) ~&"
+                 source-variable
+                 (butlast (property-path-for-filter-components resource (butlast components)))
+                 search-var
+                 search-var
+                 search-components)))
+      ;; search for single id
+      ((string= "id" last-component)
+       (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
+               source-variable
+               (butlast (property-path-for-filter-components resource (butlast components)))
+               (s-str search)))
+      ;; exact search
+      ((and (> (length last-component) 0)
+            (char= (elt last-component 0) #\:))
+       (let ((new-components (append (butlast components)
+                                     (list (subseq last-component 1)))))
+         (format nil "~A ~{~A~^/~} ~A. ~&"
+                 source-variable
+                 (property-path-for-filter-components resource new-components)
+                 (s-str search))))
+      ;; standard semi-fuzzy search
+      (t
+       (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
+               source-variable
+               (property-path-for-filter-components resource components)
+               search-var
+               search-var
+               (s-str search))))))
 
 (defun extract-filters-from-request ()
   "Extracts the filters from the request.  The result is a list
