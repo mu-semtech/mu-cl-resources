@@ -145,6 +145,14 @@
                    source-variable
                    (butlast (property-path-for-filter-components resource (butlast components)))
                    (s-str search)))
+          ((and (> (length (car (last components))) 0)
+                (char= (elt (car (last components)) 0) #\:))
+           (let ((new-components (append (butlast components)
+                                         (list (subseq (car (last components)) 1)))))
+             (format nil "~A ~{~A~^/~} ~A. ~&"
+                     source-variable
+                     (property-path-for-filter-components resource new-components)
+                     (s-str search))))
           (t
            (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
                    source-variable
