@@ -154,7 +154,8 @@
            (format nil "VALUES ~A { ~A } ~&"
                    source-variable (s-url search))))
       ;; search for single id
-      ((or (string= "id" last-component)
+      ((or (deprecated (:silent "Use [:id:] instead.")
+             (string= "id" last-component))
            (string= ":id:" last-component))
        (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
                source-variable
