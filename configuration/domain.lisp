@@ -157,10 +157,13 @@
 (define-resource format ()
   :class (s-prefix "dct:MediaTypeOrExtent")
   :properties `((:name :string ,(s-prefix "rdfs:label"))
-                (:labels :language-string-set ,(s-prefix "dct:description")))
-  :has-many `((distributions :via ,(s-prefix "dct:format")
-                             :inverse t
-                             :as "distributions"))
+                (:labels :language-string-set ,(s-prefix "dct:description"))
+                (:birth-year :g-year ,(s-url "http://example.com/birthYear")))
+  :has-many `((distribution :via ,(s-prefix "dct:format")
+                            :inverse t
+                            :as "distributions"))
+  :has-one `((page :via ,(s-prefix "cms:page")
+                   :as "page"))
   :on-path "formats"
   :resource-base (s-url "http://example.com/formats"))
 
