@@ -28,11 +28,11 @@
          (let* ((descending-p (char= (aref sort-string 0) #\-))
                 (attribute-name (if descending-p
                                     (subseq sort-string 1)
-                                    sort-string)))
+                                    sort-string))
+                (components (split-sequence:split-sequence #\. attribute-name)))
            (list :order (if descending-p :descending :ascending)
                  :name attribute-name
-                 :property-path (ld-property-list (resource-slot-by-json-key resource
-                                                                             attribute-name)))))))
+                 :property-path (property-path-for-filter-components resource components))))))
 
 (defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number order-info source-variable)
   "Returns the paginated uuids for the supplied sparql body and
