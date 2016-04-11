@@ -64,8 +64,8 @@
   (:documentation "indicates whether or not a resource-slot's value can
    be constructed from a single value in the triple-store.")
   (:method ((slot resource-slot))
-    ;; only the lang-string-set has multiple values so far
-    (not (eql (resource-type slot) :language-string-set))))
+    ;; only the lang-string-set and :string-set have multiple values for now
+    (not (find (resource-type slot) '(:language-string-set :string-set)))))
 
 (defun multi-value-slot-p (resource-slot)
   "inverse of single-value-slot-p."

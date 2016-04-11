@@ -68,7 +68,7 @@
                 (:issued :string ,(s-prefix "dct:issued"))
                 (:modified :string ,(s-prefix "dct:modified"))
                 (:identifier :string ,(s-prefix "dct:identifier"))
-                (:keyword :string ,(s-prefix "dct:keyword"))
+                (:keyword :string-set ,(s-prefix "dct:keyword"))
                 (:language :string ,(s-prefix "dct:language"))
                 (:contact-point :string ,(s-prefix "dct:contactPoint"))
                 (:temporal :string ,(s-prefix "dct:temporal"))

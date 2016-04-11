@@ -6,6 +6,9 @@
   (:method (values (resource-type (eql :language-string-set)))
     (loop for value in values
        collect (from-sparql value :language-typed-string)))
+  (:method (values (resource-type (eql :string-set)))
+    (loop for value in values
+       collect (from-sparql value :string)))
   (:method (object resource-type)
     (let ((type (intern (string-upcase (jsown:val object "type"))
                         :keyword))
