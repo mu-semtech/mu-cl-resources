@@ -348,7 +348,8 @@
              if (and (not (single-value-slot-p slot))
                      (field-requested-p slot))
              do
-               (let ((value (mapcar (lambda (solution) (jsown:val solution variable-name))
+               (let ((value (mapcar (lambda (query-solution)
+                                      (jsown:val query-solution variable-name))
                                     (sparql:select "*"
                                                    (format nil "~A ~{~A~,^/~} ~A."
                                                            (s-url resource-url)
