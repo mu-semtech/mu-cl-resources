@@ -53,6 +53,7 @@
                              :as "record"))
   :has-many `((dataset :via ,(s-prefix "dcat:dataset")
                        :as "datasets"))
+  :features '(include-uri)
   :resource-base (s-url "http://your-data-stories.eu/catalogs/")
   :authorization (list :show (s-prefix "auth:show")
                        :update (s-prefix "auth:update")

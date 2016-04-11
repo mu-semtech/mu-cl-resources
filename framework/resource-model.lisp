@@ -32,6 +32,7 @@
    (has-one-links :initarg :has-one :reader has-one-links)
    (request-path :initarg :request-path :reader request-path)
    (name :initarg :resource-name :reader resource-name)
+   (features :initarg :features :reader features)
    (authorization :initarg :authorization :reader authorization)))
 
 (defgeneric authorization-token (resource operation)
@@ -207,7 +208,7 @@
                    (mapcar #'ld-property-list (ld-properties resource))))
         path-components)))
 
-(defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization)
+(defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization features)
   "defines a resource for which get and set requests exist"
   (let* ((properties (loop for (key type prop) in ld-properties
                         collect (make-instance 'resource-slot
@@ -227,10 +228,11 @@
                                   :json-type on-path ; (symbol-to-camelcase name :cap-first t)
                                   :request-path on-path
                                   :authorization authorization
+                                  :features features
                                   :resource-name name)))
     (setf (gethash name *resources*) resource)))
 
-(defmacro define-resource (name options &key class properties resource-base has-many has-one on-path authorization)
+(defmacro define-resource (name options &key class properties resource-base has-many has-one on-path authorization features)
   (declare (ignore options))
   `(define-resource* ',name
        :ld-class ,class
@@ -239,6 +241,7 @@
        :has-many ,has-many
        :has-one ,has-one
        :on-path ,on-path
+       :features ,features
        :authorization ,authorization))
 
 (defun property-paths-format-component (resource)

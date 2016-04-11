@@ -364,6 +364,9 @@
              do
                (setf (jsown:val attributes json-var)
                      (from-sparql (jsown:val solution sparql-var) (resource-type property))))
+          ;; attach uri if feature is enabled (after variables were parsed)
+          (when (find 'include-uri (features resource))
+            (setf (jsown:val attributes "uri") (node-url item-spec)))
           ;; build response data object
           (let ((relationships-object (jsown:empty-object)))
             (loop for link in (all-links resource)
