@@ -134,7 +134,9 @@
         (last-component (car (last components))))
     (cond
       ;; search for multiple ids
-      ((and (string= "id" last-component)
+      ((and (or (deprecated (:silent "Use [:id:] instead.")
+                  (string= "id" last-component))
+                (string= ":id:" last-component))
             (find #\, search :test #'char=))
        (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search))))
          (format nil "~A ~{~A/~}mu:uuid ~A FILTER ( ~A IN (~{~A~^, ~}) ) ~&"
