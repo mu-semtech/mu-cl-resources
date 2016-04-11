@@ -14,6 +14,14 @@
           (debug-execute-breakpoint ',name ,output-symbol ',block)
           ,output-symbol))))
 
+(defmacro deprecated ((&key silent &allow-other-keys) &body body)
+  "Indicates <body> is code with a deprecation.  The description
+   can be used to describe how the deprecation works.  As nothing
+   is done with the surrounding code, the options of description
+   are yet to be determined."
+  (declare (ignore silent))
+  `(progn ,@body))
+
 (defun symbol-to-camelcase (content &key (cap-first nil))
   "builds a javascript variable from anything string-like"
   (format nil "~{~A~}"
