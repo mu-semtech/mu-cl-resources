@@ -65,7 +65,8 @@
    be constructed from a single value in the triple-store.")
   (:method ((slot resource-slot))
     ;; only the lang-string-set and :string-set have multiple values for now
-    (not (find (resource-type slot) '(:language-string-set :string-set)))))
+    (not (find (resource-type slot)
+             '(:language-string-set :string-set :uri-set)))))
 
 (defun multi-value-slot-p (resource-slot)
   "inverse of single-value-slot-p."

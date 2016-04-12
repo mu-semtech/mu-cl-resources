@@ -6,6 +6,9 @@
   (:method (values (resource-type (eql :language-string-set)))
     (loop for value in values
        collect (from-sparql value :language-typed-string)))
+  (:method (values (resource-type (eql :uri-set)))
+    (loop for value in values
+       collect (from-sparql value :uri)))
   (:method (values (resource-type (eql :string-set)))
     (loop for value in values
        collect (from-sparql value :string)))

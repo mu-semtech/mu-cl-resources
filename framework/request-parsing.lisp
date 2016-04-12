@@ -29,6 +29,8 @@
     (s-typed value (s-prefix "geo:wktLiteral")))
   (:method ((slot resource-slot) (type (eql :string-set)) values)
     (apply #'s-values (mapcar #'s-str values)))
+  (:method ((slot resource-slot) (type (eql :uri-set)) values)
+    (apply #'s-values (mapcar #'s-url values)))
   (:method ((slot resource-slot) (type (eql :language-string-set)) values)
     (apply #'s-values
            (loop for obj in values
