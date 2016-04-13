@@ -167,17 +167,18 @@
                   for slot = (resource-slot-by-json-key resource key)
                   for s-var in delete-vars
                   collect `(,uri ,@(ld-property-list slot) ,s-var))))
-            (sparql:insert-triples
-             (loop for key in (jsown:keywords attributes)
-                for slot = (resource-slot-by-json-key resource key)
-                for json-value = (jsown:val attributes key)
-                for value = (if (eq json-value :null)
-                                :null
-                                (interpret-json-value slot json-value))
-                for property-list = (ld-property-list slot)
-                if (slot-value-represents-triples-p slot json-value)
-                collect
-                  `(,uri ,@property-list ,value)))))
+            (alexandria:when-let
+                ((triples-to-insert (loop for key in (jsown:keywords attributes)
+                                       for slot = (resource-slot-by-json-key resource key)
+                                       for json-value = (jsown:val attributes key)
+                                       for value = (if (eq json-value :null)
+                                                       :null
+                                                       (interpret-json-value slot json-value))
+                                       for property-list = (ld-property-list slot)
+                                       if (slot-value-represents-triples-p slot json-value)
+                                       collect
+                                         `(,uri ,@property-list ,value))))
+              (sparql:insert-triples triples-to-insert))))
         (when (and (jsown:keyp json-input "data")
                    (jsown:keyp (jsown:val json-input "data") "relationships"))
           (loop for relation in (jsown:keywords (jsown:filter json-input "data" "relationships"))
