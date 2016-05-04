@@ -5,7 +5,7 @@
 (defun session-uri ()
   "returns a session uri which can be used in a query directly."
   (if (find :docker *features*)
-      (s-url (hunchentoot:header-in* "mu-session-id"))
+      (s-url (webserver:header-in* "mu-session-id"))
       (s-url "http://tst.mu.semte.ch/current-session")))
 
 (defun build-authorization-query-string (token source &key (allow-target-inheritance t))
@@ -100,8 +100,8 @@
                 in (attribute-properties-for-json-input resource json-input)
                 unless (eq object :null)
                 collect `(,s-resource-uri ,@predicates ,object))))
-        (setf (hunchentoot:return-code*) hunchentoot:+http-created+)
-        (setf (hunchentoot:header-out :location)
+        (setf (webserver:return-code*) webserver:+http-created+)
+        (setf (webserver:header-out :location)
               (construct-resource-item-path item-spec))
         (when (and (jsown:keyp json-input "data")
                    (jsown:keyp (jsown:val json-input "data") "relationships"))
@@ -301,7 +301,7 @@
    Returns two values, the first being the attributes to return,
    the second being non-nil iff the fields for this item-spec
    were returned."
-  (let ((spec (hunchentoot:get-parameter
+  (let ((spec (webserver:get-parameter
                (format nil "fields[~A]"
                        (json-type (resource item-spec))))))
     (values (and spec
@@ -759,7 +759,7 @@
    between brackets.  The :search contains the content for that
    specification."
   (let ((include-parameter
-         (assoc "include" (hunchentoot:get-parameters*) :test #'string=)))
+         (assoc "include" (webserver:get-parameters*) :test #'string=)))
     (and include-parameter
          (mapcar (alexandria:curry #'split-sequence:split-sequence #\.)
                  (split-sequence:split-sequence #\, (cdr include-parameter))))))

@@ -41,14 +41,14 @@
 
 (defun respond-no-content ()
   "Returns a 204 No Content response."
-  (setf (hunchentoot:return-code*) hunchentoot:+http-no-content+)
+  (setf (webserver:return-code*) webserver:+http-no-content+)
   :no-content)
 
 (defun respond-not-found (&optional jsown-object)
   "Returns a not-found response.  The supplied jsown-object is
    merged with the response if it is supplied.  This allows you
    to extend the response and tailor it to your needs."
-  (setf (hunchentoot:return-code*) hunchentoot:+http-not-found+)
+  (setf (webserver:return-code*) webserver:+http-not-found+)
   (merge-jsown-objects (jsown:new-js ("data" :null))
                        (or jsown-object (jsown:empty-object))))
 
@@ -56,7 +56,7 @@
   "Returns a not-acceptable response.  The supplied jsown-object
    is merged with the response if it is supplied.  This allows
    you to extend the the response and tailor it to your needs."
-  (setf (hunchentoot:return-code*) hunchentoot:+http-not-acceptable+)
+  (setf (webserver:return-code*) webserver:+http-not-acceptable+)
   (merge-jsown-objects (jsown:new-js
                          ("errors" (jsown:new-js
                                      ("status" "Not Acceptable")
@@ -67,7 +67,7 @@
   "Returns a 403 Forbidden response.  The supplied jsown-object
    is merged with the response if it is supplied.  This allows
    you to extend the the response and tailor it to your needs."
-  (setf (hunchentoot:return-code*) hunchentoot:+http-forbidden+)
+  (setf (webserver:return-code*) webserver:+http-forbidden+)
   (merge-jsown-objects (jsown:new-js
                          ("errors" (jsown:new-js
                                      ("status" "forbidden")
@@ -78,7 +78,7 @@
   "Returns a 409 Conflict response.  The supplied jsown-object
    is merged with the response if it is supplied.  This allows
    you to extend the the response and tailor it to your needs."
-  (setf (hunchentoot:return-code*) hunchentoot:+http-conflict+)
+  (setf (webserver:return-code*) webserver:+http-conflict+)
   (merge-jsown-objects (jsown:new-js
                          ("errors" (jsown:new-js
                                      ("status" "Conflict")
@@ -90,7 +90,7 @@
    jsown-object is merged with the response if it is supplied.
    This allows you to extend the response and tailor it to your
    needs."
-  (setf (hunchentoot:return-code*) 422)
+  (setf (webserver:return-code*) 422)
   (merge-jsown-objects (jsown:new-js
                          ("errors" (jsown:new-js
                                      ("status" "Unprocessable Entity")
@@ -102,7 +102,7 @@
    jsown-object is merged with the response if it is supplied.
    This allows you to extend the response and tailor it to your
    needs."
-  (setf (hunchentoot:return-code*) 500)
+  (setf (webserver:return-code*) 500)
   (merge-jsown-objects (jsown:new-js
                          ("errors" (jsown:new-js
                                      ("status" "Server Error")
@@ -114,7 +114,7 @@
    jsown-object is merged with the response if it is supplied.
    This allows you to extend the response and tailor it to your
    needs."
-  (setf (hunchentoot:return-code*) 403)
+  (setf (webserver:return-code*) 403)
   (merge-jsown-objects (jsown:new-js
                          ("errors" (jsown:new-js
                                      ("status" "Access Denied")
@@ -127,7 +127,7 @@
   ;; NOTE: I'm not convinced that the server is required to check this
   ;;       this constraint.  It is not explicited in the spec.
   (unless (search "application/vnd.api+json"
-                  (hunchentoot:header-in* :content-type))
+                  (webserver:header-in* :content-type))
     (error 'incorrect-content-type
            :description "application/vnd.api+json not found in Content-Type header")))
 
@@ -137,7 +137,7 @@
    correct application/vnd.api+json Accept header."
   (if (and *verify-accept-header*
            (not (search "application/vnd.api+json"
-                      (hunchentoot:header-in* :accept))))
+                      (webserver:header-in* :accept))))
       (error 'incorrect-accept-header
              :description "application/vnd.api+json not found in Accept header")))
 

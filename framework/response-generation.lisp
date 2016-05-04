@@ -16,13 +16,13 @@
 
 (defun extract-pagination-info-from-request ()
   "Extracts the pagination info from the current request object."
-  (let ((page-size (or (try-parse-number (hunchentoot:get-parameter "page[size]")) *default-page-size*))
-        (page-number (or (try-parse-number (hunchentoot:get-parameter "page[number]")) 0)))
+  (let ((page-size (or (try-parse-number (webserver:get-parameter "page[size]")) *default-page-size*))
+        (page-number (or (try-parse-number (webserver:get-parameter "page[number]")) 0)))
     (list page-size page-number)))
 
 (defun extract-order-info-from-request (resource)
   "Extracts the order info from the current request object."
-  (alexandria:when-let ((sort (hunchentoot:get-parameter "sort")))
+  (alexandria:when-let ((sort (webserver:get-parameter "sort")))
     (loop for sort-string in (cl-ppcre:split "," sort)
        collect
          (let* ((descending-p (char= (aref sort-string 0) #\-))
@@ -80,7 +80,7 @@
    links.  It bases itself on the base-path for the targeted
    request."
   (flet ((build-url (&key page-number)
-           (let ((get-parameters (alist-to-plist (hunchentoot:get-parameters hunchentoot:*request*))))
+           (let ((get-parameters (alist-to-plist (webserver:get-parameters*))))
              (setf (getfstr get-parameters "page[number]")
                    (and (> page-number 0) page-number))
              (setf (getfstr get-parameters "page[size]")
@@ -118,7 +118,7 @@
           (let ((response
                  (jsown:new-js ("data" (mapcar #'item-spec-to-jsown data-item-specs))
                                ("links" (merge-jsown-objects
-                                         (build-pagination-links (hunchentoot:script-name*)
+                                         (build-pagination-links (webserver:script-name*)
                                                                  :total-count uuid-count
                                                                  :page-size page-size
                                                                  :page-number page-number)
@@ -186,7 +186,7 @@
    key includes a left-to-right specification of the strings
    between brackets.  The :search contains the content for that
    specification."
-  (loop for (param . value) in (hunchentoot:get-parameters hunchentoot:*request*)
+  (loop for (param . value) in (webserver:get-parameters*)
      if (eql (search "filter" param :test #'char=) 0)
      collect (list :components
                    (mapcar (lambda (str)
