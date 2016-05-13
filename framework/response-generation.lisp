@@ -15,10 +15,16 @@
                  "count" "value")))
 
 (defun extract-pagination-info-from-request ()
-  "Extracts the pagination info from the current request object."
+  "Extracts the pagination info from the current request object.
+   The first value is a list containing the page size and page
+   number.
+   The second value indicates whether the page size and page
+   number supplied by the end-user."
   (let ((page-size (or (try-parse-number (webserver:get-parameter "page[size]")) *default-page-size*))
         (page-number (or (try-parse-number (webserver:get-parameter "page[number]")) 0)))
-    (list page-size page-number)))
+    (values (list page-size page-number)
+            (list (and (webserver:get-parameter "page[size]") t)
+                  (and (webserver:get-parameter "page[number]") t)))))
 
 (defun extract-order-info-from-request (resource)
   "Extracts the order info from the current request object."
@@ -67,7 +73,7 @@
                                            variable)))))
           (group-by (s-var "uuid"))
           (limit page-size)
-          (offset (* page-size page-number)))
+          (offset (if (and page-size page-number) (* page-size page-number) 0)))
       (jsown:filter (sparql:select sparql-variables sparql-body
                                    :order-by order-by
                                    :group-by group-by
@@ -101,13 +107,16 @@
 
 (defun paginated-collection-response (&key resource sparql-body link-defaults source-variable)
   "Constructs the paginated response for a collection listing."
-  (destructuring-bind (page-size page-number)
-      (extract-pagination-info-from-request)
-    (let ((order-info (extract-order-info-from-request resource)))
+  (destructuring-bind ((page-size page-number) (page-size-p page-number-p))
+      (multiple-value-list (extract-pagination-info-from-request))
+    (let ((order-info (extract-order-info-from-request resource))
+          (use-pagination (or page-size-p page-number-p
+                              (not (find 'no-pagination-defaults
+                                       (features resource))))))
       (let ((uuid-count (count-matches (s-var "uuid") sparql-body))
             (uuids (paginate-uuids-for-sparql-body :sparql-body sparql-body
-                                                   :page-size page-size
-                                                   :page-number page-number
+                                                   :page-size (and use-pagination page-size)
+                                                   :page-number (and use-pagination page-number)
                                                    :source-variable source-variable
                                                    :order-info order-info))
             (resource-type (resource-name resource)))

@@ -74,6 +74,7 @@
                 (:temporal :string ,(s-prefix "dct:temporal"))
                 (:accrual-periodicity :string ,(s-prefix "dct:accrualPeriodicity"))
                 (:landing-page :string ,(s-prefix "dcat:landingPage")))
+  :features '(include-uri no-pagination-defaults)
   :has-one `((publisher :via ,(s-prefix "dct:publisher")
                         :as "publisher")
              (catalog :via ,(s-prefix "dcat:dataset")
