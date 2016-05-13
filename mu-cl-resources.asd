@@ -1,7 +1,7 @@
 (asdf:defsystem :mu-cl-resources
   :name "mu-cl-resources"
   :author "Aad Versteden <madnificent@gmail.com>"
-  :version "1.10.3"
+  :version "1.10.4"
   :maintainer "Aad Versteden <madnificent@gmail.com>"
   :licence "MIT"
   :description "Configurable microservice for managing the creation and retrieval of generic resources with a backed triplestore."
