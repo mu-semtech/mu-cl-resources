@@ -190,3 +190,41 @@
             items-list)
     store))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; relevant relations store
+(defstruct cache-store
+  (cache-keys (make-hash-table :test 'equal))
+  (clear-keys (make-hash-table :test 'equal)))
+
+(defgeneric cache-on-class-list (resource-name)
+  (:documentation "Adds the cache class to the current cache-store")
+  (:method ((resource-name string))
+    (declare (special *cache-store*))
+    (setf (gethash `(:resource ,resource-name)
+                   (cache-store-cache-keys *cache-store*))
+          t)))
+
+(defgeneric cache-on-resource (resource)
+  (:documentation "Caches on a specific resource, like an item-spec")
+  (:method ((item-spec item-spec))
+    (declare (special *cache-store*))
+    (setf (gethash `(:resource ,(resource-name item-spec) :id ,(uuid item-spec))
+                   (cache-store-cache-keys *cache-store*))
+          t)))
+
+(defgeneric reset-cache-for-class-list (resource-name)
+  (:documentation "Resets the cache for the specified resource class")
+  (:method ((resource-name string))
+    (declare (special *cache-store*))
+    (setf (gethash `(:resource ,resource-name)
+                   (cache-store-clear-keys *cache-store*))
+          t)))
+
+(defgeneric reset-cache-for-resource (resource)
+  (:documentation "Resets the cache for the specified resource")
+  (:method ((item-spec item-spec))
+    (declare (special *cache-store*))
+    (setf (gethash `(:resource ,(resource-name item-spec) :id ,(uuid item-spec))
+                   (cache-store-clear-keys *cache-store*))
+          t)))
