@@ -398,6 +398,17 @@
   (:documentation "Returns the content of one of the relationships based
    on the type of relation, and whether or not the relationship should
    be inlined.  Values to inline should be included directly.")
+  ;; TODO: remove duplication
+  (:method ((item-spec item-spec) (link has-one-link))
+    (let ((links-object (build-links-object item-spec link)))
+      (multiple-value-bind (included-items included-items-p)
+          (related-items item-spec link)
+        (if included-items-p
+            (jsown:new-js ("links" links-object)
+                          ("data" (if included-items
+                                      (jsown-inline-item-spec (first included-items))
+                                      :null)))
+            (jsown:new-js ("links" links-object))))))
   (:method ((item-spec item-spec) (link has-link))
     (let ((links-object (build-links-object item-spec link)))
       (multiple-value-bind (included-items included-items-p)
