@@ -195,13 +195,14 @@
 ;; relevant relations store
 (defstruct cache-store
   (cache-keys (make-hash-table :test 'equal))
-  (clear-keys (make-hash-table :test 'equal)))
+  (clear-keys (make-hash-table :test 'equal))
+  (cancel-cache nil))
 
 (defgeneric cache-on-class-list (resource-name)
   (:documentation "Adds the cache class to the current cache-store")
-  (:method ((resource-name string))
+  (:method ((json-type string))
     (declare (special *cache-store*))
-    (setf (gethash `(:resource ,resource-name)
+    (setf (gethash `(:resource ,json-type)
                    (cache-store-cache-keys *cache-store*))
           t)))
 
@@ -209,9 +210,20 @@
   (:documentation "Caches on a specific resource, like an item-spec")
   (:method ((item-spec item-spec))
     (declare (special *cache-store*))
-    (setf (gethash `(:resource ,(resource-name item-spec) :id ,(uuid item-spec))
+    (setf (gethash `(:resource ,(json-type (resource item-spec)) :id ,(uuid item-spec))
                    (cache-store-cache-keys *cache-store*))
           t)))
+
+(defun cache-on-resource-relation (item-spec link)
+  "Caches on the specified resource and its accompanying relationship."
+  (declare (special *cache-store*))
+  ;; TODO: see reset-cache-for-resource-relation.  Caching
+  ;;       should occur on the level of the link properties
+  ;;       rather than the name.
+  (setf (gethash (cache-key-for-relation item-spec link)
+                 (cache-store-cache-keys *cache-store*))
+        t)
+  (cache-on-class-list (json-type (find-resource-by-name (resource-name link)))))
 
 (defgeneric reset-cache-for-class-list (resource-name)
   (:documentation "Resets the cache for the specified resource class")
@@ -225,6 +237,77 @@
   (:documentation "Resets the cache for the specified resource")
   (:method ((item-spec item-spec))
     (declare (special *cache-store*))
-    (setf (gethash `(:resource ,(resource-name item-spec) :id ,(uuid item-spec))
+    (setf (gethash `(:resource ,(json-type (resource item-spec)) :id ,(uuid item-spec))
                    (cache-store-clear-keys *cache-store*))
           t)))
+
+(defun cache-key-for-relation (item-spec link)
+  `(:resource ,(json-type (resource item-spec)) :relation ,(request-path link)))
+
+(defun reset-cache-for-resource-relation (item-spec link)
+  "Resets the cache for the specified resource and its
+   accompanying relationship."
+  (declare (special *cache-store*))
+  ;; TODO: should operate on the relationship, instead of on
+  ;;       the link name.  any link using this relationship
+  ;;       would be affected.
+  (setf (gethash (cache-key-for-relation item-spec link)
+                 (cache-store-clear-keys *cache-store*))
+        t))
+
+(defun cancel-cache ()
+  "Cancel the cache.  Use this for resources which have access
+   rights attached to them and which may not be shown to all
+   users."
+  (declare (special *cache-store*))
+  (setf (cache-store-cancel-cache *cache-store*) t))
+
+(defun cache-store-set-headers ()
+  "Sets the cache headers on the response based on the current
+   cache-store."
+  (declare (special *cache-store*))
+  (unless (cache-store-cancel-cache *cache-store*)
+    (alexandria:when-let
+        ((cache-keys (loop for key being the hash-keys of
+                          (cache-store-cache-keys *cache-store*)
+                        collect
+                          (cond ((= (length key) 2)
+                                 (jsown:new-js
+                                   ("resource" (getf key :resource))))
+                                ((getf key :id)
+                                 (jsown:new-js
+                                   ("resource" (getf key :resource))
+                                   ("id" (getf key :id))))
+                                ((getf key :relation)
+                                 (jsown:new-js
+                                   ("resource" (getf key :resource))
+                                   ("relation" (getf key :relation))))))))
+      (setf (hunchentoot:header-out :cache-keys)
+            (jsown:to-json cache-keys)))
+    (alexandria:when-let
+        ((clear-keys
+          (loop for key being the hash-keys of
+               (cache-store-clear-keys *cache-store*)
+             collect
+               (cond ((= (length key) 2)
+                      (jsown:new-js
+                        ("resource" (getf key :resource))))
+                     ((getf key :id)
+                      (jsown:new-js
+                        ("resource" (getf key :resource))
+                        ("id" (getf key :id))))
+                     ((getf key :relation)
+                      (jsown:new-js
+                        ("resource" (getf key :resource))
+                        ("relation" (getf key :relation))))))))
+      (setf (hunchentoot:header-out :clear-keys)
+            (jsown:to-json clear-keys)))))
+
+(defmacro with-cache-store (&body body)
+  "Executes body with a context in which the cache-store is set.
+   The resulting headers are set on the response just after body
+   has been executed."
+  `(let ((*cache-store* (make-cache-store)))
+     (declare (special *cache-store*))
+     (prog1 (progn ,@body)
+       (cache-store-set-headers))))
