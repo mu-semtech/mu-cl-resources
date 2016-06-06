@@ -19,3 +19,5 @@
     (error () 20))
   "default amount of items in a single page of results.")
 
+(defparameter *supply-cache-headers-p* nil
+  "when non-nil, cache headers are supplied.  this works together with mu-cache.")

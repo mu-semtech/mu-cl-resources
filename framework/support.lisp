@@ -266,7 +266,8 @@
   "Sets the cache headers on the response based on the current
    cache-store."
   (declare (special *cache-store*))
-  (unless (cache-store-cancel-cache *cache-store*)
+  (unless (or (cache-store-cancel-cache *cache-store*)
+              (not *supply-cache-headers-p*))
     (alexandria:when-let
         ((cache-keys (loop for key being the hash-keys of
                           (cache-store-cache-keys *cache-store*)
