@@ -157,10 +157,10 @@
                            (jsown:empty-object)))
            (uri (s-url (node-url item-spec))))
       (check-access-rights-for-item-spec item-spec :update)
-      (reset-cache-for-resource item-spec)
-      (with-cache-store
-        (with-surrounding-hook (:update (resource-name resource))
-            (json-input item-spec)
+      (with-surrounding-hook (:update (resource-name resource))
+          (json-input item-spec)
+        (with-cache-store
+          (reset-cache-for-resource item-spec)
           (when (jsown:keywords attributes)
             (sparql:with-query-group
               (let ((delete-vars (loop for key in (jsown:keywords attributes)
