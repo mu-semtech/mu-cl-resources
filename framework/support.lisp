@@ -283,7 +283,7 @@
                                  (jsown:new-js
                                    ("resource" (getf key :resource))
                                    ("relation" (getf key :relation))))))))
-      (setf (hunchentoot:header-out :cache-keys)
+      (setf (webserver:header-out :cache-keys)
             (jsown:to-json cache-keys)))
     (alexandria:when-let
         ((clear-keys
@@ -301,7 +301,7 @@
                       (jsown:new-js
                         ("resource" (getf key :resource))
                         ("relation" (getf key :relation))))))))
-      (setf (hunchentoot:header-out :clear-keys)
+      (setf (webserver:header-out :clear-keys)
             (jsown:to-json clear-keys)))))
 
 (defmacro with-cache-store (&body body)
