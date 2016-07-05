@@ -14,7 +14,7 @@
      ,@body
      (let ((queries (apply #'s+ (reverse (butlast *query-group*)))))
        (fuseki:with-query-logging *error-output*
-         (fuseki:query *repository* queries)))))
+         (fuseki:update *repository* queries)))))
 
 (defun update (content)
 	"Executes a sparql update on the current repository, or pushes
@@ -56,7 +56,7 @@
 (defun insert (body)
   "Executes a SPARQL INSERT DATA query on the current graph.
    Takes with-query-group into account."
-  (query
+  (update
    (s-insert
     (s-graph *application-graph* body))))
 
@@ -81,7 +81,7 @@
   (let ((clauses (s-graph *application-graph* clauses))
         (where (when where
                  (s-graph *application-graph* where))))
-    (query
+    (update
      (s-delete clauses where))))
 
 (defun delete-triples (triple-clauses)
