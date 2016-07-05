@@ -12,7 +12,7 @@
    group exits."
   `(let ((*query-update-group* (cons nil nil)))
      ,@body
-     (let ((queries (apply #'s+ (reverse (butlast *query-group*)))))
+     (let ((queries (format nil "~{~A~^; ~%~}" (reverse (butlast *query-update-group*)))))
        (fuseki:with-query-logging *error-output*
          (fuseki:update *repository* queries)))))
 
