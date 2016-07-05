@@ -1,19 +1,32 @@
 (in-package :sparql)
 
 
-(defparameter *query-group* nil
+(defparameter *query-update-group* nil
   "Describes a group of queries to be executed in one go. The
-   queries are executed when the query-group is ended.  This is a
-   special variable which is set by with-grouped-queries")
+   queries are executed when the query-update-group is ended. 
+   This is a special variable which is set by 
+   with-grouped-queries.")
 
-(defmacro with-query-group (&body body)
+(defmacro with-update-group (&body body)
   "Starts a new query-group.  The queries are executed when the
    group exits."
-  `(let ((*query-group* (cons nil nil)))
+  `(let ((*query-update-group* (cons nil nil)))
      ,@body
      (let ((queries (apply #'s+ (reverse (butlast *query-group*)))))
        (fuseki:with-query-logging *error-output*
          (fuseki:query *repository* queries)))))
+
+(defun update (content)
+	"Executes a sparql update on the current repository, or pushes
+   it on the set of queries to be executed in the query-group
+   based on the current context.
+
+   NOTE: see sparql:insert and sparql:delete for functions
+         geared towards end-users."
+	(if *query-update-group*
+			(push content *query-update-group*)
+			(fuseki:with-query-logging *error-output*
+				(fuseki:update *repository* content))))
 
 (defun query (content)
   "Executes a sparql query on the current repository, or pushes
@@ -22,8 +35,8 @@
 
    NOTE: see sparql:select, sparql:insert and sparql:delete for
          functions geared towards end-users."
-  (if *query-group*
-      (push content *query-group*)
+  (if *query-update-group*
+      (push content *query-update-group*)
       (fuseki:with-query-logging *error-output*
         (fuseki:query *repository* content))))
 
