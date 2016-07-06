@@ -162,7 +162,7 @@
         (with-cache-store
           (reset-cache-for-resource item-spec)
           (when (jsown:keywords attributes)
-            (sparql:with-query-group
+            (sparql:with-update-group
               (let ((delete-vars (loop for key in (jsown:keywords attributes)
                                     for i from 0
                                     collect (s-var (format nil "gensym~A" i)))))
@@ -218,7 +218,7 @@
                    (new-linked-uri (node-url
                                     (make-item-spec :type (resource-name linked-resource)
                                                     :uuid new-linked-uuid))))
-              (sparql:with-query-group
+              (sparql:with-update-group
                 (delete-query (s-url resource-uri)
                               (ld-property-list link))
                 (insert-query (s-url resource-uri)
@@ -248,7 +248,7 @@
                                             for spec = (make-item-spec :type linked-resource
                                                                        :uuid uuid)
                                             collect (node-url spec))))
-              (sparql:with-query-group
+              (sparql:with-update-group
                 (delete-query (s-url resource-uri)
                               (ld-property-list link))
                 (insert-query (s-url resource-uri)
@@ -621,7 +621,7 @@
                          (new-linked-uri (node-url
                                           (make-item-spec :type (resource-name linked-resource)
                                                           :uuid new-linked-uuid))))
-                    (sparql:with-query-group
+                    (sparql:with-update-group
                         (delete-query (s-url resource-uri) link-path)
                       (insert-query (s-url resource-uri) link-path
                                     (s-url new-linked-uri))))
