@@ -475,7 +475,7 @@
           (item-spec)
         (with-cache-store
           (reset-cache-for-resource item-spec)
-          (reset-cache-for-class-list item-spec)
+          (reset-cache-for-class-list (json-type resource))
           (let (relation-content)
             (loop for slot in (ld-properties resource)
                do (push (list (ld-property-list slot)
