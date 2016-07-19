@@ -253,7 +253,8 @@
   ;;       would be affected.
   (setf (gethash (cache-key-for-relation item-spec link)
                  (cache-store-clear-keys *cache-store*))
-        t))
+        t)
+  (reset-cache-for-class-list (json-type (find-resource-by-name (resource-name link)))))
 
 (defun cancel-cache ()
   "Cancel the cache.  Use this for resources which have access

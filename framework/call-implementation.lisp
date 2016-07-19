@@ -161,6 +161,7 @@
           (json-input item-spec)
         (with-cache-store
           (reset-cache-for-resource item-spec)
+          (reset-cache-for-class-list (json-type resource))
           (when (jsown:keywords attributes)
             (sparql:with-update-group
               (let ((delete-vars (loop for key in (jsown:keywords attributes)
