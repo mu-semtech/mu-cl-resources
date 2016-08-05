@@ -396,7 +396,8 @@
                                                            (s-url resource-url)
                                                            (ld-property-list slot)
                                                            (s-var variable-name))))))
-                 (setf (solution-value solution json-var) value)))
+                 (setf (solution-value solution json-var)
+                       (from-sparql value (resource-type slot)))))
           solution)))))
 
 (defparameter *cached-resources* (make-hash-table :test 'equal :synchronized t)
