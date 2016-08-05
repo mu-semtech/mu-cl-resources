@@ -375,6 +375,7 @@
           (loop for slot in (ld-properties resource)
              for sparql-var = (sparql-variable-name slot)
              for json-var = (json-property-name slot)
+             if (single-value-slot-p slot)
              do
                (setf (solution-value solution json-var)
                      (and (jsown:keyp query-solution sparql-var)
