@@ -322,6 +322,101 @@
                           (find-link-by-json-name (resource item-spec) key))))
             (and spec t))))
 
+(defclass solution ()
+  ((fields :initform (make-hash-table :test 'equal :synchronized t)
+           :reader solution-fields))
+  (:documentation "Represents a generic solution object, coming
+   from various backends."))
+
+(defun solution-value (solution property)
+  "Returns the value for <property> of <solution>, in which <property>
+   is the json type.  The second value is truethy iff the solution was
+   retrieved from the triplestore at some point."
+  (gethash property (solution-fields solution)))
+
+(defun (setf solution-value) (value solution property)
+  "Sets a found solution for the given property"
+  (setf (gethash property (solution-fields solution)) value))
+
+(defun solution-field-p (solution property)
+  "returns non-nil if <property> has been fetched for <solution>."
+  (second (multiple-value-list (solution-value solution property))))
+
+(defgeneric complete-solution (solution item-spec)
+  (:documentation "Completes <solution> for the settings requested in
+    <item-spec>.")
+  (:method ((solution solution) (item-spec item-spec))
+    (multiple-value-bind (requested-fields sparse-fields-p)
+        (sparse-fields-for-resource item-spec)
+      (flet ((field-requested-p (field)
+               (or (not sparse-fields-p)
+                  (find field requested-fields))))
+        ;; TODO: this whole lot could be cached
+        (let* ((resource (resource item-spec))
+               (resource-url
+                ;; we search for a resource separately as searching it
+                ;; in one query is redonculously slow.  in the order of
+                ;; seconds for a single solution.
+                (node-url item-spec))
+               (query-solution
+                ;; simple attributes
+                (first
+                 (sparql:select
+                  "*"
+                  (format nil
+                          "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
+                          (loop for slot in (ld-properties resource)
+                             when (and (single-value-slot-p slot)
+                                     (field-requested-p slot))
+                             append (list (s-url resource-url)
+                                          (ld-property-list slot)
+                                          (s-var (sparql-variable-name slot)))))))))
+          ;; read simple attributes from sparql query
+          (loop for slot in (ld-properties resource)
+             for sparql-var = (sparql-variable-name slot)
+             for json-var = (json-property-name slot)
+             do
+               (setf (solution-value solution json-var)
+                     (and (jsown:keyp query-solution sparql-var)
+                        (from-sparql (jsown:val query-solution sparql-var)
+                                     (resource-type slot)))))
+          ;; read extended variables through separate sparql query
+          (loop for slot in (ld-properties resource)
+             for variable-name = (sparql-variable-name slot)
+             for json-var = (json-property-name slot)
+             if (and (not (single-value-slot-p slot))
+                   (field-requested-p slot)
+                   (not (solution-field-p solution json-var)))
+             do
+               (let ((value (mapcar (lambda (query-solution)
+                                      (jsown:val query-solution variable-name))
+                                    (sparql:select "*"
+                                                   (format nil "~A ~{~A~,^/~} ~A."
+                                                           (s-url resource-url)
+                                                           (ld-property-list slot)
+                                                           (s-var variable-name))))))
+                 (setf (solution-value solution json-var) value)))
+          solution)))))
+
+(defparameter *cached-resources* (make-hash-table :test 'equal :synchronized t)
+  "Cache of solutions which were previously fetched or initialized.
+   The resources might not be complete yet, and can be finished.
+   The keys are the UUIDs the vaue is the cached resource.")
+
+(defun ensure-solution (item-spec)
+  "Ensures a solution exists for <item-spec> and returns it."
+  (or (gethash (uuid item-spec) *cached-resources*)
+     (setf (gethash (uuid item-spec) *cached-resources*)
+           (make-instance 'solution))))
+
+(defgeneric clear-solution (spec)
+  (:documentation "Clears the solution from the given specification
+   accepts both an item-spec as well as a uuid")
+  (:method ((item-spec item-spec))
+    (remhash (uuid item-spec) *cached-resources*))
+  (:method ((uuid string))
+    (remhash uuid *cached-resources*)))
+
 (defun item-spec-to-jsown (item-spec)
   "Returns the jsown representation of the attributes and
    non-filled relationships of item-spec.  This is the default
@@ -333,50 +428,25 @@
       (flet ((field-requested-p (field)
                (or (not sparse-fields-p)
                    (find field requested-fields))))
-        (let* ((resource (resource item-spec))
-               (uuid (uuid item-spec))
-               (resource-url
-                ;; we search for a resource separately as searching it
-                ;; in one query is redonculously slow.  in the order of
-                ;; seconds for a single solution.
-                (node-url item-spec))
-               (solution
-                ;; simple attributes
-                (first
-                 (sparql:select
-                  "*"
-                  (format nil
-                          "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
-                          (loop for slot in (ld-properties resource)
-                             when (and (single-value-slot-p slot)
-                                       (field-requested-p slot))
-                             append (list (s-url resource-url)
-                                          (ld-property-list slot)
-                                          (s-var (sparql-variable-name slot))))))))
-               (attributes (jsown:empty-object)))
-          ;; read extended variables through separate sparql query
-          (loop for slot in (ld-properties resource)
-             for variable-name = (sparql-variable-name slot)
-             if (and (not (single-value-slot-p slot))
-                     (field-requested-p slot))
-             do
-               (let ((value (mapcar (lambda (query-solution)
-                                      (jsown:val query-solution variable-name))
-                                    (sparql:select "*"
-                                                   (format nil "~A ~{~A~,^/~} ~A."
-                                                           (s-url resource-url)
-                                                           (ld-property-list slot)
-                                                           (s-var variable-name))))))
-                 (when value
-                   (setf (jsown:val solution variable-name) value))))
-          ;; read simple attributes from sparql query
+        (let ((solution (ensure-solution item-spec))
+              (resource (resource item-spec))
+              (attributes (jsown:empty-object)))
+          ;; ensure solution is complete
+          (let ((unavailable-fields
+                 (remove-if-not (lambda (slot)
+                                  (and (field-requested-p slot)
+                                     (not (solution-field-p solution (json-property-name slot)))))
+                                (ld-properties (resource item-spec)))))
+            (when unavailable-fields
+              (complete-solution solution item-spec)))
+          ;; read attributes from the solution
           (loop for property in (ld-properties resource)
              for sparql-var = (sparql-variable-name property)
              for json-var = (json-property-name property)
-             if (jsown:keyp solution sparql-var)
+             if (solution-value solution sparql-var)
              do
                (setf (jsown:val attributes json-var)
-                     (from-sparql (jsown:val solution sparql-var) (resource-type property))))
+                     (solution-value solution json-var)))
           ;; attach uri if feature is enabled (after variables were parsed)
           (when (find 'include-uri (features resource))
             (setf (jsown:val attributes "uri") (node-url item-spec)))
@@ -389,7 +459,7 @@
                        (build-relationships-object item-spec link)))
             (jsown:new-js
               ("attributes" attributes)
-              ("id" uuid)
+              ("id" (uuid item-spec))
               ("type" (json-type resource))
               ("relationships" relationships-object))))))))
 
