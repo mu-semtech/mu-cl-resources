@@ -351,13 +351,20 @@
       (flet ((field-requested-p (field)
                (or (not sparse-fields-p)
                   (find field requested-fields))))
-        ;; TODO: this whole lot could be cached
         (let* ((resource (resource item-spec))
                (resource-url
-                ;; we search for a resource separately as searching it
-                ;; in one query is redonculously slow.  in the order of
-                ;; seconds for a single solution.
+                ;; Fetch URL separately as that speeds up Virtuoso
+                ;; querying.
                 (node-url item-spec))
+               (missing-properties (remove-if-not
+                                    (lambda (slot)
+                                      (and (field-requested-p slot)
+                                         (not (solution-field-p solution (json-property-name slot)))))
+                                    (ld-properties resource)))
+               (missing-single-value-properties
+                (remove-if-not #'single-value-slot-p missing-properties))
+               (missing-multi-value-properties
+                (remove-if-not #'multi-value-slot-p missing-properties))
                (query-solution
                 ;; simple attributes
                 (first
@@ -365,29 +372,23 @@
                   "*"
                   (format nil
                           "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
-                          (loop for slot in (ld-properties resource)
-                             when (and (single-value-slot-p slot)
-                                     (field-requested-p slot))
+                          (loop for slot in missing-single-value-properties
                              append (list (s-url resource-url)
                                           (ld-property-list slot)
                                           (s-var (sparql-variable-name slot)))))))))
           ;; read simple attributes from sparql query
-          (loop for slot in (ld-properties resource)
+          (loop for slot in missing-single-value-properties
              for sparql-var = (sparql-variable-name slot)
              for json-var = (json-property-name slot)
-             if (single-value-slot-p slot)
              do
                (setf (solution-value solution json-var)
                      (and (jsown:keyp query-solution sparql-var)
                         (from-sparql (jsown:val query-solution sparql-var)
                                      (resource-type slot)))))
           ;; read extended variables through separate sparql query
-          (loop for slot in (ld-properties resource)
+          (loop for slot in missing-multi-value-properties
              for variable-name = (sparql-variable-name slot)
              for json-var = (json-property-name slot)
-             if (and (not (single-value-slot-p slot))
-                   (field-requested-p slot)
-                   (not (solution-field-p solution json-var)))
              do
                (let ((value (mapcar (lambda (query-solution)
                                       (jsown:val query-solution variable-name))
@@ -429,7 +430,7 @@
         (sparse-fields-for-resource item-spec)
       (flet ((field-requested-p (field)
                (or (not sparse-fields-p)
-                   (find field requested-fields))))
+                  (find field requested-fields))))
         (let ((solution (ensure-solution item-spec))
               (resource (resource item-spec))
               (attributes (jsown:empty-object)))
@@ -439,13 +440,15 @@
                                   (and (field-requested-p slot)
                                      (not (solution-field-p solution (json-property-name slot)))))
                                 (ld-properties (resource item-spec)))))
-            (when unavailable-fields
-              (complete-solution solution item-spec)))
+            (if unavailable-fields
+                (complete-solution solution item-spec)
+                (format t "Using cached solution for ~A" (uuid item-spec))))
           ;; read attributes from the solution
           (loop for property in (ld-properties resource)
              for sparql-var = (sparql-variable-name property)
              for json-var = (json-property-name property)
-             if (solution-value solution sparql-var)
+             if (and (field-requested-p (json-property-name property))
+                   (solution-value solution json-var))
              do
                (setf (jsown:val attributes json-var)
                      (solution-value solution json-var)))
