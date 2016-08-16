@@ -447,7 +447,7 @@
           (loop for property in (ld-properties resource)
              for sparql-var = (sparql-variable-name property)
              for json-var = (json-property-name property)
-             if (and (field-requested-p (json-property-name property))
+             if (and (field-requested-p property)
                    (solution-value solution json-var))
              do
                (setf (jsown:val attributes json-var)
