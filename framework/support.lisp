@@ -237,6 +237,7 @@
   (:documentation "Resets the cache for the specified resource")
   (:method ((item-spec item-spec))
     (declare (special *cache-store*))
+    (clear-solution item-spec)
     (setf (gethash `(:resource ,(json-type (resource item-spec)) :id ,(uuid item-spec))
                    (cache-store-clear-keys *cache-store*))
           t)))
