@@ -259,6 +259,19 @@
             (delete-query (s-url resource-uri)
                           (ld-property-list link)))))))
 
+(defun cache-list-call (resource)
+  "Performs the caching of a list call.
+   We've split this off so we can shortcut the case where a
+   findMany call is received.  This results in caching at most
+   the identifiers which are listed in that filter.
+   These needn't be recalculated when any resource is returned,
+   only when any of those resources is returned."
+  (let ((id-filter (find "filter[id]" (webserver:get-parameters*) :test #'string= :key #'car)))
+    (if id-filter
+        (dolist (uuid (split-sequence:split-sequence #\, (car id-filter)))
+          (cache-on-resource (make-item-spec :uuid uuid :type (resource-name resource))))
+        (cache-on-class-list (json-type resource)))))
+
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
@@ -268,7 +281,7 @@
     (with-surrounding-hook (:list (resource-name resource))
         (resource)
       (with-cache-store
-        (cache-on-class-list (json-type resource))
+        (cache-list-call resource)
         (paginated-collection-response
          :resource resource
          :sparql-body (filter-body-for-search
