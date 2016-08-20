@@ -419,11 +419,16 @@
    The resources might not be complete yet, and can be finished.
    The keys are the UUIDs the vaue is the cached resource.")
 
+(defparameter *cache-model-properties-p* nil
+  "Set this to t in order to cache query solutions")
+
 (defun ensure-solution (item-spec)
   "Ensures a solution exists for <item-spec> and returns it."
-  (or (gethash (uuid item-spec) *cached-resources*)
-     (setf (gethash (uuid item-spec) *cached-resources*)
-           (make-instance 'solution))))
+  (if *cache-model-properties-p*
+      (or (gethash (uuid item-spec) *cached-resources*)
+         (setf (gethash (uuid item-spec) *cached-resources*)
+               (make-instance 'solution)))
+      (make-instance 'solution)))
 
 (defgeneric clear-solution (spec)
   (:documentation "Clears the solution from the given specification
