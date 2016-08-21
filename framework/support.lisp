@@ -198,6 +198,47 @@
   (clear-keys (make-hash-table :test 'equal))
   (cancel-cache nil))
 
+(defun add-cache-key (&rest cache-key)
+  "Adds a key to the set of cache keys"
+  (declare (special *cache-store*))
+  (setf (gethash cache-key
+                 (cache-store-cache-keys *cache-store*))
+        t))
+
+(defun add-clear-key (&rest clear-key)
+  "Adds a key to the set of clear keys"
+  (declare (special *cache-store*))
+  (setf (gethash clear-key
+                 (cache-store-clear-keys *cache-store*))
+        t))
+
+(defun cache-class (resource)
+  (add-cache-key :resource (json-type resource)))
+
+(defun cache-object (item-spec)
+  (add-cache-key :resource (json-type (resource item-spec))
+                 :id (uuid item-spec)))
+
+(defun cache-relation (item-spec relation)
+  (add-cache-key :resource (json-type (resource item-spec))
+                 :id (uuid item-spec)
+                 :relation (request-path relation)))
+
+(defun cache-clear-class (resource)
+  (add-clear-key :resource (json-type resource)))
+
+(defun cache-clear-object (item-spec)
+  (clear-solution item-spec)
+  (add-clear-key :resource (json-type (resource item-spec))
+                 :id (uuid item-spec)))
+
+(defun cache-clear-relation (item-spec relation)
+  (add-clear-key :resource (json-type (resource item-spec))
+                 :id (uuid item-spec)
+                 :relation (request-path relation)))
+
+
+
 (defgeneric cache-on-class-list (resource-name)
   (:documentation "Adds the cache class to the current cache-store")
   (:method ((json-type string))
@@ -277,14 +318,15 @@
                           (cond ((= (length key) 2)
                                  (jsown:new-js
                                    ("resource" (getf key :resource))))
-                                ((getf key :id)
-                                 (jsown:new-js
-                                   ("resource" (getf key :resource))
-                                   ("id" (getf key :id))))
                                 ((getf key :relation)
                                  (jsown:new-js
                                    ("resource" (getf key :resource))
-                                   ("relation" (getf key :relation))))))))
+                                   ("id" (getf key :id))
+                                   ("relation" (getf key :relation))))
+                                ((getf key :id)
+                                 (jsown:new-js
+                                   ("resource" (getf key :resource))
+                                   ("id" (getf key :id))))))))
       (setf (webserver:header-out :cache-keys)
             (jsown:to-json cache-keys)))
     (alexandria:when-let

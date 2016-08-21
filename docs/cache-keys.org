@@ -1,0 +1,80 @@
+Cache keys
+
+Which cache keys are used, and what do they mean?
+
+* Notes on the implementation
+  This new implementation doesn't take into account that relationships may be defined bidirectionally.  The caching mechanism should cope with this in the future, but doesn't do so at this stage.  Such a thing can be bolted on top of the current approach, by introspecting the defined model and altering the cache primitives.  The current primitives should be sufficient.
+
+* Why cache keys
+  The cache keys ensure that the mu-cache can cache resources, and that the mu-cache can clear the resources when they are altered.  The meaning of each of the cache keys needs to be well-defined, and the combination of all keys needs to allow us to correctly reset the cache.
+
+* Which cache keys
+  An overview of each of the cache keys, and when you should use them.
+
+  - { resource, id } :: Clear whenever this specific resource changes
+  - { resource } :: Clear whenever a listing of this resource could have changed
+  - { resource, id, relationship } :: Clear whenever the relationship
+       for this specific resource gets updated. Note that including
+       this likely means including { resource, id } of the target of
+       the relationship also.
+
+* What should happen on each call
+
+** DONE list-call
+   - { resource } :: for simple list calls
+
+** DONE show-call
+   - { resource, id } :: for the specific resource
+
+** DONE show-relation-call
+   - { resource, id, relationship } :: cache only invalidates when
+        relationships are altered, or resources themselves.
+   - { resource, id } :: for each returned resource
+
+*** DONE What about pagination?
+    Check if the type of resource shouldn't be paginated.  If it
+    should be, then cache on { returnedResource }, otherwise cache on
+    the specific returned resources.
+
+** DONE create-call
+   - { resource } :: b/c lists can be altered
+
+*** TODO relationships
+    When inverse relationships can be checked, this should also output
+    the relationships.
+
+** DONE update-call
+   - { resource } :: for each touched class
+   - { resource, id } :: for attributes
+   - { resource, id, relationship } :: for altered relationships
+
+** DONE delete-call
+   - { resource } :: b/c lists can be altered
+   - { resource, id } :: for the deleted object
+
+** DONE patch-relation-call
+   - { resource } :: may have an effect on listings (filters, for instance)
+   - { resource, id, relationship } :: invalidate cached relationship
+
+** DONE add-relation-coll
+   - { resource } :: see patch-relation-call
+   - { resource, id, relationship } :: see patch-relation-call
+
+** DONE delete-relation-call
+   - { resource } :: see patch-relation-call
+   - { resource, id, relationship } ::  see patch-relation-call
+
+** DONE included resources
+   Included resources can be specified by their relationship.  In
+   unconstrained lists, we specify the connected resource, in
+   constrained lists, we specify the resource itself.
+
+*** constrained lists
+    - { targetResource, id } :: Pick included destination elements
+    - { resource, id, relationship } :: Pick the relationship of the
+         item which has the inclusion.
+
+*** unconstrained lists
+    - { targetResource } :: If there's no specific set of items to
+         start from, the whole targetResource can invalidate the
+         cache.

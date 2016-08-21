@@ -82,7 +82,7 @@
   (:method ((resource resource))
     (check-access-rights-for-resource resource :create)
     (with-cache-store
-      (reset-cache-for-class-list (json-type resource))
+      (cache-clear-class resource)
       (let* ((jsown:*parsed-null-value* :null)
              (json-input (jsown:parse (post-body)))
              (uuid (mu-support:make-uuid)) 
@@ -160,8 +160,8 @@
       (with-surrounding-hook (:update (resource-name resource))
           (json-input item-spec)
         (with-cache-store
-          (reset-cache-for-resource item-spec)
-          (reset-cache-for-class-list (json-type resource))
+          (cache-clear-class resource)
+          (cache-clear-object item-spec)
           (when (jsown:keywords attributes)
             (sparql:with-update-group
               (let ((delete-vars (loop for key in (jsown:keywords attributes)
@@ -190,6 +190,7 @@
                if (jsown:keyp (jsown:filter json-input "data" "relationships" relation)
                               "data")
                do
+                 (cache-clear-relation item-spec (find-link-by-json-name resource relation))
                  (update-resource-relation item-spec relation
                                            (jsown:filter json-input
                                                          "data" "relationships" relation "data"))))
@@ -268,9 +269,9 @@
    only when any of those resources is returned."
   (let ((id-filter (find "filter[id]" (webserver:get-parameters*) :test #'string= :key #'car)))
     (if id-filter
-        (dolist (uuid (split-sequence:split-sequence #\, (car id-filter)))
-          (cache-on-resource (make-item-spec :uuid uuid :type (resource-name resource))))
-        (cache-on-class-list (json-type resource)))))
+        (dolist (uuid (split-sequence:split-sequence #\, (cdr id-filter)))
+          (cache-object (make-item-spec :uuid uuid :type (resource-name resource))))
+        (cache-class resource))))
 
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
@@ -303,7 +304,7 @@
       (with-surrounding-hook (:show (resource-name resource))
           (item-spec)
         (with-cache-store
-          (cache-on-resource item-spec)
+          (cache-object item-spec)
           (multiple-value-bind (data included-items)
               (retrieve-item item-spec)
             (if (eq data :null)
@@ -568,8 +569,8 @@
       (with-surrounding-hook (:delete (resource-name resource))
           (item-spec)
         (with-cache-store
-          (reset-cache-for-resource item-spec)
-          (reset-cache-for-class-list (json-type resource))
+          (cache-clear-class resource)
+          (cache-clear-object item-spec)
           (let (relation-content)
             (loop for slot in (ld-properties resource)
                do (push (list (ld-property-list slot)
@@ -617,8 +618,9 @@
       (with-surrounding-hook (:show-relation (resource-name resource))
           (item-spec link)
         (with-cache-store
-          (cache-on-resource-relation item-spec link)
+          (cache-relation item-spec link)
           (let ((relation-item-spec (first (retrieve-relation-items item-spec link))))
+            (cache-object relation-item-spec)
             (jsown:new-js
               ("data" (if relation-item-spec
                           (retrieve-item relation-item-spec)
@@ -630,23 +632,29 @@
       (with-surrounding-hook (:show-relation (resource-name resource))
           (item-spec link)
         (with-cache-store
-          (cache-on-resource-relation item-spec link)
-          (paginated-collection-response
-           :resource (referred-resource link)
-           :sparql-body (filter-body-for-search
-                         :sparql-body (format nil
-                                              (s+ "~A ~{~A~,^/~} ?resource. "
-                                                  "?resource mu:uuid ?uuid. "
-                                                  "~@[~A~] ")
-                                              resource-url
-                                              (ld-property-list link)
-                                              (authorization-query resource :show resource-url))
-                         :source-variable (s-var "resource")
-                         :resource (referred-resource link))
-           :source-variable (s-var "resource")
-           :link-defaults (build-links-object (make-item-spec :type (resource-name resource)
-                                                              :uuid id)
-                                              link)))))))
+          (cache-relation item-spec link)
+          (multiple-value-bind (response data-item-specs)
+              (paginated-collection-response
+               :resource (referred-resource link)
+               :sparql-body (filter-body-for-search
+                             :sparql-body (format nil
+                                                  (s+ "~A ~{~A~,^/~} ?resource. "
+                                                      "?resource mu:uuid ?uuid. "
+                                                      "~@[~A~] ")
+                                                  resource-url
+                                                  (ld-property-list link)
+                                                  (authorization-query resource :show resource-url))
+                             :source-variable (s-var "resource")
+                             :resource (referred-resource link))
+               :source-variable (s-var "resource")
+               :link-defaults (build-links-object (make-item-spec :type (resource-name resource)
+                                                                  :uuid id)
+                                                  link))
+            (if (find 'no-pagination-defaults (features resource))
+                (dolist (spec data-item-specs)
+                  (cache-object spec))
+                (cache-class (referred-resource link)))
+            response))))))
 
 (defgeneric retrieve-relation-items (item-spec link)
   (:documentation "retrieves the item descriptions of the items
@@ -702,7 +710,8 @@
                                        :uuid id)))
         (check-access-rights-for-item-spec item-spec :update)
         (with-cache-store
-          (reset-cache-for-resource-relation item-spec link)
+          (cache-clear-class resource)
+          (cache-clear-relation item-spec link)
           (let ((body (jsown:parse (post-body)))
                 (linked-resource (referred-resource link))
                 (resource-uri (node-url item-spec))
@@ -726,7 +735,8 @@
     (let ((item-spec (make-item-spec :type (resource-name resource) :uuid id)))
       (check-access-rights-for-item-spec item-spec :update)
       (with-cache-store
-        (reset-cache-for-resource-relation item-spec link)
+        (cache-clear-class resource)
+        (cache-clear-relation item-spec link)
         (flet ((delete-query (resource-uri link-uri)
                  (sparql:delete-triples
                   `((,resource-uri ,@link-uri ,(s-var "s")))))
@@ -766,7 +776,8 @@
           (body (jsown:parse (post-body))))
       (check-access-rights-for-item-spec item-spec :update)
       (with-cache-store
-        (reset-cache-for-resource-relation item-spec link)
+        (cache-clear-class resource)
+        (cache-clear-relation item-spec link)
         (with-surrounding-hook (:delete-relation (resource-name resource))
             (item-spec body)
           (let* ((linked-resource (referred-resource link))
@@ -793,7 +804,8 @@
           (body (jsown:parse (post-body))))
       (check-access-rights-for-item-spec item-spec :update)
       (with-cache-store
-        (reset-cache-for-resource-relation item-spec link)
+        (cache-clear-class resource)
+        (cache-clear-relation item-spec link)
         (with-surrounding-hook (:add-relation (resource-name resource))
             (resource item-spec body)
           (let* ((linked-resource (referred-resource link))
@@ -880,7 +892,9 @@
                                                                   :type target-type)))))
     (setf (gethash relation (related-items-table item-spec))
           related-objects)
-    (cache-on-resource-relation item-spec relation)
+    (cache-relation item-spec relation)
+    (dolist (item-spec related-objects)
+      (cache-object item-spec))
     related-objects))
 
 (defun extract-included-from-request ()
