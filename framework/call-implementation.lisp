@@ -620,7 +620,8 @@
         (with-cache-store
           (cache-relation item-spec link)
           (let ((relation-item-spec (first (retrieve-relation-items item-spec link))))
-            (cache-object relation-item-spec)
+            (when relation-item-spec
+              (cache-object relation-item-spec))
             (jsown:new-js
               ("data" (if relation-item-spec
                           (retrieve-item relation-item-spec)
