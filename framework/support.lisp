@@ -201,16 +201,26 @@
 (defun add-cache-key (&rest cache-key)
   "Adds a key to the set of cache keys"
   (declare (special *cache-store*))
-  (setf (gethash cache-key
-                 (cache-store-cache-keys *cache-store*))
-        t))
+  (let ((key (cache-key-to-jsown cache-key)))
+    (setf (gethash (jsown:to-json key)
+                   (cache-store-cache-keys *cache-store*))
+          key)))
 
 (defun add-clear-key (&rest clear-key)
   "Adds a key to the set of clear keys"
   (declare (special *cache-store*))
-  (setf (gethash clear-key
-                 (cache-store-clear-keys *cache-store*))
-        t))
+  (let ((key (cache-key-to-jsown clear-key)))
+    (setf (gethash (jsown:to-json key)
+                   (cache-store-clear-keys *cache-store*))
+          key)))
+
+(defun cache-key-to-jsown (cache-key)
+  "Converts the supplied cache-key to json"
+  (let ((obj (jsown:empty-object)))
+    (loop for (key value) on cache-key by #'cddr
+       do (setf (jsown:val obj (string-downcase (string key)))
+                value))
+    obj))
 
 (defun cache-class (resource)
   (add-cache-key :resource (json-type resource)))
@@ -312,39 +322,16 @@
   (unless (or (cache-store-cancel-cache *cache-store*)
               (not *supply-cache-headers-p*))
     (alexandria:when-let
-        ((cache-keys (loop for key being the hash-keys of
+        ((cache-keys (loop for value being the hash-values of
                           (cache-store-cache-keys *cache-store*)
-                        collect
-                          (cond ((= (length key) 2)
-                                 (jsown:new-js
-                                   ("resource" (getf key :resource))))
-                                ((getf key :relation)
-                                 (jsown:new-js
-                                   ("resource" (getf key :resource))
-                                   ("id" (getf key :id))
-                                   ("relation" (getf key :relation))))
-                                ((getf key :id)
-                                 (jsown:new-js
-                                   ("resource" (getf key :resource))
-                                   ("id" (getf key :id))))))))
+                        collect value)))
       (setf (webserver:header-out :cache-keys)
             (jsown:to-json cache-keys)))
     (alexandria:when-let
         ((clear-keys
-          (loop for key being the hash-keys of
+          (loop for value being the hash-values of
                (cache-store-clear-keys *cache-store*)
-             collect
-               (cond ((= (length key) 2)
-                      (jsown:new-js
-                        ("resource" (getf key :resource))))
-                     ((getf key :id)
-                      (jsown:new-js
-                        ("resource" (getf key :resource))
-                        ("id" (getf key :id))))
-                     ((getf key :relation)
-                      (jsown:new-js
-                        ("resource" (getf key :resource))
-                        ("relation" (getf key :relation))))))))
+             collect value)))
       (setf (webserver:header-out :clear-keys)
             (jsown:to-json clear-keys)))))
 
