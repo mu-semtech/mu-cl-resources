@@ -232,6 +232,9 @@
 (defun cache-relation (item-spec relation)
   (add-cache-key :resource (json-type (resource item-spec))
                  :id (uuid item-spec)
+                 :relation (request-path relation))
+  ;; for clearing of inverse relationships
+  (add-cache-key :resource (json-type (resource item-spec))
                  :relation (request-path relation)))
 
 (defun cache-clear-class (resource)
@@ -245,7 +248,11 @@
 (defun cache-clear-relation (item-spec relation)
   (add-clear-key :resource (json-type (resource item-spec))
                  :id (uuid item-spec)
-                 :relation (request-path relation)))
+                 :relation (request-path relation))
+  ;; for clearing of inverse relationships
+  (dolist (inverse-relation (inverse-links relation))
+    (add-clear-key :resource (json-type (getf inverse-relation :resource))
+                   :relation (request-path (getf inverse-relation :link)))))
 
 
 
