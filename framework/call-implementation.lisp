@@ -711,7 +711,6 @@
                                        :uuid id)))
         (check-access-rights-for-item-spec item-spec :update)
         (with-cache-store
-          (cache-clear-class resource)
           (cache-clear-relation item-spec link)
           (let ((body (jsown:parse (post-body)))
                 (linked-resource (referred-resource link))
@@ -736,7 +735,6 @@
     (let ((item-spec (make-item-spec :type (resource-name resource) :uuid id)))
       (check-access-rights-for-item-spec item-spec :update)
       (with-cache-store
-        (cache-clear-class resource)
         (cache-clear-relation item-spec link)
         (flet ((delete-query (resource-uri link-uri)
                  (sparql:delete-triples
@@ -777,7 +775,6 @@
           (body (jsown:parse (post-body))))
       (check-access-rights-for-item-spec item-spec :update)
       (with-cache-store
-        (cache-clear-class resource)
         (cache-clear-relation item-spec link)
         (with-surrounding-hook (:delete-relation (resource-name resource))
             (item-spec body)
@@ -805,7 +802,6 @@
           (body (jsown:parse (post-body))))
       (check-access-rights-for-item-spec item-spec :update)
       (with-cache-store
-        (cache-clear-class resource)
         (cache-clear-relation item-spec link)
         (with-surrounding-hook (:add-relation (resource-name resource))
             (resource item-spec body)
