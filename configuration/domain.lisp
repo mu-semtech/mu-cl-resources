@@ -186,34 +186,8 @@
   (declare (ignore args))
   (jsown:new-js ("ok" :false)))
 
+(define-resource publisher ()
+  :class (s-prefix "ext:Publisher")
+  :resource-base (s-url "http://mu.semte.ch/ext/resources/publishers/")
+  :on-path "publishers")
 
-
-;; (define-resource concept ()
-;; :class (s-prefix "skos:Concept")
-;; :has-many `((dataset :via ,(s-prefix "dcat:theme")
-;; :inverse t
-;; :as "datasets"))
-;; :properties `((:nace :string ,(s-url "http://dit.is.om.te.testen")))
-;; :has-one `((concept-scheme :via ,(s-prefix "skos:inScheme")
-;; :as "concept-scheme"))
-;; :resource-base (s-url "http://your-data-stories.eu/concepts")
-;; :on-path "concepts")
-
-
-(define-resource centroid ()
-	:class (s-prefix "geo:Point")
-	:properties `((longitude :string ,(s-prefix "geo:long"))
-								(latitude :string ,(s-prefix "geo:lat"))
-								(weight :number ,(s-prefix "casper:weight")))
-	:has-one `((dataset :via ,(s-prefix "casper:dataset")))
-	:resource-base (s-url "http://mu.semte.ch/resources/centroids/")
-	:on-path "centroids")
-
-(define-resource dataset ()
-	:class (s-prefix "casper:Dataset")
-	:properties `((title :string ,(s-prefix "dct:title")))
-	:has-many `((controid :via ,(s-prefix "casper:dataset")
-												:inverse t
-												:as "controids"))
-	:resource-base (s-url "http://mu.semte.ch/resources/datasets/")
-	:on-path "datasets")
