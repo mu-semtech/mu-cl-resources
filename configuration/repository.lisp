@@ -27,3 +27,4 @@
 (add-prefix "auth" "http://mu.semte.ch/vocabularies/authorization/")
 (add-prefix "cms" "http://mu.semte.ch/vocabulary/cms/")
 
+(add-prefix "ext" "http://mu.semte.ch/vocabularies/ext/")
