@@ -252,61 +252,29 @@
 (defgeneric cache-on-class-list (resource-name)
   (:documentation "Adds the cache class to the current cache-store")
   (:method ((json-type string))
-    (declare (special *cache-store*))
-    (setf (gethash `(:resource ,json-type)
-                   (cache-store-cache-keys *cache-store*))
-          t)))
+    (add-cache-key :resource json-type)))
 
 (defgeneric cache-on-resource (resource)
   (:documentation "Caches on a specific resource, like an item-spec")
   (:method ((item-spec item-spec))
-    (declare (special *cache-store*))
-    (setf (gethash `(:resource ,(json-type (resource item-spec)) :id ,(uuid item-spec))
-                   (cache-store-cache-keys *cache-store*))
-          t)))
+    (add-cache-key :resource (json-type (resource item-spec)) :id (uuid item-spec))))
 
 (defun cache-on-resource-relation (item-spec link)
   "Caches on the specified resource and its accompanying relationship."
-  (declare (special *cache-store*))
   ;; TODO: see reset-cache-for-resource-relation.  Caching
   ;;       should occur on the level of the link properties
   ;;       rather than the name.
-  (setf (gethash (cache-key-for-relation item-spec link)
-                 (cache-store-cache-keys *cache-store*))
-        t)
+  (cache-relation item-spec link)
   (cache-on-class-list (json-type (find-resource-by-name (resource-name link)))))
-
-(defgeneric reset-cache-for-class-list (resource-name)
-  (:documentation "Resets the cache for the specified resource class")
-  (:method ((resource-name string))
-    (declare (special *cache-store*))
-    (setf (gethash `(:resource ,resource-name)
-                   (cache-store-clear-keys *cache-store*))
-          t)))
-
-(defgeneric reset-cache-for-resource (resource)
-  (:documentation "Resets the cache for the specified resource")
-  (:method ((item-spec item-spec))
-    (declare (special *cache-store*))
-    (clear-solution item-spec)
-    (setf (gethash `(:resource ,(json-type (resource item-spec)) :id ,(uuid item-spec))
-                   (cache-store-clear-keys *cache-store*))
-          t)))
-
-(defun cache-key-for-relation (item-spec link)
-  `(:resource ,(json-type (resource item-spec)) :relation ,(request-path link)))
 
 (defun reset-cache-for-resource-relation (item-spec link)
   "Resets the cache for the specified resource and its
    accompanying relationship."
-  (declare (special *cache-store*))
   ;; TODO: should operate on the relationship, instead of on
   ;;       the link name.  any link using this relationship
   ;;       would be affected.
-  (setf (gethash (cache-key-for-relation item-spec link)
-                 (cache-store-clear-keys *cache-store*))
-        t)
-  (reset-cache-for-class-list (json-type (find-resource-by-name (resource-name link)))))
+  (cache-clear-relation item-spec link)
+  (cache-clear-class (find-resource-by-name (resource-name link))))
 
 (defun cancel-cache ()
   "Cancel the cache.  Use this for resources which have access
