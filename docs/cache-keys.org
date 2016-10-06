@@ -29,6 +29,9 @@ Which cache keys are used, and what do they mean?
 ** DONE show-relation-call
    - { resource, id, relationship } :: cache only invalidates when
         relationships are altered, or resources themselves.
+   - { resource, relationship } :: used for clearing inverse
+        relationships.  in this case we will not know which links to
+        clear exactly.
    - { resource, id } :: for each returned resource
 
 *** DONE What about pagination?
@@ -47,22 +50,29 @@ Which cache keys are used, and what do they mean?
    - { resource } :: for each touched class
    - { resource, id } :: for attributes
    - { resource, id, relationship } :: for altered relationships
+   - { resource, relationship } :: for known inverse relationships
 
 ** DONE delete-call
    - { resource } :: b/c lists can be altered
    - { resource, id } :: for the deleted object
+   - --{ resource, relationship }-- :: not needed, either our
+        identifier is specified in the other direction, or we do not
+        exist anymore.
 
 ** DONE patch-relation-call
    - { resource } :: may have an effect on listings (filters, for instance)
    - { resource, id, relationship } :: invalidate cached relationship
+   - { resource, relationship } :: for known inverse relationships
 
 ** DONE add-relation-coll
    - { resource } :: see patch-relation-call
    - { resource, id, relationship } :: see patch-relation-call
+   - { resource, relationship } :: see patch-relation-call
 
 ** DONE delete-relation-call
    - { resource } :: see patch-relation-call
    - { resource, id, relationship } ::  see patch-relation-call
+   - { resource, relationship } :: see patch-relation-call
 
 ** DONE included resources
    Included resources can be specified by their relationship.  In
@@ -73,6 +83,8 @@ Which cache keys are used, and what do they mean?
     - { targetResource, id } :: Pick included destination elements
     - { resource, id, relationship } :: Pick the relationship of the
          item which has the inclusion.
+    - { resource, relationship } :: Specify the relationship itself,
+         for clearing known inverse relationships
 
 *** unconstrained lists
     - { targetResource } :: If there's no specific set of items to
