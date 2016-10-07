@@ -7,3 +7,9 @@
 [submodule "dependencies/jsown"]
 	path = dependencies/jsown
 	url = https://github.com/madnificent/jsown
+[submodule "dependencies/cl-fuseki-weblogic-plugin"]
+	path = dependencies/cl-fuseki-weblogic-plugin
+	url = https://github.com/madnificent/cl-fuseki-weblogic-plugin
+[submodule "dependencies/abcl-java-helpers"]
+	path = dependencies/abcl-java-helpers
+	url = https://github.com/madnificent/abcl-java-helpers
