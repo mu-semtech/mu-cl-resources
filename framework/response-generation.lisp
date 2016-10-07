@@ -135,7 +135,7 @@
             (when included-item-specs
               (setf (jsown:val response "included")
                     (mapcar #'item-spec-to-jsown included-item-specs)))
-            response))))))
+            (values response data-item-specs included-item-specs)))))))
 
 (defun sparql-pattern-filter-string (resource source-variable &key components search)
   "Constructs the sparql pattern for a filter constraint."

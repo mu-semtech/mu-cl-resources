@@ -11,7 +11,8 @@
   ((resource-name :initarg :resource :reader resource-name)
    (ld-link :initarg :via :reader ld-link)
    (inverse :initarg :inverse :reader inverse-p :initform nil)
-   (request-path :initarg :as :reader request-path))
+   (request-path :initarg :as :reader request-path)
+   (inverse-links :initform nil :accessor inverse-links))
   (:documentation "Describes a link to another resource.
    You should use one of its subclasses."))
 
@@ -34,6 +35,30 @@
    (name :initarg :resource-name :reader resource-name)
    (features :initarg :features :reader features)
    (authorization :initarg :authorization :reader authorization)))
+
+(defparameter *resources* (make-hash-table)
+  "contains all currently known resources")
+
+(defmethod initialize-instance :after ((resource resource) &key &allow-other-keys)
+  (let ((name (resource-name resource)))
+    (setf (gethash name *resources*) resource))
+  (dolist (link (all-links resource))
+    (alexandria:when-let ((linked-resource (find-resource-by-name (resource-name link)))
+                          (inverse-property-list (reverse
+                                                  (mapcar (lambda (prop)
+                                                            (format nil "~A" (s-inv prop)))
+                                                          (ld-property-list link)))))
+      inverse-property-list
+      ;; find inverse relationship
+      (dolist (inverse-link (all-links linked-resource))
+        (when (equalp inverse-property-list
+                      (mapcar (lambda (prop) (format nil "~A" prop))
+                              (ld-property-list inverse-link)))
+          ;; we have found an inverse relationship of ours
+          (push `(:resource ,resource :link ,link)
+                (inverse-links inverse-link))
+          (push `(:resource ,linked-resource :link ,inverse-link)
+                (inverse-links link)))))))
 
 (defgeneric authorization-token (resource operation)
   (:documentation "Yields the authorization token which grants
@@ -134,9 +159,6 @@
                :key #'json-property-name)
          t)))
 
-(defparameter *resources* (make-hash-table)
-  "contains all currently known resources")
-
 (defun find-resource-by-name (symbol)
   "retrieves the resource with name symbol."
   (gethash symbol *resources*))
@@ -219,19 +241,18 @@
          (has-many-links (mapcar (alexandria:curry #'apply #'make-instance 'has-many-link :resource)
                                  has-many))
          (has-one-links (mapcar (alexandria:curry #'apply #'make-instance 'has-one-link :resource)
-                                has-one))
-         (resource (make-instance 'resource
-                                  :ld-class ld-class
-                                  :ld-properties properties
-                                  :ld-resource-base ld-resource-base
-                                  :has-many has-many-links
-                                  :has-one has-one-links
-                                  :json-type on-path ; (symbol-to-camelcase name :cap-first t)
-                                  :request-path on-path
-                                  :authorization authorization
-                                  :features features
-                                  :resource-name name)))
-    (setf (gethash name *resources*) resource)))
+                                has-one)))
+    (make-instance 'resource
+                   :ld-class ld-class
+                   :ld-properties properties
+                   :ld-resource-base ld-resource-base
+                   :has-many has-many-links
+                   :has-one has-one-links
+                   :json-type on-path ; (symbol-to-camelcase name :cap-first t)
+                   :request-path on-path
+                   :authorization authorization
+                   :features features
+                   :resource-name name)))
 
 (defmacro define-resource (name options &key class properties resource-base has-many has-one on-path authorization features)
   (declare (ignore options))

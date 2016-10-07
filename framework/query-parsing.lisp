@@ -67,7 +67,17 @@
   (declare (ignore object))
   (read-from-string value))
 
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#double"
+    (value object)
+  (declare (ignore object))
+  (read-from-string value))
+
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#integer"
+    (value object)
+  (declare (ignore object))
+  (parse-integer value))
+
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#int"
     (value object)
   (declare (ignore object))
   (parse-integer value))

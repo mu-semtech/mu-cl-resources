@@ -198,62 +198,90 @@
   (clear-keys (make-hash-table :test 'equal))
   (cancel-cache nil))
 
+(defun add-cache-key (&rest cache-key)
+  "Adds a key to the set of cache keys"
+  (declare (special *cache-store*))
+  (let ((key (cache-key-to-jsown cache-key)))
+    (setf (gethash (jsown:to-json key)
+                   (cache-store-cache-keys *cache-store*))
+          key)))
+
+(defun add-clear-key (&rest clear-key)
+  "Adds a key to the set of clear keys"
+  (declare (special *cache-store*))
+  (let ((key (cache-key-to-jsown clear-key)))
+    (setf (gethash (jsown:to-json key)
+                   (cache-store-clear-keys *cache-store*))
+          key)))
+
+(defun cache-key-to-jsown (cache-key)
+  "Converts the supplied cache-key to json"
+  (let ((obj (jsown:empty-object)))
+    (loop for (key value) on cache-key by #'cddr
+       do (setf (jsown:val obj (string-downcase (string key)))
+                value))
+    obj))
+
+(defun cache-class (resource)
+  (add-cache-key :resource (json-type resource)))
+
+(defun cache-object (item-spec)
+  (add-cache-key :resource (json-type (resource item-spec))
+                 :id (uuid item-spec)))
+
+(defun cache-relation (item-spec relation)
+  (add-cache-key :resource (json-type (resource item-spec))
+                 :id (uuid item-spec)
+                 :relation (request-path relation))
+  ;; for clearing of inverse relationships
+  (add-cache-key :resource (json-type (resource item-spec))
+                 :relation (request-path relation)))
+
+(defun cache-clear-class (resource)
+  (add-clear-key :resource (json-type resource)))
+
+(defun cache-clear-object (item-spec)
+  (clear-solution item-spec)
+  (add-clear-key :resource (json-type (resource item-spec))
+                 :id (uuid item-spec)))
+
+(defun cache-clear-relation (item-spec relation)
+  (add-clear-key :resource (json-type (resource item-spec))
+                 :id (uuid item-spec)
+                 :relation (request-path relation))
+  ;; for clearing of inverse relationships
+  (dolist (inverse-relation (inverse-links relation))
+    (add-clear-key :resource (json-type (getf inverse-relation :resource))
+                   :relation (request-path (getf inverse-relation :link)))))
+
+
+
 (defgeneric cache-on-class-list (resource-name)
   (:documentation "Adds the cache class to the current cache-store")
   (:method ((json-type string))
-    (declare (special *cache-store*))
-    (setf (gethash `(:resource ,json-type)
-                   (cache-store-cache-keys *cache-store*))
-          t)))
+    (add-cache-key :resource json-type)))
 
 (defgeneric cache-on-resource (resource)
   (:documentation "Caches on a specific resource, like an item-spec")
   (:method ((item-spec item-spec))
-    (declare (special *cache-store*))
-    (setf (gethash `(:resource ,(json-type (resource item-spec)) :id ,(uuid item-spec))
-                   (cache-store-cache-keys *cache-store*))
-          t)))
+    (add-cache-key :resource (json-type (resource item-spec)) :id (uuid item-spec))))
 
 (defun cache-on-resource-relation (item-spec link)
   "Caches on the specified resource and its accompanying relationship."
-  (declare (special *cache-store*))
   ;; TODO: see reset-cache-for-resource-relation.  Caching
   ;;       should occur on the level of the link properties
   ;;       rather than the name.
-  (setf (gethash (cache-key-for-relation item-spec link)
-                 (cache-store-cache-keys *cache-store*))
-        t)
+  (cache-relation item-spec link)
   (cache-on-class-list (json-type (find-resource-by-name (resource-name link)))))
-
-(defgeneric reset-cache-for-class-list (resource-name)
-  (:documentation "Resets the cache for the specified resource class")
-  (:method ((resource-name string))
-    (declare (special *cache-store*))
-    (setf (gethash `(:resource ,resource-name)
-                   (cache-store-clear-keys *cache-store*))
-          t)))
-
-(defgeneric reset-cache-for-resource (resource)
-  (:documentation "Resets the cache for the specified resource")
-  (:method ((item-spec item-spec))
-    (declare (special *cache-store*))
-    (setf (gethash `(:resource ,(json-type (resource item-spec)) :id ,(uuid item-spec))
-                   (cache-store-clear-keys *cache-store*))
-          t)))
-
-(defun cache-key-for-relation (item-spec link)
-  `(:resource ,(json-type (resource item-spec)) :relation ,(request-path link)))
 
 (defun reset-cache-for-resource-relation (item-spec link)
   "Resets the cache for the specified resource and its
    accompanying relationship."
-  (declare (special *cache-store*))
   ;; TODO: should operate on the relationship, instead of on
   ;;       the link name.  any link using this relationship
   ;;       would be affected.
-  (setf (gethash (cache-key-for-relation item-spec link)
-                 (cache-store-clear-keys *cache-store*))
-        t))
+  (cache-clear-relation item-spec link)
+  (cache-clear-class (find-resource-by-name (resource-name link))))
 
 (defun cancel-cache ()
   "Cancel the cache.  Use this for resources which have access
@@ -269,38 +297,16 @@
   (unless (or (cache-store-cancel-cache *cache-store*)
               (not *supply-cache-headers-p*))
     (alexandria:when-let
-        ((cache-keys (loop for key being the hash-keys of
+        ((cache-keys (loop for value being the hash-values of
                           (cache-store-cache-keys *cache-store*)
-                        collect
-                          (cond ((= (length key) 2)
-                                 (jsown:new-js
-                                   ("resource" (getf key :resource))))
-                                ((getf key :id)
-                                 (jsown:new-js
-                                   ("resource" (getf key :resource))
-                                   ("id" (getf key :id))))
-                                ((getf key :relation)
-                                 (jsown:new-js
-                                   ("resource" (getf key :resource))
-                                   ("relation" (getf key :relation))))))))
+                        collect value)))
       (setf (webserver:header-out :cache-keys)
             (jsown:to-json cache-keys)))
     (alexandria:when-let
         ((clear-keys
-          (loop for key being the hash-keys of
+          (loop for value being the hash-values of
                (cache-store-clear-keys *cache-store*)
-             collect
-               (cond ((= (length key) 2)
-                      (jsown:new-js
-                        ("resource" (getf key :resource))))
-                     ((getf key :id)
-                      (jsown:new-js
-                        ("resource" (getf key :resource))
-                        ("id" (getf key :id))))
-                     ((getf key :relation)
-                      (jsown:new-js
-                        ("resource" (getf key :resource))
-                        ("relation" (getf key :relation))))))))
+             collect value)))
       (setf (webserver:header-out :clear-keys)
             (jsown:to-json clear-keys)))))
 

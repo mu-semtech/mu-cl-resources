@@ -185,3 +185,9 @@
 (after (:show page) (&rest args)
   (declare (ignore args))
   (jsown:new-js ("ok" :false)))
+
+(define-resource publisher ()
+  :class (s-prefix "ext:Publisher")
+  :resource-base (s-url "http://mu.semte.ch/ext/resources/publishers/")
+  :on-path "publishers")
+
