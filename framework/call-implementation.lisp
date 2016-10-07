@@ -337,7 +337,7 @@
             (and spec t))))
 
 (defclass solution ()
-  ((fields :initform (make-hash-table :test 'equal :synchronized t)
+  ((fields :initform (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
            :reader solution-fields))
   (:documentation "Represents a generic solution object, coming
    from various backends."))
@@ -415,7 +415,7 @@
                        (from-sparql value (resource-type slot)))))
           solution)))))
 
-(defparameter *cached-resources* (make-hash-table :test 'equal :synchronized t)
+(defparameter *cached-resources* (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
   "Cache of solutions which were previously fetched or initialized.
    The resources might not be complete yet, and can be finished.
    The keys are the UUIDs the vaue is the cached resource.")
