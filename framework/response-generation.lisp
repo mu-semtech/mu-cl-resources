@@ -105,6 +105,12 @@
                 (build-url :page-number (1+ page-number))))
         links))))
 
+(defun include-count-feature-p (resource)
+  "returns non-nil if the count of  available items should be
+   included in meta response of paginated collections"
+  (or *include-count-in-paginated-responses*
+     (find 'include-count (features resource))))
+
 (defun paginated-collection-response (&key resource sparql-body link-defaults source-variable)
   "Constructs the paginated response for a collection listing."
   (destructuring-bind ((page-size page-number) (page-size-p page-number-p))
@@ -132,6 +138,9 @@
                                                                  :page-size page-size
                                                                  :page-number page-number)
                                          link-defaults)))))
+            (when (include-count-feature-p resource)
+              (setf (jsown:val response "meta")
+                    (jsown:new-js ("count" uuid-count))))
             (when included-item-specs
               (setf (jsown:val response "included")
                     (mapcar #'item-spec-to-jsown included-item-specs)))

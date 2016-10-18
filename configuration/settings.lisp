@@ -19,5 +19,9 @@
     (error () 20))
   "default amount of items in a single page of results.")
 
+(defparameter *include-count-in-paginated-responses* nil
+  "when non-nil, all paginated listings will contain the number
+   of responses in the result object's meta.")
+
 (defparameter *supply-cache-headers-p* nil
   "when non-nil, cache headers are supplied.  this works together with mu-cache.")
