@@ -25,3 +25,6 @@
 
 (defparameter *supply-cache-headers-p* nil
   "when non-nil, cache headers are supplied.  this works together with mu-cache.")
+
+(defparameter *log-queries-p* nil
+  "If truethy, queries will be logged to *error-output*")
