@@ -7,9 +7,9 @@
    This is a special variable which is set by 
    with-grouped-queries.")
 
-(defun query-log-stream ()
+(defun query-log-stream (&optional (type :default))
   "Returns the stream to which errors should be logged."
-  (when *log-queries-p*
+  (when (find type *query-log-types*)
     *error-output*))
 
 (defmacro with-update-group (&body body)
@@ -18,7 +18,7 @@
   `(let ((*query-update-group* (cons nil nil)))
      ,@body
      (let ((queries (format nil "~{~A~^; ~%~}" (reverse (butlast *query-update-group*)))))
-       (fuseki:with-query-logging (query-log-stream)
+       (fuseki:with-query-logging (query-log-stream :update-group)
          (fuseki:update *repository* queries)))))
 
 (defun update (content)
@@ -30,7 +30,7 @@
          geared towards end-users."
 	(if *query-update-group*
 			(push content *query-update-group*)
-			(fuseki:with-query-logging (query-log-stream)
+			(fuseki:with-query-logging (query-log-stream :update)
 				(fuseki:update *repository* content))))
 
 (defun query (content)
@@ -42,12 +42,12 @@
          functions geared towards end-users."
   (if *query-update-group*
       (push content *query-update-group*)
-      (fuseki:with-query-logging (query-log-stream)
+      (fuseki:with-query-logging (query-log-stream :query)
         (fuseki:query *repository* content))))
 
 (defun ask (body)
   "Executes a SPARQL ASK query on the current graph."
-  (fuseki:with-query-logging (query-log-stream)
+  (fuseki:with-query-logging (query-log-stream :ask)
     (fuseki:ask *repository* (format nil "ASK WHERE { ~A }" body))))
 
 (defun select (variables body &rest args &key order-by limit offset group-by)

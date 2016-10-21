@@ -2,6 +2,7 @@
   (:use :cl :mu-support)
   (:shadow :delete :insert :query)
   (:export #:*application-graph*
+           #:*query-log-types*
            #:with-update-group
            #:insert
            #:select
