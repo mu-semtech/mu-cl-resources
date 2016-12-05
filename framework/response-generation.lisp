@@ -111,7 +111,7 @@
   (or *include-count-in-paginated-responses*
      (find 'include-count (features resource))))
 
-(defun paginated-collection-response (&key resource sparql-body link-defaults source-variable)
+(defun paginated-collection-response (&key resource sparql-body link-defaults source-variable self)
   "Constructs the paginated response for a collection listing."
   (destructuring-bind ((page-size page-number) (page-size-p page-number-p))
       (multiple-value-list (extract-pagination-info-from-request))
@@ -138,6 +138,8 @@
                                                                  :page-size page-size
                                                                  :page-number page-number)
                                          link-defaults)))))
+            (when self
+              (setf (jsown:val (jsown:val response "links") "self") ))
             (when (include-count-feature-p resource)
               (setf (jsown:val response "meta")
                     (jsown:new-js ("count" uuid-count))))
