@@ -548,10 +548,11 @@
   (:method ((item-spec item-spec) (link has-link))
     (let ((resource (resource item-spec))
           (uuid (uuid item-spec)))
-      (jsown:new-js ("self" (format nil "/~A/~A/links/~A"
-                                    (request-path resource)
-                                    uuid
-                                    (request-path link)))
+      (jsown:new-js ("self" (build-url (format nil "/~A/~A/links/~A"
+                                               (request-path resource)
+                                               uuid
+                                               (request-path link))
+                                       (alist-to-plist (webserver:get-parameters*))))
                     ("related" (format nil "/~A/~A/~A"
                                        (request-path resource)
                                        uuid
