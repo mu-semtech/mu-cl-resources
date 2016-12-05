@@ -139,7 +139,7 @@
                                                                  :page-number page-number)
                                          link-defaults)))))
             (when self
-              (setf (jsown:val (jsown:val response "links") "self") ))
+              (setf (jsown:val (jsown:val response "links") "self") self))
             (when (include-count-feature-p resource)
               (setf (jsown:val response "meta")
                     (jsown:new-js ("count" uuid-count))))
