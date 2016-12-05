@@ -35,27 +35,32 @@
                                     char)
                               (setf cap-next nil))))))
 
-(defun merge-jsown-objects (a b)
-  "Merges jsown objects a and b together.  Returns a new object
-   which contains the merged contents."
-  (let ((keys (union (jsown:keywords a) (jsown:keywords b) :test #'string=))
-        (result (jsown:empty-object)))
-    (loop for key in keys
-       do (cond ((and (jsown:keyp a key)
-                      (not (jsown:keyp b key)))
-                 (setf (jsown:val result key)
-                       (jsown:val a key)))
-                ((and (not (jsown:keyp a key))
-                      (jsown:keyp b key))
-                 (setf (jsown:val result key)
-                       (jsown:val b key)))
-                (t (handler-case
-                       (setf (jsown:val result key)
-                             (merge-jsown-objects (jsown:val a key)
-                                                  (jsown:val b key)))
-                     (error () (setf (jsown:val result key)
-                                     (jsown:val b key)))))))
-    result))
+(defun merge-jsown-objects (a &rest bs)
+  "Merges n jsown objects.  Returns a new object which contains
+   the merged contents."
+  (flet
+      ((merge-two-objects (a b)
+         (let ((keys (union (jsown:keywords a) (jsown:keywords b) :test #'string=))
+               (result (jsown:empty-object)))
+           (loop for key in keys
+              do (cond ((and (jsown:keyp a key)
+                           (not (jsown:keyp b key)))
+                        (setf (jsown:val result key)
+                              (jsown:val a key)))
+                       ((and (not (jsown:keyp a key))
+                           (jsown:keyp b key))
+                        (setf (jsown:val result key)
+                              (jsown:val b key)))
+                       (t (handler-case
+                              (setf (jsown:val result key)
+                                    (merge-jsown-objects (jsown:val a key)
+                                                         (jsown:val b key)))
+                            (error () (setf (jsown:val result key)
+                                            (jsown:val b key)))))))
+           result)))
+    (if bs
+        (merge-jsown-objects (merge-two-objects a (first bs)) (rest bs))
+        a)))
 
 (defun plist-remove-nil (plist)
   "Removes settings which are nil from <plist>."
