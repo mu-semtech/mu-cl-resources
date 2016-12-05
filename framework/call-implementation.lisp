@@ -273,6 +273,11 @@
           (cache-object (make-item-spec :uuid uuid :type (resource-name resource))))
         (cache-class resource))))
 
+(defun self-for-list-call (resource)
+  "Constructs the self url for the list call for <resource>."
+  (build-url (request-path resource)
+             (alist-to-plist (webserver:get-parameters*))))
+
 (defgeneric list-call (resource)
   (:documentation "implementation of the GET request which
    handles listing the whole resource")
@@ -285,6 +290,7 @@
         (cache-list-call resource)
         (paginated-collection-response
          :resource resource
+         :self (self-for-list-call resource)
          :sparql-body (filter-body-for-search
                        :sparql-body  (format nil "?s mu:uuid ?uuid; a ~A. ~@[~A~]"
                                              (ld-class resource)
