@@ -1,6 +1,18 @@
 (in-package :mu-cl-resources)
 
-(defun read-domain-json-file (file)
+(defun read-domain-file (relative-path)
+  "Reads the JSON file from a relative path."
+  (let ((type (pathname-type relative-path))
+        (pathname (asdf:system-relative-pathname
+                   :mu-cl-resources
+                   (s+ "configuration/" relative-path))))
+    (cond ((or (string= type "js")
+              (string= type "json"))
+           (read-domain-json-file-from-path pathname))
+          ((string= type "lisp")
+           (load pathname)))))
+
+(defun read-domain-json-file-from-path (file)
   "Imports contents from the json file specified by
    file."
   (funcall (alexandria:compose
