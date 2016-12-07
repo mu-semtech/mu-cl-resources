@@ -27,28 +27,45 @@
             #'jsown:parse)
            string))
 
+(defun map-jsown-object (object functor)
+  "Maps the jsown object by looping over each of the keys, and
+   calling functor with the key and the contents of the key as
+   its arguments."
+  (loop for key in (jsown:keywords object)
+     for value = (jsown:val object key)
+     collect (funcall functor key value)))
+
 (defun import-domain-from-jsown (js-domain)
   "Imports the domain from the jsown file"
-  (dolist (resource js-domain)
-    (import-jsown-domain-resource resource)))
+  (let ((version (jsown:val js-domain "version")))
+    (cond
+      ((string= version "0.1")
+       (map-jsown-object (jsown:val js-domain "resources")
+                         #'import-jsown-domain-resource))
+      (t (error "Don't know version ~A of domain" version)))))
 
-(defun import-jsown-domain-resource (resource)
-  (let ((relationships (mapcar #'import-jsown-domain-relationship
-                               (jsown:val resource "relationships"))))
+(defun import-jsown-domain-resource (resource-name resource-description)
+  (let ((properties (jsown:val resource-description "properties"))
+        (relationships (map-jsown-object (jsown:val resource-description "relationships")
+                                         #'import-jsown-domain-relationship))
+        (path (jsown:val resource-description "path"))
+        (class (jsown:val resource-description "class"))
+        (resource-base (jsown:val resource-description "newResourceBase"))
+        (features (jsown:val resource-description "features")))
     (make-instance 'resource
-                   :resource-name (intern (string-upcase (jsown:val resource "resource")))
-                   :ld-class (read-uri-from-json (jsown:val resource "class"))
-                   :ld-properties (mapcar #'import-jsown-domain-property
-                                          (jsown:val resource "properties"))
-                   :ld-resource-base (jsown:val resource "newResourceBase")
+                   :resource-name (intern (string-upcase resource-name))
+                   :ld-class (read-uri-from-json class)
+                   :ld-properties (map-jsown-object properties
+                                                    #'import-jsown-domain-property)
+                   :ld-resource-base resource-base
                    :has-many (remove-if-not (lambda (relationship) (typep relationship 'has-many-link))
                                             relationships)
                    :has-one (remove-if-not (lambda (relationship) (typep relationship 'has-one-link))
                                            relationships)
-                   :json-type (jsown:val resource "path")
-                   :request-path (jsown:val resource "path")
+                   :json-type path
+                   :request-path path
                    :authorization nil
-                   :features (jsown:val resource "features"))))
+                   :features features)))
 
 (defun read-uri-from-json (value)
   "Reads a URI as specified in the JSON format.  Value
@@ -72,21 +89,21 @@
       (s-url value)
       (s-prefix value)))
 
-(defun import-jsown-domain-relationship (jsown-relationship)
+(defun import-jsown-domain-relationship (relationship-path jsown-relationship)
   "Imports a single belongs-to or has-many relationship from jsown."
-  (let ((type (if (string= "singular" (jsown:val jsown-relationship "cardinality"))
+  (let ((type (if (string= "one" (jsown:val jsown-relationship "cardinality"))
                   'has-one-link
                   'has-many-link)))
     (make-instance type
                    :via (read-uri-from-json (jsown:val jsown-relationship "predicate"))
-                   :as (jsown:val jsown-relationship "path")
+                   :as relationship-path
                    :inverse (and (jsown:keyp jsown-relationship "inverse")
                                (jsown:val jsown-relationship "inverse"))
                    :resource (intern (string-upcase (jsown:val jsown-relationship "resource"))))))
 
-(defun import-jsown-domain-property (jsown-property)
+(defun import-jsown-domain-property (property-path jsown-property)
   "Imports a single domain property from the jsown format."
   (make-instance 'resource-slot
-                 :json-key (intern (string-upcase (jsown:val jsown-property "path")))
+                 :json-key (intern (string-upcase property-path))
                  :resource-type (intern (string-upcase (jsown:val jsown-property "type")) :keyword)
                  :ld-property (parse-simple-uri-reference (jsown:val jsown-property "predicate"))))
