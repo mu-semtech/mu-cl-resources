@@ -9,6 +9,7 @@
            #:delete
            #:delete-triples
            #:insert-triples
+           #:update-triples
            #:query
            #:ask))
 

@@ -109,3 +109,10 @@
   (let ((patterns (mapcar #'format-triple-pattern-clause triple-clauses)))
     (delete (apply #'concatenate 'string patterns)
         (format nil "~{~4tOPTIONAL { ~A }~%~}" patterns))))
+
+(defun update-triples (&key old-triples new-triples)
+  "Deletes the triples in old-triples and inserts
+   the new triples specified in new-triples."
+  (with-update-group
+    (delete-triples old-triples)
+    (insert-triples new-triples)))
