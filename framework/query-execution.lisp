@@ -89,20 +89,23 @@
     (update
      (s-delete clauses where))))
 
+(defun format-triple-pattern-clause (triple-pattern-clause)
+  "Formats a triple pattern clause as specified in the clauses for
+   delete-triples."
+  (destructuring-bind (subject predicate object)
+      triple-pattern-clause
+    (if (s-inv-p predicate)
+        (format nil "~A ~A ~A."
+                object (s-inv predicate) subject)
+        (format nil "~A ~A ~A."
+                subject predicate object))))
+
 (defun delete-triples (triple-clauses)
   "Deletes a set of triples based on the provided triple-clauses.
    Provide a pattern containing triple patterns and variables as
    per 's-var.
    If a triple pattern isn't available, the whole deletion will
    not stop working."
-  (let ((patterns
-         (loop for triple-clause in triple-clauses
-            for (subject predicate object) = triple-clause
-            for pattern = (if (s-inv-p predicate)
-                              (format nil "~A ~A ~A."
-                                      object (s-inv predicate) subject)
-                              (format nil "~A ~A ~A."
-                                      subject predicate object))
-            collect pattern)))
+  (let ((patterns (mapcar #'format-triple-pattern-clause triple-clauses)))
     (delete (apply #'concatenate 'string patterns)
         (format nil "~{~4tOPTIONAL { ~A }~%~}" patterns))))
