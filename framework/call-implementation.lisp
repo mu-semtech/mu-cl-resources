@@ -163,27 +163,27 @@
           (cache-clear-class resource)
           (cache-clear-object item-spec)
           (when (jsown:keywords attributes)
-            (sparql:with-update-group
-              (let ((delete-vars (loop for key in (jsown:keywords attributes)
-                                    for i from 0
-                                    collect (s-var (format nil "gensym~A" i)))))
-                (sparql:delete-triples
-                 (loop for key in (jsown:keywords attributes)
-                    for slot = (resource-slot-by-json-key resource key)
-                    for s-var in delete-vars
-                    collect `(,uri ,@(ld-property-list slot) ,s-var))))
-              (alexandria:when-let
-                  ((triples-to-insert (loop for key in (jsown:keywords attributes)
-                                         for slot = (resource-slot-by-json-key resource key)
-                                         for json-value = (jsown:val attributes key)
-                                         for value = (if (eq json-value :null)
-                                                         :null
-                                                         (interpret-json-value slot json-value))
-                                         for property-list = (ld-property-list slot)
-                                         if (slot-value-represents-triples-p slot json-value)
-                                         collect
-                                           `(,uri ,@property-list ,value))))
-                (sparql:insert-triples triples-to-insert))))
+            (let* ((delete-vars (loop for key in (jsown:keywords attributes)
+                                   for i from 0
+                                   collect (s-var (format nil "gensym~A" i))))
+                   (triples-to-delete
+                    (loop for key in (jsown:keywords attributes)
+                       for slot = (resource-slot-by-json-key resource key)
+                       for s-var in delete-vars
+                       collect `(,uri ,@(ld-property-list slot) ,s-var)))
+                   (triples-to-insert
+                    (loop for key in (jsown:keywords attributes)
+                       for slot = (resource-slot-by-json-key resource key)
+                       for json-value = (jsown:val attributes key)
+                       for value = (if (eq json-value :null)
+                                       :null
+                                       (interpret-json-value slot json-value))
+                       for property-list = (ld-property-list slot)
+                       if (slot-value-represents-triples-p slot json-value)
+                       collect
+                         `(,uri ,@property-list ,value))))
+              (sparql:update-triples :old-triples triples-to-delete
+                                     :new-triples triples-to-insert)))
           (when (and (jsown:keyp json-input "data")
                      (jsown:keyp (jsown:val json-input "data") "relationships"))
             (loop for relation in (jsown:keywords (jsown:filter json-input "data" "relationships"))
@@ -733,7 +733,7 @@
                                           (make-item-spec :type (resource-name linked-resource)
                                                           :uuid new-linked-uuid))))
                     (sparql:with-update-group
-                        (delete-query (s-url resource-uri) link-path)
+                      (delete-query (s-url resource-uri) link-path)
                       (insert-query (s-url resource-uri) link-path
                                     (s-url new-linked-uri))))
                   ;; delete content
