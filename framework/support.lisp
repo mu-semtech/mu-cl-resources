@@ -59,7 +59,9 @@
                                             (jsown:val b key)))))))
            result)))
     (if bs
-        (merge-jsown-objects (merge-two-objects a (first bs)) (rest bs))
+        (apply #'merge-jsown-objects
+               (merge-two-objects a (first bs))
+               (rest bs))
         a)))
 
 (defun plist-remove-nil (plist)
