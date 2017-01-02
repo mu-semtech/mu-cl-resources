@@ -205,12 +205,10 @@
   (:method ((item-spec item-spec) (link has-one-link) resource-specification)
     (check-access-rights-for-item-spec item-spec :update)
     (reset-cache-for-resource-relation item-spec link)
-    (flet ((delete-query (resource-uri link-uri)
-             (sparql:delete-triples
-              `((,resource-uri ,@link-uri ,(s-var "s")))))
-           (insert-query (resource-uri link-uri new-linked-uri)
-             (sparql:insert-triples
-              `((,resource-uri ,@link-uri ,new-linked-uri)))))
+    (flet ((triples-to-delete (resource-uri link-uri)
+             `((,resource-uri ,@link-uri ,(s-var "s"))))
+           (triples-to-insert (resource-uri link-uri new-linked-uri)
+             `((,resource-uri ,@link-uri ,new-linked-uri))))
       (let ((linked-resource (referred-resource link))
             (resource-uri (node-url item-spec)))
         (if (and resource-specification
@@ -220,26 +218,24 @@
                    (new-linked-uri (node-url
                                     (make-item-spec :type (resource-name linked-resource)
                                                     :uuid new-linked-uuid))))
-              (sparql:with-update-group
-                (delete-query (s-url resource-uri)
-                              (ld-property-list link))
-                (insert-query (s-url resource-uri)
-                              (ld-property-list link)
-                              (s-url new-linked-uri))))
+              (sparql:update-triples
+               :old-triples (triples-to-delete (s-url resource-uri)
+                                               (ld-property-list link))
+               :new-triples (triples-to-insert (s-url resource-uri)
+                                               (ld-property-list link)
+                                               (s-url new-linked-uri))))
             ;; delete content
-            (delete-query (s-url resource-uri)
-                          (ld-property-list link))))))
+            (sparql:delete-triples (triples-to-delete (s-url resource-uri)
+                                                      (ld-property-list link)))))))
   (:method ((item-spec item-spec) (link has-many-link) resource-specification)
     (check-access-rights-for-item-spec item-spec :update)
     (reset-cache-for-resource-relation item-spec link)
-    (flet ((delete-query (resource-uri link-uri)
-             (sparql:delete-triples
-              `((,resource-uri ,@link-uri ,(s-var "s")))))
-           (insert-query (resource-uri link-uri new-linked-uris)
-             (sparql:insert-triples
-              (loop for new-link-uri in new-linked-uris
-                 collect
-                   `(,resource-uri ,@link-uri ,new-link-uri)))))
+    (flet ((triples-to-delete (resource-uri link-uri)
+             `((,resource-uri ,@link-uri ,(s-var "s"))))
+           (triples-to-insert (resource-uri link-uri new-linked-uris)
+             (loop for new-link-uri in new-linked-uris
+                collect
+                  `(,resource-uri ,@link-uri ,new-link-uri))))
       (let ((linked-resource (referred-resource link))
             (resource-uri (node-url item-spec)))
         (if (and resource-specification
@@ -250,15 +246,15 @@
                                             for spec = (make-item-spec :type linked-resource
                                                                        :uuid uuid)
                                             collect (node-url spec))))
-              (sparql:with-update-group
-                (delete-query (s-url resource-uri)
-                              (ld-property-list link))
-                (insert-query (s-url resource-uri)
-                              (ld-property-list link)
-                              (mapcar #'s-url new-linked-resources))))
+              (sparql:update-triples
+               :old-triples (triples-to-delete (s-url resource-uri)
+                                               (ld-property-list link))
+               :new-triples (triples-to-insert (s-url resource-uri)
+                                               (ld-property-list link)
+                                               (mapcar #'s-url new-linked-resources))))
             ;; delete content
-            (delete-query (s-url resource-uri)
-                          (ld-property-list link)))))))
+            (sparql:delete-triples (triples-to-delete (s-url resource-uri)
+                                                      (ld-property-list link))))))))
 
 (defun cache-list-call (resource)
   "Performs the caching of a list call.
@@ -708,12 +704,10 @@
   (:method ((resource-symbol symbol) id link)
     (patch-relation-call (find-resource-by-name resource-symbol) id link))
   (:method ((resource resource) id (link has-one-link))
-    (flet ((delete-query (resource-uri link-uri)
-             (sparql:delete-triples
-              `((,resource-uri ,@link-uri ,(s-var "s")))))
-           (insert-query (resource-uri link-uri new-linked-uri)
-             (sparql:insert-triples
-              `((,resource-uri ,@link-uri ,new-linked-uri)))))
+    (flet ((triples-to-delete (resource-uri link-uri)
+             `((,resource-uri ,@link-uri ,(s-var "s"))))
+           (triples-to-insert (resource-uri link-uri new-linked-uri)
+             `((,resource-uri ,@link-uri ,new-linked-uri))))
       (let ((item-spec (make-item-spec :type (resource-name resource)
                                        :uuid id)))
         (check-access-rights-for-item-spec item-spec :update)
@@ -732,12 +726,12 @@
                          (new-linked-uri (node-url
                                           (make-item-spec :type (resource-name linked-resource)
                                                           :uuid new-linked-uuid))))
-                    (sparql:with-update-group
-                      (delete-query (s-url resource-uri) link-path)
-                      (insert-query (s-url resource-uri) link-path
-                                    (s-url new-linked-uri))))
+                    (sparql:update-triples
+                     :old-triples (triples-to-delete (s-url resource-uri) link-path)
+                     :new-triples (triples-to-insert (s-url resource-uri) link-path
+                                                     (s-url new-linked-uri))))
                   ;; delete content
-                  (delete-query (s-url resource-uri) link-path))
+                  (sparql:delete-triples (triples-to-delete (s-url resource-uri) link-path)))
               (respond-no-content)))))))
   (:method ((resource resource) id (link has-many-link))
     (let ((item-spec (make-item-spec :type (resource-name resource) :uuid id)))
@@ -745,13 +739,11 @@
       (with-cache-store
         (cache-clear-class resource)
         (cache-clear-relation item-spec link)
-        (flet ((delete-query (resource-uri link-uri)
-                 (sparql:delete-triples
-                  `((,resource-uri ,@link-uri ,(s-var "s")))))
-               (insert-query (resource-uri link-uri new-linked-uris)
-                 (sparql:insert-triples
-                  (loop for new-uri in new-linked-uris
-                     collect `(,resource-uri ,@link-uri ,new-uri)))))
+        (flet ((triples-to-delete (resource-uri link-uri)
+                 `((,resource-uri ,@link-uri ,(s-var "s"))))
+               (triples-to-insert (resource-uri link-uri new-linked-uris)
+                 (loop for new-uri in new-linked-uris
+                    collect `(,resource-uri ,@link-uri ,new-uri))))
           (let ((body (jsown:parse (post-body)))
                 (linked-resource (referred-resource link))
                 (resource-uri (node-url item-spec))
@@ -766,13 +758,13 @@
                                                                              :uuid uuid)
                                                   collect
                                                     (node-url spec))))
-                    (delete-query (s-url resource-uri) link-path)
-                    (insert-query (s-url resource-uri)
-                                  link-path
-                                  (mapcar #'s-url new-linked-resources)))
+                    (sparql:update-triples
+                     :old-triples (triples-to-delete (s-url resource-uri) link-path)
+                     :new-triples (triples-to-insert (s-url resource-uri) link-path
+                                                     (mapcar #'s-url new-linked-resources))))
                   ;; delete content
-                  (delete-query (s-url resource-uri)
-                                link-path))
+                  (sparql:delete-triples (triples-to-delete (s-url resource-uri)
+                                                            link-path)))
               (respond-no-content))))))))
 
 (defgeneric delete-relation-call (resource id link)
