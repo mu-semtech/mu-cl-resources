@@ -290,10 +290,12 @@
              (jsown:empty-object))))
     (loop for slot
        in (ld-properties resource)
+       for attribute-supplied-p =
+         (jsown:keyp attributes (json-property-name slot))
        for primitive-value =
-         (and (jsown:keyp attributes (json-property-name slot))
-              (jsown:val attributes (json-property-name slot)))
-       if primitive-value
+         (and attribute-supplied-p
+            (jsown:val attributes (json-property-name slot)))
+       if attribute-supplied-p
        collect
          (list (ld-property-list slot)
                (if (slot-value-represents-triples-p slot primitive-value)
