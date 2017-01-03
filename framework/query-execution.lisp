@@ -69,15 +69,7 @@
   "Inserts a set of triples based on the provided triple-clauses.
    Provide a pattern containing triple patterns and variables as
    per 's-var."
-  (let ((patterns
-         (loop for triple-clause in triple-clauses
-            for (subject predicate object) = triple-clause
-            collect
-              (if (s-inv-p predicate)
-                  (format nil "~4t~A ~A ~A.~%"
-                          object (s-inv predicate) subject)
-                  (format nil "~4t~A ~A ~A.~%"
-                          subject predicate object)))))
+  (let ((patterns (apply #'format-triple-pattern-clause triple-clauses)))
     (insert (apply #'concatenate 'string patterns))))
 
 (defun delete (clauses &optional where)
@@ -95,9 +87,9 @@
   (destructuring-bind (subject predicate object)
       triple-pattern-clause
     (if (s-inv-p predicate)
-        (format nil "~A ~A ~A."
+        (format nil "~4t~A ~A ~A.~%"
                 object (s-inv predicate) subject)
-        (format nil "~A ~A ~A."
+        (format nil "~4t~A ~A ~A.~%"
                 subject predicate object))))
 
 (defun delete-triples (triple-clauses)
