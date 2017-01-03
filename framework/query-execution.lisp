@@ -102,9 +102,21 @@
     (delete (apply #'concatenate 'string patterns)
         (format nil "~{~4tOPTIONAL { ~A }~%~}" patterns))))
 
-(defun update-triples (&key old-triples new-triples)
+(defun update-triples (&key old-triples new-triples where resource)
   "Deletes the triples in old-triples and inserts
    the new triples specified in new-triples."
-  (with-update-group
-    (delete-triples old-triples)
-    (insert-triples new-triples)))
+  (let ((delete-patterns (mapcar #'format-triple-pattern-clause old-triples))
+        (insert-patterns (mapcar #'format-triple-pattern-clause new-triples)))
+    (unless resource
+      (setf resource (caar old-triples)))
+    (unless where
+      (setf where
+            (format nil "~4t~A ~A ~A.~% ~{~4tOPTIONAL {~%~4t~A~4t}~%~}"
+                    resource (s-prefix "mu:uuid") (s-genvar)
+                    delete-patterns)))
+    (update (format nil
+                    "WITH ~A~%DELETE {~%~A }~%INSERT {~%~A }~%WHERE {~%~A }"
+                    *application-graph*
+                    (apply #'concatenate 'string delete-patterns)
+                    (apply #'concatenate 'string insert-patterns)
+                    where))))
