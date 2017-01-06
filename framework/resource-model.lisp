@@ -4,7 +4,8 @@
 (defclass resource-slot ()
   ((json-key :initarg :json-key :reader json-key)
    (ld-property :initarg :ld-property :reader ld-property)
-   (resource-type :initarg :resource-type :reader resource-type))
+   (resource-type :initarg :resource-type :reader resource-type)
+   (required-p :initarg :required-p :reader required-p))
   (:documentation "Describes a single property of a resource."))
 
 (defclass has-link ()
@@ -233,11 +234,12 @@
 
 (defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization features)
   "defines a resource for which get and set requests exist"
-  (let* ((properties (loop for (key type prop) in ld-properties
+  (let* ((properties (loop for (key type prop . options) in ld-properties
                         collect (make-instance 'resource-slot
                                                :json-key key
                                                :resource-type type
-                                               :ld-property prop)))
+                                               :ld-property prop
+                                               :required-p (find :required options))))
          (has-many-links (mapcar (alexandria:curry #'apply #'make-instance 'has-many-link :resource)
                                  has-many))
          (has-one-links (mapcar (alexandria:curry #'apply #'make-instance 'has-one-link :resource)
