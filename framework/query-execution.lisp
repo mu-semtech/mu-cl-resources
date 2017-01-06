@@ -69,7 +69,7 @@
   "Inserts a set of triples based on the provided triple-clauses.
    Provide a pattern containing triple patterns and variables as
    per 's-var."
-  (let ((patterns (apply #'format-triple-pattern-clause triple-clauses)))
+  (let ((patterns (mapcar #'format-triple-pattern-clause triple-clauses)))
     (insert (apply #'concatenate 'string patterns))))
 
 (defun delete (clauses &optional where)
