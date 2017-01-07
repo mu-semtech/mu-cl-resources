@@ -38,6 +38,10 @@
   ()
   (:documentation "Indicates the patch body for a link update was not correct."))
 
+(define-condition required-field-missing (simple-described-condition)
+  ((missing-properties :initarg :missing-properties :reader missing-properties))
+  (:documentation "Indicates a required field was missing."))
+
 (define-condition no-type-in-data (error)
   ()
   (:documentation "Indicates no type property was found in the primary data"))
