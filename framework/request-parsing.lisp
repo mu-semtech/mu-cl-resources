@@ -9,7 +9,9 @@
    given that it should be used for the supplied slot.  Yields a
    value which can be used in a query.")
   (:method ((slot resource-slot) value)
-    (interpret-json-value-by-type slot (resource-type slot) value)))
+    (interpret-json-value-by-type slot (resource-type slot) value))
+  (:method ((slot resource-slot) (value (eql :null)))
+    :null))
 
 (defgeneric interpret-json-value-by-type (slot type value)
   (:documentation "Interprets the supplied json value <value>

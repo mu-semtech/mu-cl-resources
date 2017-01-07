@@ -176,9 +176,7 @@
                   ((triples-to-insert (loop for key in (jsown:keywords attributes)
                                          for slot = (resource-slot-by-json-key resource key)
                                          for json-value = (jsown:val attributes key)
-                                         for value = (if (eq json-value :null)
-                                                         :null
-                                                         (interpret-json-value slot json-value))
+                                         for value = (interpret-json-value slot json-value)
                                          for property-list = (ld-property-list slot)
                                          if (slot-value-represents-triples-p slot json-value)
                                          collect
