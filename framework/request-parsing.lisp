@@ -174,18 +174,30 @@
 (defun verify-request-required-properties (path obj)
   "Throws an error if the requested object does not contain
    the required properties."
-  (let ((required-slots (remove-if-not #'required-p
+  (let ((resource (find-resource-by-path path))
+        (required-slots (remove-if-not #'required-p
                                        (ld-properties
                                         (find-resource-by-path path))))
-        (specified-properties (and (jsown:keyp (jsown:val obj "data") "attributes")
-                                 (jsown:keywords (jsown:filter obj "data" "attributes")))))
-    (let ((missing-slots (loop for slot in required-slots
-                            for name = (json-property-name slot)
-                            unless (find name specified-properties :test #'string=)
-                            collect slot)))
-      (when missing-slots
+        (attributes (if (jsown:keyp (jsown:val obj "data") "attributes")
+                        (jsown:filter obj "data" "attributes")
+                        (jsown:empty-object))))
+    (let* ((supplied-required-slots
+            (mapcar (lambda (attribute-name)
+                      (resource-slot-by-json-key resource attribute-name))
+                    (intersection (mapcar #'json-property-name required-slots)
+                                  (jsown:keywords attributes)
+                                  :test #'string=)))
+           (missing-slots (set-difference required-slots supplied-required-slots))
+           (required-nonvalue-slots (loop for slot in supplied-required-slots
+                                       for json-name = (json-property-name slot)
+                                       for json-value = (jsown:val attributes json-name)
+                                       unless (slot-value-represents-triples-p slot json-value)
+                                       collect slot))
+           (breaking-slots (union missing-slots required-nonvalue-slots)))
+      (when (or missing-slots required-nonvalue-slots)
         (error 'required-field-missing
-               :missing-properties missing-slots)))))
+               :missing-properties breaking-slots)))))
+
 
 (defun verify-request-id-matches-path (path-id obj)
   "Throws an error if the request id supplied in id does not
