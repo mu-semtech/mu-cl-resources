@@ -117,6 +117,7 @@
           (verify-request-contains-id body)
           (verify-request-type-matches-path base-path body)
           (verify-request-id-matches-path id body)
+          (verify-request-required-properties-not-removed base-path body)
           (update-call (find-resource-by-path base-path) id))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
@@ -129,6 +130,14 @@
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Server configuration issue: " (description condition))))))))
+      (required-field-missing (condition)
+        (let ((missing-properties (missing-properties condition)))
+          (respond-unprocessable-entity
+           (jsown:new-js
+             ("errors" (jsown:new-js
+                         ("title" (format nil "Required fields would be removed: ~{~A~,^, ~}"
+                                          (mapcar #'json-property-name
+                                                  missing-properties)))))))))
       (incorrect-content-type (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js

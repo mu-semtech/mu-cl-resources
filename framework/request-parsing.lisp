@@ -198,6 +198,30 @@
         (error 'required-field-missing
                :missing-properties breaking-slots)))))
 
+(defun verify-request-required-properties-not-removed (path obj)
+  "Throws an error if the requested update would clear certain
+   required properties."
+  (let ((required-slots (remove-if-not #'required-p
+                                       (ld-properties
+                                        (find-resource-by-path path))))
+        (attributes (if (jsown:keyp (jsown:val obj "data") "attributes")
+                        (jsown:filter obj "data" "attributes")
+                        (jsown:empty-object)))
+        (resource (find-resource-by-path path)))
+    (let ((supplied-required-slots
+           (mapcar (lambda (attribute-name)
+                     (resource-slot-by-json-key resource attribute-name))
+                   (intersection (mapcar #'json-property-name required-slots)
+                                 (jsown:keywords attributes)
+                                 :test #'string=))))
+      (let ((reset-slots (loop for slot in supplied-required-slots
+                            for json-name = (json-property-name slot)
+                            for json-value = (jsown:val attributes json-name)
+                            unless (slot-value-represents-triples-p slot json-value)
+                            collect slot)))
+        (when reset-slots
+          (error 'required-field-missing
+                 :missing-properties reset-slots))))))
 
 (defun verify-request-id-matches-path (path-id obj)
   "Throws an error if the request id supplied in id does not
