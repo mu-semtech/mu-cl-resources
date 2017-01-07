@@ -169,6 +169,22 @@
              :content-defined-type supplied-type
              :path-defined-type path-type))))
 
+(defun verify-request-required-properties (path obj)
+  "Throws an error if the requested object does not contain
+   the required properties."
+  (let ((required-slots (remove-if-not #'required-p
+                                       (ld-properties
+                                        (find-resource-by-path path))))
+        (specified-properties (and (jsown:keyp (jsown:val obj "data") "attributes")
+                                 (jsown:keywords (jsown:filter obj "data" "attributes")))))
+    (let ((missing-slots (loop for slot in required-slots
+                            for name = (json-property-name slot)
+                            unless (find name specified-properties :test #'string=)
+                            collect slot)))
+      (when missing-slots
+        (error 'required-field-missing
+               :missing-properties missing-slots)))))
+
 (defun verify-request-id-matches-path (path-id obj)
   "Throws an error if the request id supplied in id does not
    match the id specified as an id on obj."
