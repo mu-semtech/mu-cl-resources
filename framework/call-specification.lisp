@@ -75,7 +75,7 @@
           (respond-unprocessable-entity
            (jsown:new-js
              ("errors" (jsown:new-js
-                         ("title" (format nil "Missing required fields: ~{~A~,^, ~}"
+                         ("title" (format nil "Following fields are missing or have no value: ~{~A~,^, ~}"
                                           (mapcar #'json-property-name
                                                   missing-properties)))))))))
       (configuration-error (condition)
