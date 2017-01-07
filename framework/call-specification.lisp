@@ -58,6 +58,7 @@
           (verify-request-contains-type body)
           (verify-request-contains-no-id body)
           (verify-request-type-matches-path base-path body)
+          (verify-request-required-properties base-path body)
           (create-call (find-resource-by-path base-path)))
       (no-such-resource ()
         (respond-forbidden (jsown:new-js
@@ -67,6 +68,14 @@
                                                           base-path)))))))
       (access-denied (condition)
         (response-for-access-denied-condition condition))
+      (required-field-missing (condition)
+        (let ((missing-properties (missing-properties condition)))
+          (respond-unprocessable-entity
+           (jsown:new-js
+             ("errors" (jsown:new-js
+                         ("title" (format nil "Missing required fields: ~{~A~,^, ~}"
+                                          (mapcar #'json-property-name
+                                                  missing-properties)))))))))
       (configuration-error (condition)
         (respond-server-error
          (jsown:new-js
