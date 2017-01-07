@@ -1,5 +1,7 @@
 (in-package :mu-cl-resources)
 
+(setf jsown:*parsed-null-value* :null)
+
 (defun response-for-access-denied-condition (condition)
   (respond-access-denied
    (jsown:new-js
