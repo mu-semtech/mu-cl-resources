@@ -878,7 +878,7 @@
          (related-objects
           (loop for new-uuid
              in (jsown:filter
-                 (sparql:select (s-var "target")
+                 (sparql:select (s-distinct (s-var "target"))
                                 (format nil (s+ "?s mu:uuid ~A. "
                                                 "?s ~{~A/~}mu:uuid ?target. "
                                                 "~@[~A~] ")
