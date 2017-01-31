@@ -389,9 +389,10 @@
                  (sparql:select
                   "*"
                   (format nil
-                          "~{~&OPTIONAL {~A ~{~A~,^/~} ~A.}~}"
+                          "~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
                           (loop for slot in missing-single-value-properties
-                             append (list (s-url resource-url)
+                             append (list (required-p slot)
+                                          (s-url resource-url)
                                           (ld-property-list slot)
                                           (s-var (sparql-variable-name slot)))))))))
           ;; read simple attributes from sparql query
