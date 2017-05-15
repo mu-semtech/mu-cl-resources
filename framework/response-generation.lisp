@@ -6,13 +6,14 @@
       (parse-integer entity :junk-allowed t)
     (error () nil)))
 
-(defun count-matches (identifier-variable query-body)
+(defun count-matches (identifier-variable query-body resource link-spec)
   "Returns the amount of matches for a particular response."
-  (parse-integer
-   (jsown:filter (first (sparql:select (format nil "((COUNT (DISTINCT ~A)) AS ?count)"
-                                               identifier-variable)
-                                       query-body))
-                 "count" "value")))
+  (hit-count-cache resource link-spec
+    (parse-integer
+     (jsown:filter (first (sparql:select (format nil "((COUNT (DISTINCT ~A)) AS ?count)"
+                                                 identifier-variable)
+                                         query-body))
+                   "count" "value"))))
 
 (defun extract-pagination-info-from-request ()
   "Extracts the pagination info from the current request object.
@@ -111,7 +112,7 @@
   (or *include-count-in-paginated-responses*
      (find 'include-count (features resource))))
 
-(defun paginated-collection-response (&key resource sparql-body link-defaults source-variable self)
+(defun paginated-collection-response (&key resource sparql-body link-spec link-defaults source-variable self)
   "Constructs the paginated response for a collection listing."
   (destructuring-bind ((page-size page-number) (page-size-p page-number-p))
       (multiple-value-list (extract-pagination-info-from-request))
@@ -119,7 +120,7 @@
           (use-pagination (or page-size-p page-number-p
                               (not (find 'no-pagination-defaults
                                        (features resource))))))
-      (let ((uuid-count (count-matches (s-var "uuid") sparql-body))
+      (let ((uuid-count (count-matches (s-var "uuid") sparql-body resource link-spec))
             (uuids (paginate-uuids-for-sparql-body :sparql-body sparql-body
                                                    :page-size (and use-pagination page-size)
                                                    :page-number (and use-pagination page-number)

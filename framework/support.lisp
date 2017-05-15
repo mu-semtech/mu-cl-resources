@@ -197,6 +197,94 @@
             items-list)
     store))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; cache using nested hash tables
+(defun make-nested-cache () (make-hash-table :test 'equal))
+
+(defun nested-cache-get (keys hash)
+  (let ((key (car keys)))
+    (if (eq 1 (length keys))
+        (gethash key hash)
+        (and (gethash key hash)
+             (nested-cache-get (cdr keys) (gethash key hash))))))
+
+(defun nested-cache-set (keys hash val)
+  "Set values in a nested hash table. <keys> is a list of literals
+   (including nil) or filter functions (single-argument predicates on the hash key). 
+   if <val> is nil and a current value exists, it is deleted with remhash."
+  (let ((key (car keys)))
+    (if (functionp key)
+        (loop for k being the hash-keys of hash using (hash-value v)
+           when (funcall key k)
+           do (nested-cache-set (cons k (cdr keys)) hash val))
+        (if (eq 1 (length keys))
+            (if val
+                (setf (gethash key hash) val)
+                (remhash key hash))
+            (let ((has-key (gethash key hash)))
+              (when (and val (not has-key))
+                (setf (gethash key hash)
+                      (make-hash-table :test 'equal)))
+              (when (or val has-key)
+                (nested-cache-set (cdr keys) (gethash key hash) val)))))))
+
+(defun clear-nested-cache (store keys)
+  (format *standard-output* "~%Clearing cache for keys: ~A~%" keys)
+  (nested-cache-set keys store nil))
+
+(defmacro hit-nested-cache (store keys &body body)
+  `(progn
+     (format *standard-output* "~%Hitting cache for keys: ~A~%" ,keys)
+      (or (nested-cache-get ,keys ,store)
+          (let ((val ,@body))
+            (format *standard-output* "~%Setting cache keys: ~A and value: ~A~%" ,keys val)
+            (nested-cache-set ,keys ,store val)
+            val))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; count queries cache
+(defparameter *cached-count-queries* (make-nested-cache))
+
+(defparameter *cache-count-queries* t)
+
+(defun join-strings (strs) (format  nil "~{~A~}" strs))
+                   
+(defun sort-filters-for-caching (filters)
+  (sort filters
+        (lambda (x y)
+          (labels ((c (filter) (join-strings (getf filter :components)))
+                   (s (filter) (write-to-string (getf filter :search))))
+            (or (string-lessp (c x) (c y))
+                (and (equal (c x) (c y))
+                     (string-lessp (s x) (s y))))))))
+
+(defun sorted-filters ()
+  (sort-filters-for-caching (extract-filters-from-request)))
+
+(defmacro hit-count-cache (resource link-spec &body body)
+  `(if *cache-count-queries*
+       (hit-nested-cache *cached-count-queries*
+           (list (resource-name ,resource)
+                 (and link-spec (resource-name ,link-spec))
+                 (and link-spec (uuid ,link-spec))
+                 (sorted-filters))
+         ,@body)
+       ,@body))
+
+(defun filtered-on-p (name)
+  (lambda (filters)
+    (find-if (lambda (filter)
+               (find name (getf filter :components)))
+             filters)))
+
+(defun all-keys (k) t)
+
+(defun clear-cached-count-queries (resource)
+  (labels ((clear (keys) (clear-nested-cache *cached-count-queries* keys)))
+    (let ((rname (resource-name resource)))
+      (clear (list rname))
+      (clear (list #'all-keys rname))
+      (clear (list #'all-keys #'all-keys #'all-keys (filtered-on-p rname))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; relevant relations store
@@ -245,6 +333,7 @@
                  :relation (request-path relation)))
 
 (defun cache-clear-class (resource)
+  (clear-cached-count-queries resource)
   (add-clear-key :resource (json-type resource)))
 
 (defun cache-clear-object (item-spec)

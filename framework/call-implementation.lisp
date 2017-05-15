@@ -640,28 +640,28 @@
           (item-spec link)
         (with-cache-store
           (cache-relation item-spec link)
-          (multiple-value-bind (response data-item-specs)
-              (paginated-collection-response
-               :resource (referred-resource link)
-               :sparql-body (filter-body-for-search
-                             :sparql-body (format nil
-                                                  (s+ "~A ~{~A~,^/~} ?resource. "
-                                                      "?resource mu:uuid ?uuid. "
-                                                      "~@[~A~] ")
-                                                  resource-url
-                                                  (ld-property-list link)
-                                                  (authorization-query resource :show resource-url))
-                             :source-variable (s-var "resource")
-                             :resource (referred-resource link))
-               :source-variable (s-var "resource")
-               :link-defaults (build-links-object (make-item-spec :type (resource-name resource)
-                                                                  :uuid id)
-                                                  link))
+          (let ((link-spec (make-item-spec :type (resource-name resource) :uuid id)))
+            (multiple-value-bind (response data-item-specs)
+                (paginated-collection-response
+                 :resource (referred-resource link)
+                 :sparql-body (filter-body-for-search
+                               :sparql-body (format nil
+                                                    (s+ "~A ~{~A~,^/~} ?resource. "
+                                                        "?resource mu:uuid ?uuid. "
+                                                        "~@[~A~] ")
+                                                    resource-url
+                                                    (ld-property-list link)
+                                                    (authorization-query resource :show resource-url))
+                               :source-variable (s-var "resource")
+                               :resource (referred-resource link))
+                 :source-variable (s-var "resource")
+                 :link-spec link-spec
+                 :link-defaults (build-links-object link-spec link))
             (if (find 'no-pagination-defaults (features resource))
                 (dolist (spec data-item-specs)
                   (cache-object spec))
                 (cache-class (referred-resource link)))
-            response))))))
+            response)))))))
 
 (defgeneric retrieve-relation-items (item-spec link)
   (:documentation "retrieves the item descriptions of the items
