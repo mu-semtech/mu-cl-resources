@@ -135,13 +135,31 @@
              :type (json-type (resource item-spec))))
     (jsown:filter (first result) "s" "value")))
 
+(defparameter *uuid-uri-cache* (make-hash-table :test #'equal #-abcl :synchronized #-abcl t)
+  "Cache which connects UUIDs to URIs.")
+
+(defun cached-uri-for-uuid (uuid)
+  "Returns the cached uri for the supplied resource"
+  (gethash uuid *uuid-uri-cache*))
+
+(defun (setf cached-uri-for-uuid) (uri uuid)
+  (setf (gethash uuid *uuid-uri-cache*) uri))
+
+(defun find-resource-for-uuid-through-cache-or-sparql (item-spec)
+  "Retrieves the resource's URI from either the current cache, or
+   by querying the SPRAQL endpoint."
+  (or (cached-uri-for-uuid (uuid item-spec))
+     (let ((uri (find-resource-for-uuid-through-sparql item-spec)))
+       (setf (cached-uri-for-uuid (uuid item-spec)) uri)
+       uri)))
+
 (defgeneric node-url (item-spec)
   (:documentation "yields the node url for the supplied item-spec")
   (:method ((item-spec item-spec))
     (if (slot-boundp item-spec 'node-url)
         (slot-value item-spec 'node-url)
         (setf (slot-value item-spec 'node-url)
-              (find-resource-for-uuid-through-sparql item-spec)))))
+              (find-resource-for-uuid-through-cache-or-sparql item-spec)))))
 
 (defgeneric update-call (resource uuid)
   (:documentation "implementation of the PUT request which
