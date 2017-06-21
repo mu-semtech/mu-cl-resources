@@ -11,14 +11,12 @@ Which cache keys are used, and what do they mean?
 * TODO Which cache keys
   An overview of each of the cache keys, and when you should use them.
 
-  - { resource, id } :: DEPRECATED Clear whenever this specific resource changes
-  - { uri } :: Replacement for { resource, id }
+  - { uri } :: Clear whenever this specific resource changes
   - { resource } :: Clear whenever a listing of this resource could have changed
-  - { resource, id, relationship } :: DEPRECATED Clear whenever the
-       relationship for this specific resource gets updated. Note that
-       including this likely means including { resource, id } of the
-       target of the relationship also.
-  - { uri, relationship } :: Replacement for { resource, id, relationship }
+  - { uri, relationship } :: Clear whenever the relationship for this
+       specific resource gets updated. Note that including this likely
+       means including { resource, id } of the target of the
+       relationship also.
 
 * What should happen on each call
 
@@ -26,19 +24,15 @@ Which cache keys are used, and what do they mean?
    - { resource } :: for simple list calls
 
 ** TODO show-call
-   - { resource, id } :: DEPRECATED for the specific resource
-   - { uri } :: Replacement for { resource, id }
+   - { uri } :: for the specific resource
 
 ** TODO show-relation-call
-   - { resource, id, relationship } :: DEPRECATED cache only
-        invalidates when relationships are altered, or resources
-        themselves.
-   - { uri , relationship } :: Replacement for { resource, id, relationship }
+   - { uri , relationship } :: cache only invalidates when
+        relationships are altered, or resources themselves.
    - { resource, relationship } :: used for clearing inverse
         relationships.  in this case we will not know which links to
         clear exactly.
-   - { resource, id } :: DEPRECATED for each returned resource
-   - { uri } :: Replacement for { resource, id }
+   - { uri } :: for each returned resource
 
 *** DONE What about pagination?
     Check if the type of resource shouldn't be paginated.  If it
@@ -54,36 +48,30 @@ Which cache keys are used, and what do they mean?
 
 ** TODO update-call
    - { resource } :: for each touched class
-   - { resource, id } :: DEPRECATED for attributes
-   - { uri } :: Replacement for { resource, id }
-   - { resource, id, relationship } :: DEPRECATED for altered relationships
-   - { uri, relationship } :: Replacement for { resource, id, relationship }
+   - { uri } :: for attributes
+   - { uri, relationship } :: for altered relationships
    - { resource, relationship } :: for known inverse relationships
 
 ** TODO delete-call
    - { resource } :: b/c lists can be altered
-   - { resource, id } :: DEPRECATED for the deleted object
-   - { uri } :: Replacement for { resource, id }
+   - { uri } :: for the deleted object
    - --{ resource, relationship }-- :: not needed, either our
         identifier is specified in the other direction, or we do not
         exist anymore.
 
 ** TODO patch-relation-call
    - { resource } :: may have an effect on listings (filters, for instance)
-   - { resource, id, relationship } :: DEPRECATED invalidate cached relationship
-   - { uri, relationship } :: Replacement for { resource, id, relationship }
+   - { uri, relationship } :: invalidate cached relationship
    - { resource, relationship } :: for known inverse relationships
 
 ** TODO add-relation-coll
    - { resource } :: see patch-relation-call
-   - { resource, id, relationship } :: DEPRECATED see patch-relation-call
-   - { uri, relationship } :: Replacement for { resource, id, relationship }
+   - { uri, relationship } :: see patch-relation-call
    - { resource, relationship } :: see patch-relation-call
 
 ** TODO delete-relation-call
    - { resource } :: see patch-relation-call
-   - { resource, id, relationship } :: DEPRECATED  see patch-relation-call
-   - { uri, relationship } :: Replacement for { resource, id, relationship }
+   - { uri, relationship } ::  see patch-relation-call
    - { resource, relationship } :: see patch-relation-call
 
 ** DONE included resources
@@ -92,11 +80,9 @@ Which cache keys are used, and what do they mean?
    constrained lists, we specify the resource itself.
 
 *** TODO constrained lists
-    - { targetResource, id } :: DEPRECATED Pick included destination elements
-    - { uri } :: Replacement for { targetResource, id }
-    - { resource, id, relationship } :: DEPRECATED Pick the relationship of the
-         item which has the inclusion.
-    - { uri, relationship } :: Replacement for { resource, id, relationship }
+    - { targetUri, id } :: Pick included destination elements
+    - { uri, relationship } :: Pick the relationship of the item which
+         has the inclusion.
     - { resource, relationship } :: Specify the relationship itself,
          for clearing known inverse relationships
 
