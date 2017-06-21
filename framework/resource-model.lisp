@@ -35,7 +35,9 @@
    (request-path :initarg :request-path :reader request-path)
    (name :initarg :resource-name :reader resource-name)
    (features :initarg :features :reader features)
-   (authorization :initarg :authorization :reader authorization)))
+   (authorization :initarg :authorization :reader authorization)
+   (query-count-cache :initform (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
+                      :accessor query-count-cache)))
 
 (defparameter *resources* (make-hash-table)
   "contains all currently known resources")

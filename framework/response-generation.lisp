@@ -8,12 +8,16 @@
 
 (defun count-matches (identifier-variable query-body resource link-spec)
   "Returns the amount of matches for a particular response."
-  (hit-count-cache resource link-spec
-    (parse-integer
-     (jsown:filter (first (sparql:select (format nil "((COUNT (DISTINCT ~A)) AS ?count)"
-                                                 identifier-variable)
-                                         query-body))
-                   "count" "value"))))
+  (flet ((sparql-count ()
+           (parse-integer
+            (jsown:filter (first (sparql:select (format nil "((COUNT (DISTINCT ~A)) AS ?count)"
+                                                        identifier-variable)
+                                                query-body))
+                          "count" "value"))))
+    (if *cache-count-queries*
+        (or (count-cache resource link-spec)
+           (setf (count-cache resource link-spec) (sparql-count)))
+        (sparql-count))))
 
 (defun extract-pagination-info-from-request ()
   "Extracts the pagination info from the current request object.
