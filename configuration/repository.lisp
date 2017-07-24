@@ -28,3 +28,5 @@
 (add-prefix "cms" "http://mu.semte.ch/vocabulary/cms/")
 
 (add-prefix "ext" "http://mu.semte.ch/vocabularies/ext/")
+
+(add-prefix "mu" "http://mu.semte.ch/vocabularies/core/")
