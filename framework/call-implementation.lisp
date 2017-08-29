@@ -85,7 +85,7 @@
       (cache-clear-class resource)
       (let* ((jsown:*parsed-null-value* :null)
              (json-input (jsown:parse (post-body)))
-             (uuid (mu-support:make-uuid)) 
+             (uuid (mu-support:make-uuid))
              (resource-uri (format nil "~A~A"
                                    (raw-content (ld-resource-base resource))
                                    uuid))
@@ -504,6 +504,11 @@
       (values (item-spec-to-jsown (first data-item-specs))
               (mapcar #'item-spec-to-jsown included-item-specs)))))
 
+(defun retrieve-relation-class-constraint (link)
+  (ld-class (find-resource-by-name (resource-name link)))
+)
+
+
 (defgeneric build-relationships-object (item-spec link)
   (:documentation "Returns the content of one of the relationships based
    on the type of relation, and whether or not the relationship should
@@ -648,9 +653,11 @@
                                :sparql-body (format nil
                                                     (s+ "~A ~{~A~,^/~} ?resource. "
                                                         "?resource mu:uuid ?uuid. "
+                                                        "?resource a ~A"
                                                         "~@[~A~] ")
                                                     resource-url
                                                     (ld-property-list link)
+                                                    (retrieve-relation-class-constraint link)
                                                     (authorization-query resource :show resource-url))
                                :source-variable (s-var "resource")
                                :resource (referred-resource link))
@@ -677,9 +684,11 @@
             (first (sparql:select (s-var "uuid")
                                   (format nil (s+ "~A ~{~A~,^/~} ?resource. "
                                                   "?resource mu:uuid ?uuid. "
+                                                  "?resource a ~A"
                                                   "~@[~A~] ")
                                           resource-url
                                           (ld-property-list link)
+                                          (retrieve-relation-class-constraint link)
                                           (authorization-query item-spec :show resource-url)))))
            (linked-resource (resource-name (referred-resource link))))
       (and query-results
@@ -692,9 +701,11 @@
             (sparql:select (s-var "uuid")
                            (format nil (s+ "~A ~{~A~,^/~} ?resource. "
                                            "?resource mu:uuid ?uuid. "
+                                           "?resource a ~A"
                                            "~@[~A~] ")
                                    resource-url
                                    (ld-property-list link)
+                                   (retrieve-relation-class-constraint link)
                                    (authorization-query item-spec :show resource-url))))
            (linked-resource (resource-name (referred-resource link))))
       (loop for uuid in (jsown:filter query-results map "uuid" "value")
