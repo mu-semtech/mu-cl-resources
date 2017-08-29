@@ -49,17 +49,21 @@
                                                   (mapcar (lambda (prop)
                                                             (format nil "~A" (s-inv prop)))
                                                           (ld-property-list link)))))
-      inverse-property-list
       ;; find inverse relationship
       (dolist (inverse-link (all-links linked-resource))
-        (when (equalp inverse-property-list
-                      (mapcar (lambda (prop) (format nil "~A" prop))
-                              (ld-property-list inverse-link)))
-          ;; we have found an inverse relationship of ours
-          (push `(:resource ,resource :link ,link)
-                (inverse-links inverse-link))
-          (push `(:resource ,linked-resource :link ,inverse-link)
-                (inverse-links link)))))))
+        (let ((linked-inverse-property-list (mapcar (lambda (prop) (format nil "~A" prop))
+                (ld-property-list inverse-link))))
+          (when (and  (equalp ; predicate must be equal
+                              inverse-property-list
+                              linked-inverse-property-list)
+                      (equalp ; types must match as well
+                              (resource-name resource)
+                              (resource-name inverse-link)))
+                ;; we have found an inverse relationship of ours
+                (push `(:resource ,resource :link ,link)
+                      (inverse-links inverse-link))
+                (push `(:resource ,linked-resource :link ,inverse-link)
+                      (inverse-links link))))))))
 
 (defgeneric authorization-token (resource operation)
   (:documentation "Yields the authorization token which grants
