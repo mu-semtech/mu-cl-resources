@@ -29,3 +29,7 @@
 (defparameter *supply-cache-headers-p* nil
   "when non-nil, cache headers are supplied.  this works together with mu-cache.")
 
+(defparameter *check-classes-p* nil
+  "TODO: STILL UNUSED
+   when non-nil, all operations related to relations are done with ld classes in mind.
+   otherwise only the preditace name is taken into account.")
