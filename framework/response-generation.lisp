@@ -189,7 +189,7 @@
                (butlast (property-path-for-filter-components resource (butlast components)))
                (s-str search)))
       ;; exact search
-      ((search ":exact:" last-component)
+      ((eql (search ":exact:" last-component) 0)
        (let ((new-components (append (butlast components)
                                      (list (subseq last-component (length ":exact:"))))))
          (format nil "~A ~{~A~^/~} ~A. ~&"
