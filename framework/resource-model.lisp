@@ -216,6 +216,25 @@
   (:method ((resource resource) json-key)
     (find-resource-link-by-path resource json-key)))
 
+(defun slots-for-filter-components (resource components)
+  "Returns the resource links (and slot) based on the given
+   resource and filter-components."
+  (flet ((is-property-p (resource component)
+           (resource-slot-p resource :json-key component))
+         (get-property (resource component)
+           (resource-slot-by-json-key resource component))
+         (get-link (resource component)
+           (find-resource-link-by-json-key resource component)))
+    (loop
+       for current-resource = resource
+       for current-component in components
+       collect
+         (if (is-property-p current-resource current-component)
+             (get-property current-resource current-component)
+             (let ((link (get-link current-resource current-component)))
+               (setf current-resource (referred-resource link)) ; set resource of last link
+               link)))))
+
 (defun property-path-for-filter-components (resource components)
   "Constructs the SPARQL property path for a set of filter
    components.  Assumes the components end with an attribute
@@ -223,26 +242,25 @@
 
    If the last component of the specification yields a resource,
    rather than a property, the search path will allow for all
-   properties in that search path."
-  (let ((current-resource resource) path-components
-        (last-component-resource resource)) ; we use this to expand the search path at the end
-    (loop for current-component in components
-       for resting-components on components
-       for last-component-p = (not (rest resting-components))
-       do
-         (if (resource-slot-p current-resource :json-key current-component)
-             (let ((slot (resource-slot-by-json-key current-resource current-component)))
-               (alexandria:appendf path-components (ld-property-list slot))
-               (setf last-component-resource nil))
-             (let ((link (find-resource-link-by-json-key current-resource current-component)))
-               (alexandria:appendf path-components (ld-property-list link))
-               (setf current-resource (referred-resource link))
-               (setf last-component-resource current-resource))))
-    (if last-component-resource
-        `(,@path-components
-          ,(format nil "(~{(~{~A~^/~})~^|~})"
-                   (mapcar #'ld-property-list (ld-properties resource))))
-        path-components)))
+   properties in that search path.
+
+   Returns (values property-path last-slot slots) in which the
+   property-path is the description above, last-slot is the slot
+   or has-link corresponding to the last component, and slots is
+   the content from slots-for-filter-components as used by this
+   function."
+  (let* ((slots (slots-for-filter-components resource components))
+         (path-components (alexandria:flatten (mapcar #'ld-property-list slots)))
+         (last-slot (car (last slots)))
+         (ends-in-link-p (typep last-slot 'has-link)))
+    (values (if ends-in-link-p
+                `(,@path-components
+                  ,(format nil "(~{(~{~A~^/~})~^|~})"
+                           (mapcar #'ld-property-list
+                                   (ld-properties (referred-resource last-slot)))))
+                path-components)
+            last-slot
+            slots)))
 
 (defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization features)
   "defines a resource for which get and set requests exist"
