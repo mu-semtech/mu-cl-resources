@@ -271,25 +271,25 @@
   (let ((obj (jsown:empty-object)))
     (loop for (key value) on cache-key by #'cddr
        do (setf (jsown:val obj (string-downcase (string key)))
-                value))
+                (format nil "~A" value)))
     obj))
 
 (defun cache-class (resource)
-  (add-cache-key :resource (json-type resource)))
+  (add-cache-key :ld-resource (expanded-ld-class resource)))
 
 (defun cache-object (item-spec)
   (add-cache-key :uri (node-url item-spec)))
 
 (defun cache-relation (item-spec relation)
   (add-cache-key :uri (node-url item-spec)
-                 :relation (request-path relation))
+                 :ld-relation (expanded-ld-relation relation))
   ;; for clearing of inverse relationships
-  (add-cache-key :resource (json-type (resource item-spec))
-                 :relation (request-path relation)))
+  (add-cache-key :ld-resource (expanded-ld-class (resource item-spec))
+                 :ld-relation (expanded-ld-relation relation)))
 
 (defun cache-clear-class (resource)
   (clear-cached-count-queries resource)
-  (add-clear-key :resource (json-type resource)))
+  (add-clear-key :ld-class (expanded-ld-class resource)))
 
 (defun cache-clear-object (item-spec)
   (clear-solution item-spec)
@@ -297,38 +297,33 @@
 
 (defun cache-clear-relation (item-spec relation)
   (add-clear-key :uri (node-url item-spec)
-                 :relation (request-path relation))
+                 :ld-relation (expanded-ld-relation relation))
   ;; for clearing of inverse relationships
   (dolist (inverse-relation (inverse-links relation))
-    (add-clear-key :resource (json-type (getf inverse-relation :resource))
-                   :relation (request-path (getf inverse-relation :link)))))
+    (add-clear-key :ld-class (expanded-ld-class (getf inverse-relation :resource))
+                   :ld-relation (expanded-ld-relation (getf inverse-relation :link)))))
 
 
 
-(defgeneric cache-on-class-list (resource-name)
+(defgeneric cache-on-class-list (resource)
   (:documentation "Adds the cache class to the current cache-store")
   (:method ((json-type string))
-    (add-cache-key :resource json-type)))
+    (add-cache-key :ld-class
+                   (expanded-ld-class (find-resource-by-path json-type)))))
 
 (defgeneric cache-on-resource (resource)
   (:documentation "Caches on a specific resource, like an item-spec")
   (:method ((item-spec item-spec))
-    (add-cache-key :resource (json-type (resource item-spec)) :id (uuid item-spec))))
+    (add-cache-key :uri (node-url item-spec))))
 
 (defun cache-on-resource-relation (item-spec link)
   "Caches on the specified resource and its accompanying relationship."
-  ;; TODO: see reset-cache-for-resource-relation.  Caching
-  ;;       should occur on the level of the link properties
-  ;;       rather than the name.
   (cache-relation item-spec link)
-  (cache-on-class-list (json-type (find-resource-by-name (resource-name link)))))
+  (cache-on-class-list (find-resource-by-name (resource-name link))))
 
 (defun reset-cache-for-resource-relation (item-spec link)
   "Resets the cache for the specified resource and its
    accompanying relationship."
-  ;; TODO: should operate on the relationship, instead of on
-  ;;       the link name.  any link using this relationship
-  ;;       would be affected.
   (cache-clear-relation item-spec link)
   (cache-clear-class (find-resource-by-name (resource-name link))))
 

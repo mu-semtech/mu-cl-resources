@@ -129,6 +129,16 @@
               (s-inv (ld-link link))
               (ld-link link)))))
 
+(defgeneric expanded-ld-class (resource)
+  (:documentation "Expanded version of the ld-class of the resource.")
+  (:method ((resource resource))
+    (full-uri (ld-class resource))))
+
+(defgeneric expanded-ld-relation (relation)
+  (:documentation "Expanded version of the ld-property-list of the relationship.")
+  (:method ((relation has-link))
+    (full-uri (ld-property-list relation))))
+
 (defmethod json-key ((link has-link))
   (request-path link))
 
