@@ -208,6 +208,18 @@
                    search-var
                    search-var
                    (interpret-json-value last-slot search)))))
+      ;; less than search
+      ((eql (search ":lt:" last-component) 0)
+       (let ((new-components (append (butlast components)
+                                     (list (subseq last-component (length ":gt:"))))))
+         (multiple-value-bind (property-path last-slot)
+             (property-path-for-filter-components resource new-components)
+           (format nil "~A ~{~A~^/~} ~A. FILTER ( ~A < ~A )~&"
+                   source-variable
+                   property-path
+                   search-var
+                   search-var
+                   (interpret-json-value last-slot search)))))
       ;; standard semi-fuzzy search
       (t
        (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
