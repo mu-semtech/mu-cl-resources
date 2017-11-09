@@ -215,6 +215,8 @@
         ;; comparison searches
         ((smart-filter-p ":gt:") (comparison-filter ":gt:" ">"))
         ((smart-filter-p ":lt:") (comparison-filter ":lt:" "<"))
+        ((smart-filter-p ":gte:") (comparison-filter ":gte:" ">="))
+        ((smart-filter-p ":lte:") (comparison-filter ":lte:" "<="))
         ;; standard semi-fuzzy search
         (t
          (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
