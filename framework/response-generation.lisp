@@ -157,77 +157,81 @@
   "Constructs the sparql pattern for a filter constraint."
   (let ((search-var (s-genvar "search"))
         (last-component (car (last components))))
-    (cond
-      ;; search for multiple ids
-      ((and (or (deprecated (:silent "Use [:id:] instead.")
-                  (string= "id" last-component))
-                (string= ":id:" last-component))
-            (find #\, search :test #'char=))
-       (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search))))
-         (format nil "~A ~{~A/~}mu:uuid ~A FILTER ( ~A IN (~{~A~^, ~}) ) ~&"
-                 source-variable
-                 (butlast (property-path-for-filter-components resource (butlast components)))
-                 search-var
-                 search-var
-                 search-components)))
-      ;; search for url
-      ((string= ":uri:" last-component)
-       (if (> (length components) 1)
-           (format nil "~A ~{~A~^/~} ~A.  VALUES ~A { ~A } ~&"
+    (flet ((smart-filter-p (pattern)
+             "Returns non-nil if the supplied match is the operation specified
+              in the last filter component."
+             (eql 0 (search pattern last-component))))
+      (cond
+        ;; search for multiple ids
+        ((and (or (deprecated (:silent "Use [:id:] instead.")
+                    (string= "id" last-component))
+                  (string= ":id:" last-component))
+              (find #\, search :test #'char=))
+         (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search))))
+           (format nil "~A ~{~A/~}mu:uuid ~A FILTER ( ~A IN (~{~A~^, ~}) ) ~&"
                    source-variable
                    (butlast (property-path-for-filter-components resource (butlast components)))
                    search-var
-                   search-var (s-url search))
-           (format nil "VALUES ~A { ~A } ~&"
-                   source-variable (s-url search))))
-      ;; search for single id
-      ((or (deprecated (:silent "Use [:id:] instead.")
-             (string= "id" last-component))
-           (string= ":id:" last-component))
-       (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
-               source-variable
-               (butlast (property-path-for-filter-components resource (butlast components)))
-               (s-str search)))
-      ;; exact search
-      ((eql (search ":exact:" last-component) 0)
-       (let ((new-components (append (butlast components)
-                                     (list (subseq last-component (length ":exact:"))))))
-         (format nil "~A ~{~A~^/~} ~A. ~&"
+                   search-var
+                   search-components)))
+        ;; search for url
+        ((string= ":uri:" last-component)
+         (if (> (length components) 1)
+             (format nil "~A ~{~A~^/~} ~A.  VALUES ~A { ~A } ~&"
+                     source-variable
+                     (butlast (property-path-for-filter-components resource (butlast components)))
+                     search-var
+                     search-var (s-url search))
+             (format nil "VALUES ~A { ~A } ~&"
+                     source-variable (s-url search))))
+        ;; search for single id
+        ((or (deprecated (:silent "Use [:id:] instead.")
+               (string= "id" last-component))
+             (string= ":id:" last-component))
+         (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
                  source-variable
-                 (property-path-for-filter-components resource new-components)
-                 (s-str search))))
-      ;; greater than search
-      ((eql (search ":gt:" last-component) 0)
-       (let ((new-components (append (butlast components)
-                                     (list (subseq last-component (length ":gt:"))))))
-         (multiple-value-bind (property-path last-slot)
-             (property-path-for-filter-components resource new-components)
-           (format nil "~A ~{~A~^/~} ~A. FILTER ( ~A > ~A )~&"
+                 (butlast (property-path-for-filter-components resource (butlast components)))
+                 (s-str search)))
+        ;; exact search
+        ((smart-filter-p ":exact:")
+         (let ((new-components (append (butlast components)
+                                       (list (subseq last-component (length ":exact:"))))))
+           (format nil "~A ~{~A~^/~} ~A. ~&"
                    source-variable
-                   property-path
-                   search-var
-                   search-var
-                   (interpret-json-value last-slot search)))))
-      ;; less than search
-      ((eql (search ":lt:" last-component) 0)
-       (let ((new-components (append (butlast components)
-                                     (list (subseq last-component (length ":gt:"))))))
-         (multiple-value-bind (property-path last-slot)
-             (property-path-for-filter-components resource new-components)
-           (format nil "~A ~{~A~^/~} ~A. FILTER ( ~A < ~A )~&"
-                   source-variable
-                   property-path
-                   search-var
-                   search-var
-                   (interpret-json-value last-slot search)))))
-      ;; standard semi-fuzzy search
-      (t
-       (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
-               source-variable
-               (property-path-for-filter-components resource components)
-               search-var
-               search-var
-               (s-str search))))))
+                   (property-path-for-filter-components resource new-components)
+                   (s-str search))))
+        ;; greater than search
+        ((smart-filter-p ":gt:")
+         (let ((new-components (append (butlast components)
+                                       (list (subseq last-component (length ":gt:"))))))
+           (multiple-value-bind (property-path last-slot)
+               (property-path-for-filter-components resource new-components)
+             (format nil "~A ~{~A~^/~} ~A. FILTER ( ~A > ~A )~&"
+                     source-variable
+                     property-path
+                     search-var
+                     search-var
+                     (interpret-json-value last-slot search)))))
+        ;; less than search
+        ((smart-filter-p ":lt:")
+         (let ((new-components (append (butlast components)
+                                       (list (subseq last-component (length ":gt:"))))))
+           (multiple-value-bind (property-path last-slot)
+               (property-path-for-filter-components resource new-components)
+             (format nil "~A ~{~A~^/~} ~A. FILTER ( ~A < ~A )~&"
+                     source-variable
+                     property-path
+                     search-var
+                     search-var
+                     (interpret-json-value last-slot search)))))
+        ;; standard semi-fuzzy search
+        (t
+         (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
+                 source-variable
+                 (property-path-for-filter-components resource components)
+                 search-var
+                 search-var
+                 (s-str search)))))))
 
 (defun extract-filters-from-request ()
   "Extracts the filters from the request.  The result is a list
