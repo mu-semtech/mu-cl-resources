@@ -217,6 +217,22 @@
         ((smart-filter-p ":lt:") (comparison-filter ":lt:" "<"))
         ((smart-filter-p ":gte:") (comparison-filter ":gte:" ">="))
         ((smart-filter-p ":lte:") (comparison-filter ":lte:" "<="))
+        ;; has-no
+        ((smart-filter-p ":has-no:")
+         (let ((new-components (append (butlast components)
+                                       (list (subseq last-component (length ":has-no:"))))))
+           (format nil "FILTER( NOT EXISTS {~&~T~T~A ~{~A~^/~} ~A.~&~T} )~&"
+                   source-variable
+                   (butlast (property-path-for-filter-components resource new-components))
+                   (s-genvar "anything"))))
+        ;; has
+        ((smart-filter-p ":has:")
+         (let ((new-components (append (butlast components)
+                                       (list (subseq last-component (length ":has:"))))))
+           (format nil "FILTER( EXISTS {~&~T~T~A ~{~A~^/~} ~A.~&~T} )~&"
+                   source-variable
+                   (butlast (property-path-for-filter-components resource new-components))
+                   (s-genvar "anything"))))
         ;; standard semi-fuzzy search
         (t
          (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
