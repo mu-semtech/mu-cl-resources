@@ -160,7 +160,19 @@
     (flet ((smart-filter-p (pattern)
              "Returns non-nil if the supplied match is the operation specified
               in the last filter component."
-             (eql 0 (search pattern last-component))))
+             (eql 0 (search pattern last-component)))
+           (comparison-filter (pattern comparator)
+             (let ((new-components (append (butlast components)
+                                           (list (subseq last-component (length pattern))))))
+               (multiple-value-bind (property-path last-slot)
+                   (property-path-for-filter-components resource new-components)
+                 (format nil "~A ~{~A~^/~} ~A. FILTER ( ~A ~A ~A )~&"
+                         source-variable
+                         property-path
+                         search-var
+                         search-var
+                         comparator
+                         (interpret-json-value last-slot search))))))
       (cond
         ;; search for multiple ids
         ((and (or (deprecated (:silent "Use [:id:] instead.")
@@ -200,30 +212,9 @@
                    source-variable
                    (property-path-for-filter-components resource new-components)
                    (s-str search))))
-        ;; greater than search
-        ((smart-filter-p ":gt:")
-         (let ((new-components (append (butlast components)
-                                       (list (subseq last-component (length ":gt:"))))))
-           (multiple-value-bind (property-path last-slot)
-               (property-path-for-filter-components resource new-components)
-             (format nil "~A ~{~A~^/~} ~A. FILTER ( ~A > ~A )~&"
-                     source-variable
-                     property-path
-                     search-var
-                     search-var
-                     (interpret-json-value last-slot search)))))
-        ;; less than search
-        ((smart-filter-p ":lt:")
-         (let ((new-components (append (butlast components)
-                                       (list (subseq last-component (length ":gt:"))))))
-           (multiple-value-bind (property-path last-slot)
-               (property-path-for-filter-components resource new-components)
-             (format nil "~A ~{~A~^/~} ~A. FILTER ( ~A < ~A )~&"
-                     source-variable
-                     property-path
-                     search-var
-                     search-var
-                     (interpret-json-value last-slot search)))))
+        ;; comparison searches
+        ((smart-filter-p ":gt:") (comparison-filter ":gt:" ">"))
+        ((smart-filter-p ":lt:") (comparison-filter ":lt:" "<"))
         ;; standard semi-fuzzy search
         (t
          (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
