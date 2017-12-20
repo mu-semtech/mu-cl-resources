@@ -29,3 +29,7 @@
 (defparameter *supply-cache-headers-p* nil
   "when non-nil, cache headers are supplied.  this works together with mu-cache.")
 
+(defparameter *declare-resource-types-p*
+  (let ((env (uiop:getenv "MU_DECLARE_RESOURCE_TYPES")))
+    (and env (or (equal "true" env) (equal env "TRUE"))))
+  "when true, explicitly declare rdf:type for all resources in property and relation queries.")
