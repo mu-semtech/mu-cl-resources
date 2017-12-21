@@ -5,7 +5,7 @@
   (:documentation "Converts the supplied sparql value specification into a lisp value.")
   (:method (values (resource-type (eql :language-string-set)))
     (loop for value in values
-       collect (from-sparql value :language-typed-string)))
+       collect (from-sparql value :language-string)))
   (:method (values (resource-type (eql :uri-set)))
     (loop for value in values
        collect (from-sparql value :uri)))
@@ -24,7 +24,7 @@
   (:method ((type (eql :uri)) resource-type value object)
     (declare (ignore object resource-type))
     value)
-  (:method ((type (eql :literal)) (resource-type (eql :language-typed-string)) value object)
+  (:method ((type (eql :literal)) (resource-type (eql :language-string)) value object)
     (jsown:new-js
       ("content" value)
       ("language" (jsown:val object "xml:lang"))))

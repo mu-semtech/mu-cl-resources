@@ -39,6 +39,9 @@
     (apply #'s-values (mapcar #'s-str values)))
   (:method ((slot resource-slot) (type (eql :uri-set)) values)
     (apply #'s-values (mapcar #'s-url values)))
+  (:method ((slot resource-slot) (type (eql :language-string)) value)
+    (s-str (jsown:val value "content")
+           (jsown:val value "language")))
   (:method ((slot resource-slot) (type (eql :language-string-set)) values)
     (apply #'s-values
            (loop for obj in values
