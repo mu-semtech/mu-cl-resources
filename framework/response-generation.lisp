@@ -56,7 +56,7 @@
     ;; between having to sort (order-info) and not having
     ;; to sort.  some logic is shared.
     (let ((sparql-variables (if order-info
-                                (format nil "DISTINCT ~A~{ ~{MAX(~A) AS ~A~}~}"
+                                (format nil "DISTINCT ~A~{ ~{(MAX(~A) AS ~A)~}~}"
                                         (s-var "uuid") (mapcar (lambda (a) (list a a)) order-variables))
                                 (format nil "DISTINCT ~A" (s-var "uuid"))))
           (sparql-body (if order-info
