@@ -375,8 +375,25 @@
   (setf (gethash property (solution-fields solution)) value))
 
 (defun solution-field-p (solution property)
-  "returns non-nil if <property> has been fetched for <solution>."
+  "Returns non-nil if <property> has been fetched for <solution>."
   (second (multiple-value-list (solution-value solution property))))
+
+(defun resource-type-declaration (resource-url resource)
+  "Returns an rdf:type declaration if *declare-resource-types-p* is t,
+   otherwise the empty string."
+  (if *declare-resource-types-p*
+      (format nil "~A a ~A. "
+              (s-url resource-url) (ld-class resource))
+      ""))
+
+(defun relation-resource-type-declaration (resource-url resource link)
+  "Returns an rdf:type declaration for linked resources if 
+   *declare-resource-types-p* is t, otherwise the empty string."
+  (if *declare-resource-types-p*
+      (format nil "~A a ~A. ~A a ~A.~%"
+              resource-url (ld-class resource) "?resource"
+              (ld-class (find-resource-by-name (resource-name link))))
+      ""))
 
 (defgeneric complete-solution (solution item-spec)
   (:documentation "Completes <solution> for the settings requested in
@@ -407,7 +424,8 @@
                  (sparql:select
                   "*"
                   (format nil
-                          "~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
+                          "~A~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
+                          (resource-type-declaration resource-url resource)
                           (loop for slot in missing-single-value-properties
                              append (list (required-p slot)
                                           (s-url resource-url)
@@ -664,9 +682,11 @@
                  :resource (referred-resource link)
                  :sparql-body (filter-body-for-search
                                :sparql-body (format nil
-                                                    (s+ "~A ~{~A~,^/~} ?resource. "
+                                                    (s+ "~A"
+                                                        "~A ~{~A~,^/~} ?resource. "
                                                         "?resource mu:uuid ?uuid. "
                                                         "~@[~A~] ")
+                                                    (relation-resource-type-declaration resource-url resource link)
                                                     resource-url
                                                     (ld-property-list link)
                                                     (authorization-query resource :show resource-url))
@@ -693,9 +713,11 @@
     (let* ((resource-url (s-url (node-url item-spec)))
            (query-results
             (first (sparql:select (s-var "uuid")
-                                  (format nil (s+ "~A ~{~A~,^/~} ?resource. "
+                                  (format nil (s+ "~A"
+                                                  "~A ~{~A~,^/~} ?resource. "
                                                   "?resource mu:uuid ?uuid. "
                                                   "~@[~A~] ")
+                                          (relation-resource-type-declaration resource-url (resource item-spec) link)
                                           resource-url
                                           (ld-property-list link)
                                           (authorization-query item-spec :show resource-url)))))
@@ -708,9 +730,11 @@
     (let* ((resource-url (s-url (node-url item-spec)))
            (query-results
             (sparql:select (s-var "uuid")
-                           (format nil (s+ "~A ~{~A~,^/~} ?resource. "
+                           (format nil (s+ "~A"
+                                           "~A ~{~A~,^/~} ?resource. "
                                            "?resource mu:uuid ?uuid. "
                                            "~@[~A~] ")
+                                   (relation-resource-type-declaration resource-url resource link)
                                    resource-url
                                    (ld-property-list link)
                                    (authorization-query item-spec :show resource-url))))
