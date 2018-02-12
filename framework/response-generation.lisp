@@ -179,8 +179,11 @@
                     (string= "id" last-component))
                   (string= ":id:" last-component))
               (find #\, search :test #'char=))
-         (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search))))
-           (format nil "~A ~{~A/~}mu:uuid ~A FILTER ( ~A IN (~{~A~^, ~}) ) ~&"
+         (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search)))
+               (template-string (if *allow-xsd-in-uuids*
+                                    "~A ~{~A/~}mu:uuid ~A FILTER ( ~A IN (~{~A^^<http://www.w3.org/2001/XMLSchema#string>~^, ~}) ) ~&"
+                                    "~A ~{~A/~}mu:uuid ~A FILTER ( ~A IN (~{~A~^, ~}) ) ~&")))
+           (format nil template-string
                    source-variable
                    (butlast (property-path-for-filter-components resource (butlast components)))
                    search-var
@@ -200,10 +203,13 @@
         ((or (deprecated (:silent "Use [:id:] instead.")
                (string= "id" last-component))
              (string= ":id:" last-component))
-         (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
-                 source-variable
-                 (butlast (property-path-for-filter-components resource (butlast components)))
-                 (s-str search)))
+         (let ((template-string (if *allow-xsd-in-uuids*
+                                    "~A ~{~A/~}mu:uuid ~A^^<http://www.w3.org/2001/XMLSchema#string>. ~&"
+                                    "~A ~{~A/~}mu:uuid ~A. ~&")))
+           (format nil template-string
+                   source-variable
+                   (butlast (property-path-for-filter-components resource (butlast components)))
+                   (s-str search))))
         ;; exact search
         ((smart-filter-p ":exact:")
          (let ((new-components (append (butlast components)

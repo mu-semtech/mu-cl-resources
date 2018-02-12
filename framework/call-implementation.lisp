@@ -85,7 +85,7 @@
       (cache-clear-class resource)
       (let* ((jsown:*parsed-null-value* :null)
              (json-input (jsown:parse (post-body)))
-             (uuid (mu-support:make-uuid)) 
+             (uuid (mu-support:make-uuid))
              (resource-uri (format nil "~A~A"
                                    (raw-content (ld-resource-base resource))
                                    uuid))
@@ -124,9 +124,7 @@
    @see: you probably want to use node-url instead."
   (let ((result (sparql:select (s-var "s")
                                (if *allow-xsd-in-uuids*
-                                   (format nil (s+ "?s mu:uuid ?uuid. "
-                                                   "FILTER(~A = str(?uuid))")
-                                           (s-str (uuid item-spec)))
+                                   (format nil "?s mu:uuid ~A^^<http://www.w3.org/2001/XMLSchema#string>. " (s-str (uuid item-spec)))
                                    (format nil "?s mu:uuid ~A. " (s-str (uuid item-spec)))))))
     (unless result
       (error 'no-such-instance
