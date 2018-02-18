@@ -29,3 +29,7 @@
 (defparameter *supply-cache-headers-p* nil
   "when non-nil, cache headers are supplied.  this works together with mu-cache.")
 
+(defparameter *default-language-import-fallback* "en"
+  "EXPERIMENTAL: this variable defines the default string to be used when trying to
+  import a language-typed string on a database that doesn't have the
+  language-typed-string set.")

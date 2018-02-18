@@ -25,9 +25,12 @@
     (declare (ignore object resource-type))
     value)
   (:method ((type (eql :literal)) (resource-type (eql :language-string)) value object)
-    (jsown:new-js
-      ("content" value)
-      ("language" (jsown:val object "xml:lang"))))
+    (let ((language (or (and (jsown:keyp object "xml:lang")
+                             (jsown:val object "xml:lang"))
+                        *default-language-import-fallback*)))
+      (jsown:new-js
+        ("content" value)
+        ("language" language))))
   (:method ((type (eql :literal)) resource-type value object)
     (declare (ignore resource-type object))
     value)
