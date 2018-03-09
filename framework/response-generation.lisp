@@ -14,7 +14,7 @@
                                                         identifier-variable)
                                                 query-body))
                           "count" "value"))))
-    (if *cache-count-queries*
+    (if *cache-count-queries-p*
         (or (count-cache resource link-spec)
            (setf (count-cache resource link-spec) (sparql-count)))
         (sparql-count))))

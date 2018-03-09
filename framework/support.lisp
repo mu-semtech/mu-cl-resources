@@ -200,8 +200,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; count queries cache
-(defparameter *cache-count-queries* t)
-
 (defun make-count-cache-keys (link-spec)
   (list (and link-spec (resource-name link-spec))
         (and link-spec (uuid link-spec))

@@ -33,3 +33,9 @@
   "EXPERIMENTAL: this variable defines the default string to be used when trying to
   import a language-typed string on a database that doesn't have the
   language-typed-string set.")
+
+(defparameter *cache-model-properties-p* nil
+  "Set this to t in order to cache query solutions")
+
+(defparameter *cache-count-queries-p* nil
+  "when non-nil, all count queries are cached like other resources")
