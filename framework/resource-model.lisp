@@ -225,15 +225,15 @@
            (resource-slot-by-json-key resource component))
          (get-link (resource component)
            (find-resource-link-by-json-key resource component)))
-    (loop
-       for current-resource = resource
-       for current-component in components
-       collect
-         (if (is-property-p current-resource current-component)
-             (get-property current-resource current-component)
-             (let ((link (get-link current-resource current-component)))
-               (setf current-resource (referred-resource link)) ; set resource of last link
-               link)))))
+    (let ((current-resource resource))
+      (loop
+         for current-component in components
+         collect
+           (if (is-property-p current-resource current-component)
+               (get-property current-resource current-component)
+               (let ((link (get-link current-resource current-component)))
+                 (setf current-resource (referred-resource link)) ; set resource of last link
+                 link))))))
 
 (defun property-path-for-filter-components (resource components)
   "Constructs the SPARQL property path for a set of filter
