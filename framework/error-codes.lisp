@@ -75,3 +75,6 @@
    (operation :initarg :operation :reader operation))
   (:documentation "Indicates access to the requested was denied."))
 
+(define-condition no-resource-base (configuration-error)
+  ((description :initarg :description :reader description))
+  (:documentation "Indicates the :resource-base argument was not found."))

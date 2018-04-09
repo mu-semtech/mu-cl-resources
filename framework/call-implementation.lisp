@@ -70,6 +70,13 @@
              :id nil
              :type (json-type resource)))))
 
+(defun check-resource-base-existence (resource)
+  "Checks whether an ld-resource-base is known for <resource>.  If
+   it is not, no resources can be created."
+  (unless (ld-resource-base resource)
+    (error 'no-resource-base
+           :description "Base string for resources was not found, is :resource-base set in the define-resource?")))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; call implementation
@@ -81,6 +88,7 @@
     (create-call (find-resource-by-name resource-symbol)))
   (:method ((resource resource))
     (check-access-rights-for-resource resource :create)
+    (check-resource-base-existence resource)
     (with-cache-store
       (cache-clear-class resource)
       (let* ((jsown:*parsed-null-value* :null)
