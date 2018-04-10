@@ -442,13 +442,13 @@ Both of these caches are subject to change in their implementation, but the end-
 
 Caching requests is more complex for a JSONAPI than for a web page.  A single update may invalidate a wide range of pages, but it should not invalidate too many pages.  As such, we've written a separate cache for JSONAPI-like bodies.  Find it at [mu-semtech/mu-cache](https://github.com/mu-semtech/mu-cache).
 
-Note: mu-cl-resources speaks the protocol of this cache, but does not update the cache yet when external resources update the semantic model.
-
-### Internal cache
-
 In order to enable the external cache, you have to set the `*supply-cache-headers-p*` parameter to `t` in your `domain.lisp`.
 
     (defparameter *supply-cache-headers* t)
+
+Note: mu-cl-resources speaks the protocol of this cache, but does not update the cache yet when external resources update the semantic model.
+
+### Internal cache
 
 In order to opt in to the internal model caching, set `*cache-model-properties*` to `t`.  Note that this currently assumes mu-cl-resources is the only service altering the resources.
 
