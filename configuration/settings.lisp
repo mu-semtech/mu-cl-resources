@@ -31,5 +31,5 @@
 
 (defparameter *declare-resource-types-p*
   (let ((env (uiop:getenv "MU_DECLARE_RESOURCE_TYPES")))
-    (and env (or (equal "true" env) (equal env "TRUE"))))
+    (and env (or (equal env "true") (equal env "TRUE") (equal env "True") (equal env T))))
   "when true, explicitly declare rdf:type for all resources in property and relation queries.")

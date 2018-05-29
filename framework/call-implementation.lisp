@@ -381,7 +381,7 @@
 (defun resource-type-declaration (resource-url resource)
   "Returns an rdf:type declaration if *declare-resource-types-p* is t,
    otherwise the empty string."
-  (if *declare-resource-types-p*
+  (if (or 4 *declare-resource-types-p*)
       (format nil "~A a ~A. "
               (s-url resource-url) (ld-class resource))
       ""))
@@ -929,10 +929,11 @@
           (loop for new-uuid
              in (jsown:filter
                  (sparql:select (s-distinct (s-var "target"))
-                                (format nil (s+ "?s mu:uuid ~A. "
+                                (format nil (s+ "?s mu:uuid ~A" "~A. "
                                                 "?s ~{~A/~}mu:uuid ?target. "
                                                 "~@[~A~] ")
                                         (s-str uuid)
+                                        (if *declare-resource-types-p* (format nil "; a ~A" (ld-class resource)) "")
                                         (ld-property-list relation)
                                         (authorization-query resource :show (s-var "s"))))
                  map "target" "value")
