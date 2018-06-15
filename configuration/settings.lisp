@@ -39,3 +39,11 @@
 
 (defparameter *cache-count-queries-p* nil
   "when non-nil, all count queries are cached like other resources")
+
+(defparameter *max-group-sorted-properties* t
+  "when non-nil, all properties to sort on will be fetched as a MAX
+  operation.  This ensures that always the same property is sorted on
+  should there be multiple values in the result.  This is
+  configurable, as some triplestores seemingly don't handle this case
+  correctly and return results which aren't correctly sorted.  Expect
+  this option to be removed in the distant future.")
