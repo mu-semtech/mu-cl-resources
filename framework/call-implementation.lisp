@@ -153,13 +153,17 @@
 (defun (setf cached-uri-for-uuid) (uri uuid)
   (setf (gethash uuid *uuid-uri-cache*) uri))
 
+(defun clear-uri-cache-for-uuid (uuid)
+  "Clears the URI cache for the supplied UUID"
+  (remhash uuid *uuid-uri-cache*))
+
 (defun find-resource-for-uuid-through-cache-or-sparql (item-spec)
   "Retrieves the resource's URI from either the current cache, or
    by querying the SPRAQL endpoint."
   (or (cached-uri-for-uuid (uuid item-spec))
-     (let ((uri (find-resource-for-uuid-through-sparql item-spec)))
-       (setf (cached-uri-for-uuid (uuid item-spec)) uri)
-       uri)))
+      (let ((uri (find-resource-for-uuid-through-sparql item-spec)))
+        (setf (cached-uri-for-uuid (uuid item-spec)) uri)
+        uri)))
 
 (defgeneric node-url (item-spec)
   (:documentation "yields the node url for the supplied item-spec")
@@ -463,9 +467,11 @@
   (:documentation "Clears the solution from the given specification
    accepts both an item-spec as well as a uuid")
   (:method ((item-spec item-spec))
-    (remhash (uuid item-spec) *cached-resources*))
+    (remhash (uuid item-spec) *cached-resources*)
+    (clear-uri-cache-for-uuid (uuid item-spec)))
   (:method ((uuid string))
-    (remhash uuid *cached-resources*)))
+    (remhash uuid *cached-resources*)
+    (clear-uri-cache-for-uuid uuid)))
 
 (defun item-spec-to-jsown (item-spec)
   "Returns the jsown representation of the attributes and
