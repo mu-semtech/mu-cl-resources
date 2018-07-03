@@ -892,23 +892,35 @@
   "Traverses the included-spec with the items in item-specs and ensures
    they're recursively included.  The item-specs also get to know which
    items have to be added."
-  (dolist (item item-specs)
-    (let (linked-items)
-      ;; fill in current path
-      (setf linked-items
-            (union linked-items
-               (include-items-for-single-included included-items-store item
-                                                  (first included-spec))))
-      ;; traverse included-spec path
-      (when (rest included-spec)
-        (include-items-for-included included-items-store linked-items
-                                    (rest included-spec))))))
+  (declare (special *cache-store*))
+  (let ((lparallel:*kernel* (lparallel:make-kernel
+                             8 :bindings `((*standard-output* . ,*standard-output*)
+                                           (*error-output* . ,*error-output*)
+                                           (*resources* . ,*resources*)
+                                           (*cache-store* . ,*cache-store*)
+                                           (*included-items-store* . ,included-items-store)
+                                           (hunchentoot:*request* . ,hunchentoot:*request*)
+                                           (hunchentoot:*reply* . ,hunchentoot:*reply*)))))
 
-(defun include-items-for-single-included (included-items-store item-spec relation-string)
-  "Adds the items which are linked to item-spec by relation included-spec
-   to included-items-store.  Returns the list of items which are linked
-   through item-spec."
-  (let* ((resource (resource item-spec))
+    (let ((lparallel:*debug-tasks-p* nil))
+      (lparallel:pmap 'list
+                      (lambda (item)
+                        (let (linked-items)
+                          ;; fill in current path
+                          (setf linked-items
+                                (union linked-items
+                                       (include-items-for-single-included item (first included-spec))))
+                          ;; traverse included-spec path
+                          (when (rest included-spec)
+                            (include-items-for-included included-items-store linked-items
+                                                        (rest included-spec)))))
+                      item-specs))))
+
+
+(defun include-items-for-single-included (item-spec relation-string)
+  (declare (special *included-items-store*))
+  (let* ((included-items-store *included-items-store*)
+         (resource (resource item-spec))
          (uuid (uuid item-spec))
          (relation (find-resource-link-by-json-key resource relation-string))
          (target-type (resource-name relation))

@@ -127,7 +127,7 @@
   ((uuid :accessor uuid :initarg :uuid)
    (type :accessor resource-name :initarg :type)
    (related-items :accessor related-items-table
-                  :initform (make-hash-table :test 'equal)
+                  :initform (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
                   :initarg :related-items)
    (node-url :initarg :node-url))
   (:documentation "Represents an item that should be loaded."))
@@ -153,7 +153,8 @@
 ;;;;
 ;; included items store
 (defstruct included-items-store
-  (table (make-hash-table :test 'equal)))
+  (table (make-hash-table :test 'equal #-abcl :synchronized #-abcl t))
+  (lock (bordeaux-threads:make-lock)))
 
 (defun included-items-store-contains (store item-spec)
   "Returns item-spec iff <item-spec> is included in <store>.
@@ -166,10 +167,11 @@
    already stored, then the one from the store is returned,
    otherwise, the new ensured-content is returned.")
   (:method ((store included-items-store) (item-spec item-spec))
-    (let ((table (included-items-store-table store))
-          (key (item-spec-hash-key item-spec)))
-      (or (gethash key table)
-          (setf (gethash key table) item-spec))))
+    (bordeaux-threads:with-lock-held ((included-items-store-lock store))
+      (let ((table (included-items-store-table store))
+            (key (item-spec-hash-key item-spec)))
+        (or (gethash key table)
+            (setf (gethash key table) item-spec)))))
   (:method ((store included-items-store) (new-items included-items-store))
     (loop for item-spec in (included-items-store-list-items new-items)
        collect
@@ -181,13 +183,15 @@
     (remhash (item-spec-hash-key item-spec)
              (included-items-store-table store)))
   (:method ((store included-items-store) (subtracted-store included-items-store))
-    (mapcar (alexandria:curry #'included-items-store-subtract store)
-            (included-items-store-list-items subtracted-store))))
+    (bordeaux-threads:with-lock-held ((included-items-store-lock store))
+      (mapcar (alexandria:curry #'included-items-store-subtract store)
+              (included-items-store-list-items subtracted-store)))))
 
 (defun included-items-store-list-items (store)
   "Retrieves all items in the included-items-store"
-  (loop for item-spec being the hash-values of (included-items-store-table store)
-     collect item-spec))
+  (bordeaux-threads:with-lock-held ((included-items-store-lock store))
+    (loop for item-spec being the hash-values of (included-items-store-table store)
+       collect item-spec)))
 
 (defun make-included-items-store-from-list (items-list)
   "Constructs a new included items store containing the list of
@@ -244,8 +248,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; relevant relations store
 (defstruct cache-store
-  (cache-keys (make-hash-table :test 'equal))
-  (clear-keys (make-hash-table :test 'equal))
+  (cache-keys (make-hash-table :test 'equal #-abcl :synchronized #-abcl t))
+  (clear-keys (make-hash-table :test 'equal #-abcl :synchronized #-abcl t))
   (cancel-cache nil))
 
 (defun add-cache-key (&rest cache-key)
