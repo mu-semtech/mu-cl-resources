@@ -450,7 +450,7 @@
                        (from-sparql value (resource-type slot)))))
           solution)))))
 
-(defparameter *cached-resources* (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
+(defparameter *cached-resources* (make-user-aware-hash-table :test 'equal)
   "Cache of solutions which were previously fetched or initialized.
    The resources might not be complete yet, and can be finished.
    The keys are the UUIDs the vaue is the cached resource.")
@@ -458,8 +458,8 @@
 (defun ensure-solution (item-spec)
   "Ensures a solution exists for <item-spec> and returns it."
   (if *cache-model-properties-p*
-      (or (gethash (uuid item-spec) *cached-resources*)
-         (setf (gethash (uuid item-spec) *cached-resources*)
+      (or (get-ua-hash (uuid item-spec) *cached-resources*)
+         (setf (get-ua-hash (uuid item-spec) *cached-resources*)
                (make-instance 'solution)))
       (make-instance 'solution)))
 
@@ -467,10 +467,10 @@
   (:documentation "Clears the solution from the given specification
    accepts both an item-spec as well as a uuid")
   (:method ((item-spec item-spec))
-    (remhash (uuid item-spec) *cached-resources*)
+    (rem-ua-hash (uuid item-spec) *cached-resources*)
     (clear-uri-cache-for-uuid (uuid item-spec)))
   (:method ((uuid string))
-    (remhash uuid *cached-resources*)
+    (rem-ua-hash uuid *cached-resources*)
     (clear-uri-cache-for-uuid uuid)))
 
 (defun item-spec-to-jsown (item-spec)
