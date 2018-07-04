@@ -202,6 +202,126 @@
     store))
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; user aware hash-table
+;;
+;;
+;;  This table supporst similar functions as a regular hash-tables.
+;;  The naming becomes minimally different in order to differentiate
+;;  with regular hash functions.  We have added a ua- prefix to each
+;;  of the methods we currently support.  The logical idea behind
+;;  these methods should be the same as the original ones.
+;;
+;;  | NAME             | SUPPORTED? | NAME                       |
+;;  |------------------+------------+----------------------------|
+;;  | clrhash          | no         |                            |
+;;  | hash-table-p     | no         |                            |
+;;  | remhash          | yes        | rem-ua-hash                |
+;;  | gethash          | yes        | get-ua-hash                |
+;;  | make-hash-table  | yes        | make-user-aware-hash-table |
+;;  | sxhash           | no         |                            |
+;;  | hash-table-count | no         |                            |
+;;  | maphash          | no         |                            |
+
+
+(defclass user-aware-hash-table ()
+  ((hash-table :initarg :hash-table
+               :documentation "top-level hash-table.  This contains
+               the keys supplied by the user and will be populated by
+               child hash-tables to contain the contents based on the
+               current user's access rights."))
+  (:documentation "Table which behaves differently based on the
+  currently known mu-auth-allowed-groups and mu-auth-used-groups.
+
+  The goal is to provide a high-level interface which makes the
+  intended use of the hash-table clear, thereby pushing the logic of
+  setting and clearing content into this component, rather than in the
+  earlier logic."))
+
+(defparameter *user-aware-hash-table-default-options*
+  '(#-abcl :synchronized #-abcl t)
+  "Default options for the user-aware-hash-table's internal tables.
+  Sets synchronization to truethy when available in the
+  implementation.  We don't expect this to be user-configurable, yet
+  shadowing may come in handy at some point.")
+
+(defun make-user-aware-hash-table (&rest options &key test size rehash-size rehash-threshold &allow-other-keys)
+  "Constructs a new user-aware hash-table.
+   Equivalent of make-hash-table."
+  (declare (ignore test size rehash-size rehash-threshold)) ; only used for slime documentation
+  (let ((all-table-options (append options *user-aware-hash-table-default-options*)))
+    (make-instance 'user-aware-hash-table
+                   :hash-table (apply #'make-hash-table all-table-options))))
+
+(defun rem-ua-hash (key user-aware-hash-table)
+  "Equivalent of remhash.
+   Clears a value from the stored hash.  As we currently don't really
+   interpret the mu-allowed-groups and mu-auth-used-groups, we remove
+   the contents everywhere."
+  (with-slots (hash-table) user-aware-hash-table
+    (remhash key hash-table)))
+
+(defun get-user-allowed-groups ()
+  "Yields the allowed groups for the current user in the format
+   expected by the user-aware-hash-table."
+  (declare (special *user-allowed-groups*))
+  (if (boundp '*user-allowed-groups*)
+      *user-allowed-groups*
+      (let ((out-headers (hunchentoot:headers-out*))
+            (in-headers (hunchentoot:headers-in*)))
+        (let ((allowed-groups-out-header (assoc :mu-auth-allowed-groups out-headers))
+              (allowed-groups-in-header (assoc :mu-auth-allowed-groups in-headers)))
+          (cond
+            ;; if we received new mu-auth-allowed-groups from the database, return them
+            (allowed-groups-out-header (cdr allowed-groups-out-header))
+            ;; otherwise see if we have received the headers from the client
+            (allowed-groups-in-header (cdr allowed-groups-in-header))
+            ;; if nothing is available, yield nil as the key
+            (t nil))))))
+
+(defun get-ua-hash (key user-aware-hash-table &optional default)
+  "Equivalent of gethash."
+  ;; As we don't interpret the value yet, we simply have to check
+  ;; whether there's a hash within key we're looking for.  We don't
+  ;; parse the keys yet, greatly limiting the complexity of this
+  ;; method.
+  (let ((allowed-groups (get-user-allowed-groups)))
+    (with-slots (hash-table) user-aware-hash-table
+      (multiple-value-bind (nested-hash nested-hash-p)
+          (gethash key hash-table)
+        (if nested-hash-p
+            (gethash allowed-groups nested-hash default)
+            (values default nil))))))
+
+(defun (setf get-ua-hash) (value key user-aware-hash-table &optional default)
+  "Equivalent of (setf gethash)"
+  ;; When trying to set the value, we first have to see whether there
+  ;; is a hash-table available for our current groups.  If there is,
+  ;; we can use it, if there isn't, we first have to create it.
+  (let ((allowed-groups (get-user-allowed-groups)))
+    ;; TODO: this should become mu-auth-used-groups when that becomes
+    ;; supported by mu-authorization.
+
+    ;; TODO: if the table is synchronized, we should set up a lock for
+    ;; this operation.  as it stands, it may accidentally lose data.
+    ;; This is likely not the worst in a practical case, but it
+    ;; doesn't look nice.
+    (with-slots (hash-table) user-aware-hash-table
+      (multiple-value-bind (nested-hash nested-hash-p)
+          (gethash key hash-table)
+        (if nested-hash-p
+            ;; if there's a hash, we can just set the value
+            (setf (gethash allowed-groups nested-hash default) value)
+            ;; if there's no hash, we need to set up a new hash and
+            ;; configure that.
+            (let ((new-hash-table
+                   (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)))
+              (setf (gethash key hash-table)
+                    new-hash-table)
+              (setf (gethash allowed-groups new-hash-table default)
+                    value)))))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; count queries cache
 (defun make-count-cache-keys (link-spec)
