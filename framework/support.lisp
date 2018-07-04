@@ -411,7 +411,7 @@
 
 (defun cache-clear-class (resource)
   (clear-cached-count-queries resource)
-  (add-clear-key :ld-class (expanded-ld-class resource)))
+  (add-clear-key :ld-resource (expanded-ld-class resource)))
 
 (defun cache-clear-object (item-spec)
   (clear-solution item-spec)
@@ -422,7 +422,7 @@
                  :ld-relation (expanded-ld-relation relation))
   ;; for clearing of inverse relationships
   (dolist (inverse-relation (inverse-links relation))
-    (add-clear-key :ld-class (expanded-ld-class (getf inverse-relation :resource))
+    (add-clear-key :ld-resource (expanded-ld-class (getf inverse-relation :resource))
                    :ld-relation (expanded-ld-relation (getf inverse-relation :link)))))
 
 
