@@ -143,19 +143,19 @@
              :type (json-type (resource item-spec))))
     (jsown:filter (first result) "s" "value")))
 
-(defparameter *uuid-uri-cache* (make-hash-table :test #'equal #-abcl :synchronized #-abcl t)
+(defparameter *uuid-uri-cache* (make-user-aware-hash-table :test #'equal)
   "Cache which connects UUIDs to URIs.")
 
 (defun cached-uri-for-uuid (uuid)
   "Returns the cached uri for the supplied resource"
-  (gethash uuid *uuid-uri-cache*))
+  (get-ua-hash uuid *uuid-uri-cache*))
 
 (defun (setf cached-uri-for-uuid) (uri uuid)
-  (setf (gethash uuid *uuid-uri-cache*) uri))
+  (setf (get-ua-hash uuid *uuid-uri-cache*) uri))
 
 (defun clear-uri-cache-for-uuid (uuid)
   "Clears the URI cache for the supplied UUID"
-  (remhash uuid *uuid-uri-cache*))
+  (rem-ua-hash uuid *uuid-uri-cache*))
 
 (defun find-resource-for-uuid-through-cache-or-sparql (item-spec)
   "Retrieves the resource's URI from either the current cache, or
