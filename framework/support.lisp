@@ -333,7 +333,7 @@
   "Retrieves the amount of solutions from the cache"
   (let ((keys (make-count-cache-keys link-spec))
         (hash (query-count-cache resource)))
-    (let ((cached-result (gethash keys hash)))
+    (let ((cached-result (get-ua-hash keys hash)))
       (format t "Cache count for ~A ~A is ~A~%"
               (resource-name resource) keys
               cached-result)
@@ -347,7 +347,7 @@
     (format t "Setting cached count for ~A ~A to ~A~%"
             (resource-name resource) keys
             value)
-    (setf (gethash keys hash) value)))
+    (setf (get-ua-hash keys hash) value)))
 
 (defun sorted-filters ()
   (sort-filters-for-caching (extract-filters-from-request)))
@@ -362,8 +362,11 @@
                      (string-lessp (s x) (s y))))))))
 
 (defun clear-cached-count-queries (resource)
+  ;; TODO: this approach is overly aggressive.  If we understand the
+  ;; cache keys, we could keep the cache around for calls which could
+  ;; not be affected by the groups from which these calls appeared.
   (setf (query-count-cache resource)
-        (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)))
+        (make-user-aware-hash-table :test 'equal)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; relevant relations store

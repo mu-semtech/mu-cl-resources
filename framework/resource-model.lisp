@@ -36,7 +36,7 @@
    (name :initarg :resource-name :reader resource-name)
    (features :initarg :features :reader features)
    (authorization :initarg :authorization :reader authorization)
-   (query-count-cache :initform (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
+   (query-count-cache :initform (make-user-aware-hash-table :test 'equal)
                       :accessor query-count-cache)))
 
 (defparameter *resources* (make-hash-table)
