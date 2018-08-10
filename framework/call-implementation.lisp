@@ -900,22 +900,22 @@
                                            (*cache-store* . ,*cache-store*)
                                            (*included-items-store* . ,included-items-store)
                                            (hunchentoot:*request* . ,hunchentoot:*request*)
-                                           (hunchentoot:*reply* . ,hunchentoot:*reply*)))))
-
-    (let ((lparallel:*debug-tasks-p* nil))
-      (lparallel:pmap 'list
-                      (lambda (item)
-                        (let (linked-items)
-                          ;; fill in current path
-                          (setf linked-items
-                                (union linked-items
-                                       (include-items-for-single-included item (first included-spec))))
-                          ;; traverse included-spec path
-                          (when (rest included-spec)
-                            (include-items-for-included included-items-store linked-items
-                                                        (rest included-spec)))))
-                      item-specs))))
-
+                                           (hunchentoot:*reply* . ,hunchentoot:*reply*))))
+        (lparallel:*debug-tasks-p* nil))
+    (unwind-protect
+         (lparallel:pmap 'list
+                         (lambda (item)
+                           (let (linked-items)
+                             ;; fill in current path
+                             (setf linked-items
+                                   (union linked-items
+                                          (include-items-for-single-included item (first included-spec))))
+                             ;; traverse included-spec path
+                             (when (rest included-spec)
+                               (include-items-for-included included-items-store linked-items
+                                                           (rest included-spec)))))
+                         item-specs)
+      (lparallel:end-kernel))))
 
 (defun include-items-for-single-included (item-spec relation-string)
   (declare (special *included-items-store*))
@@ -944,6 +944,7 @@
     (dolist (item-spec related-objects)
       (cache-object item-spec))
     related-objects))
+
 
 (defun extract-included-from-request ()
   "Extracts the filters from the request.  The result is a list
