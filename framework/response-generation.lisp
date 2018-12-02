@@ -6,6 +6,12 @@
       (parse-integer entity :junk-allowed t)
     (error () nil)))
 
+(defun cache-count-queries-p (resource)
+  "Returns a truethy value iff the count queries should be cached for
+   resource."
+  (or *cache-count-queries-p*
+     (find 'cache-count-queries (features resource))))
+
 (defun count-matches (identifier-variable query-body resource link-spec)
   "Returns the amount of matches for a particular response."
   (flet ((sparql-count ()
@@ -14,7 +20,7 @@
                                                         identifier-variable)
                                                 query-body))
                           "count" "value"))))
-    (if *cache-count-queries-p*
+    (if (cache-count-queries-p resource)
         (or (count-cache resource link-spec)
            (setf (count-cache resource link-spec) (sparql-count)))
         (sparql-count))))
