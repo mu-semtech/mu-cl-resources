@@ -455,9 +455,15 @@
    The resources might not be complete yet, and can be finished.
    The keys are the UUIDs the vaue is the cached resource.")
 
+(defun cache-model-properties-p (item-spec)
+  "Yields a truethy result iff the model properties for the supplied
+   item-spec should be cached."
+  (or *cache-model-properties-p*
+     (find 'cache-model-properties (features (resource item-spec)))))
+
 (defun ensure-solution (item-spec)
   "Ensures a solution exists for <item-spec> and returns it."
-  (if *cache-model-properties-p*
+  (if (cache-model-properties-p item-spec)
       (or (get-ua-hash (uuid item-spec) *cached-resources*)
          (setf (get-ua-hash (uuid item-spec) *cached-resources*)
                (make-instance 'solution)))
