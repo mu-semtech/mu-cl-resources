@@ -219,10 +219,12 @@
         ((smart-filter-p ":exact:")
          (let ((new-components (append (butlast components)
                                        (list (subseq last-component (length ":exact:"))))))
-           (format nil "~A ~{~A~^/~} ~A. ~&"
-                   source-variable
-                   (property-path-for-filter-components resource new-components)
-                   (s-str search))))
+           (multiple-value-bind (property-path last-slot)
+               (property-path-for-filter-components resource new-components)
+             (format nil "~A ~{~A~^/~} ~A. ~&"
+                     source-variable
+                     property-path
+                     (interpret-json-value last-slot search)))))
         ;; comparison searches
         ((smart-filter-p ":gt:") (comparison-filter ":gt:" ">"))
         ((smart-filter-p ":lt:") (comparison-filter ":lt:" "<"))
