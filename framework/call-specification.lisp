@@ -378,3 +378,27 @@
                           ("title" (format nil "No resource found for supplied type (~A) and id (~A)"
                                            (target-type condition)
                                            (target-id condition)))))))))))
+
+(defcall :post (:.mu :delta)
+  ;; This call is positioned at the end of the stack, as calls at the
+  ;; end are checked first.  We need to ensure we run first-hand as
+  ;; other calls might overlap in future versions of the jsonapi spec.
+  (progn   (format t "~&Received call to .mu/delta~%")
+           (format t "~&Received delta :: >>~A<<~%" (post-body))
+
+           (let* ((raw-body (post-body))
+                  (body (jsown:parse raw-body)))
+             ;; our goal should be to clear everything that might be impacted
+             ;; by the changes here.  in the future we could intelligently
+             ;; merge.
+
+             ;; we can execute the cache clearing locally, read the
+             ;; cache_clear_keys from the header and push the necessary changes
+             ;; to the mu-cache.
+
+             (format t "~&Parsed body ~A~&" body)))
+
+             ;; (loop for diff in body
+             ;;    do
+             ;;      (loop for (union )))
+  "success")
