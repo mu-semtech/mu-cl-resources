@@ -197,6 +197,16 @@
   (error 'no-such-resource
          :description (format nil "Path: ~A" path)))
 
+(defun find-resource-by-class-uri (uri)
+  "finds a resource based on the supplied class uri"
+  (maphash (lambda (name resource)
+             (declare (ignore name))
+             (when (string= (expanded-ld-class resource) uri)
+               (return-from find-resource-by-class-uri resource)))
+           *resources*)
+  (error 'no-such-instance
+         :description (format nil "Uri: ~A" uri)))
+
 (defgeneric find-resource-link-by-path (resource path)
   (:documentation "Finds the link object corresponding to the specified
     resource and the specified path.")

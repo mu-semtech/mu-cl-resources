@@ -12,7 +12,8 @@
 (define-condition no-such-instance (error)
   ((type :initarg :type :reader target-type)
    (id :initarg :id :reader target-id)
-   (resource :initarg :resource :reader resource))
+   (resource :initarg :resource :reader resource)
+   (uri :initarg :uri :reader uri))
   (:documentation "Indicates the resource could not be found"))
 
 (define-condition no-such-link (error)

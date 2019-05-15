@@ -119,12 +119,11 @@
            append (list k v))
         (list* key new-value place))))
 
-
 ;;;;
 ;; item specs
 
 (defclass item-spec ()
-  ((uuid :accessor uuid :initarg :uuid)
+  ((uuid :initarg :uuid)
    (type :accessor resource-name :initarg :type)
    (related-items :accessor related-items-table
                   :initform (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)

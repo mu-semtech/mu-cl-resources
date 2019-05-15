@@ -13,6 +13,7 @@
                (:file "framework/callbacks")
                (:file "framework/error-codes")
                (:file "framework/support")
+               (:file "framework/caching")
                (:file "framework/query-execution")
                (:file "framework/query-parsing")
                (:file "framework/resource-model")

@@ -47,3 +47,8 @@
   configurable, as some triplestores seemingly don't handle this case
   correctly and return results which aren't correctly sorted.  Expect
   this option to be removed in the distant future.")
+
+(defparameter *cache-clear-path* (uiop:getenv "CACHE_CLEAR_PATH")
+  "when set, received delta's will be cleared on the supplied path.  a
+  POST update is sent to the given path with the clear-keys header
+  set.")

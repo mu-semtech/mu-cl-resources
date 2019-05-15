@@ -127,51 +127,6 @@
                                                          "data" "relationships" relation "data"))))
           (jsown:new-js ("data" (retrieve-item item-spec))))))))
 
-(defun find-resource-for-uuid-through-sparql (item-spec)
-  "retrieves the resource url through a sparql query.
-   @see: you probably want to use node-url instead."
-  (let ((result (sparql:select (s-var "s")
-                               (if *allow-xsd-in-uuids*
-                                   (format nil (s+ "?s mu:uuid ?uuid. "
-                                                   "FILTER(~A = str(?uuid))")
-                                           (s-str (uuid item-spec)))
-                                   (format nil "?s mu:uuid ~A. " (s-str (uuid item-spec)))))))
-    (unless result
-      (error 'no-such-instance
-             :resource (resource item-spec)
-             :id (uuid item-spec)
-             :type (json-type (resource item-spec))))
-    (jsown:filter (first result) "s" "value")))
-
-(defparameter *uuid-uri-cache* (make-user-aware-hash-table :test #'equal)
-  "Cache which connects UUIDs to URIs.")
-
-(defun cached-uri-for-uuid (uuid)
-  "Returns the cached uri for the supplied resource"
-  (get-ua-hash uuid *uuid-uri-cache*))
-
-(defun (setf cached-uri-for-uuid) (uri uuid)
-  (setf (get-ua-hash uuid *uuid-uri-cache*) uri))
-
-(defun clear-uri-cache-for-uuid (uuid)
-  "Clears the URI cache for the supplied UUID"
-  (rem-ua-hash uuid *uuid-uri-cache*))
-
-(defun find-resource-for-uuid-through-cache-or-sparql (item-spec)
-  "Retrieves the resource's URI from either the current cache, or
-   by querying the SPRAQL endpoint."
-  (or (cached-uri-for-uuid (uuid item-spec))
-      (let ((uri (find-resource-for-uuid-through-sparql item-spec)))
-        (setf (cached-uri-for-uuid (uuid item-spec)) uri)
-        uri)))
-
-(defgeneric node-url (item-spec)
-  (:documentation "yields the node url for the supplied item-spec")
-  (:method ((item-spec item-spec))
-    (if (slot-boundp item-spec 'node-url)
-        (slot-value item-spec 'node-url)
-        (setf (slot-value item-spec 'node-url)
-              (find-resource-for-uuid-through-cache-or-sparql item-spec)))))
 
 (defgeneric update-call (resource uuid)
   (:documentation "implementation of the PUT request which
@@ -449,35 +404,6 @@
                  (setf (solution-value solution json-var)
                        (from-sparql value (resource-type slot)))))
           solution)))))
-
-(defparameter *cached-resources* (make-user-aware-hash-table :test 'equal)
-  "Cache of solutions which were previously fetched or initialized.
-   The resources might not be complete yet, and can be finished.
-   The keys are the UUIDs the vaue is the cached resource.")
-
-(defun cache-model-properties-p (item-spec)
-  "Yields a truethy result iff the model properties for the supplied
-   item-spec should be cached."
-  (or *cache-model-properties-p*
-     (find 'cache-model-properties (features (resource item-spec)))))
-
-(defun ensure-solution (item-spec)
-  "Ensures a solution exists for <item-spec> and returns it."
-  (if (cache-model-properties-p item-spec)
-      (or (get-ua-hash (uuid item-spec) *cached-resources*)
-         (setf (get-ua-hash (uuid item-spec) *cached-resources*)
-               (make-instance 'solution)))
-      (make-instance 'solution)))
-
-(defgeneric clear-solution (spec)
-  (:documentation "Clears the solution from the given specification
-   accepts both an item-spec as well as a uuid")
-  (:method ((item-spec item-spec))
-    (rem-ua-hash (uuid item-spec) *cached-resources*)
-    (clear-uri-cache-for-uuid (uuid item-spec)))
-  (:method ((uuid string))
-    (rem-ua-hash uuid *cached-resources*)
-    (clear-uri-cache-for-uuid uuid)))
 
 (defun item-spec-to-jsown (item-spec)
   "Returns the jsown representation of the attributes and
@@ -867,6 +793,56 @@
                       `(,(s-url source-url) ,@properties ,(s-url resource)))))))
           (respond-no-content))))))
 
+(defgeneric delta-call (body)
+  (:documentation "Performs removal of data based on the received
+    delta messages.")
+  (:method (body)
+    ;; TODO consume and progress MU_AUTH_ALLOWED_GROUPS.  This could
+    ;; be done automatically with the right changes in the DELTA
+    ;; service.
+    (let ((triples (loop for diff in body
+                      append (union (jsown:val diff "inserts")
+                                    (jsown:val diff "deletes")))))
+      (with-cache-store
+        (loop for triple in triples
+           for subject = (jsown:filter triple "subject" "value")
+           for predicate = (jsown:filter triple "predicate" "value")
+           for object = (jsown:filter triple "object" "value")
+           for subject-item-spec = (make-item-spec :node-url subject)
+           for object-is-uri = (string= (jsown:filter triple "object" "type") "uri")
+           for subject-classes = (find-classes-for-uri subject)
+           for object-classes = (and object-is-uri (find-classes-for-uri object))
+           do
+             (cache-clear-object subject-item-spec)
+             (when object-is-uri
+               ;; TODO use abstractions for clearing keys
+               (add-clear-key :uri subject
+                              :ld-relation predicate)
+               ;; I think inverse relations are covered in the way they are stored
+               ;; (add-clear-key :uri object
+               ;;                :ld-relation predicate)
+               )
+             (format t "~&Subject classes are ~A and object-classes are ~A~%" subject-classes object-classes)
+             (dolist (class (union subject-classes object-classes))
+               ;; TODO use abstractions for clearing keys
+               (add-clear-key :ld-resource (s-url class)))))
+      (format t "~&All response headers ~A~%" (hunchentoot:headers-out*))
+      (let ((out-headers (cdr (assoc :clear-keys (hunchentoot:headers-out*)))))
+        (format t "~&Sending clear keys: ~A~%" out-headers)
+        (when (and *cache-clear-path* out-headers)
+          (drakma:http-request *cache-clear-path*
+                               :method :post
+                               :additional-headers `(("clear-keys" . ,out-headers))))))))
+
+(defun find-classes-for-uri (uri)
+  "Finds all classes for a given uri"
+  ;; TODO: this should be cached
+  (jsown:filter
+   (sparql:select (s-distinct (s-var "target"))
+                  (format nil "~A a ?target."
+                          (s-url uri)))
+   map "target" "value"))
+
 
 ;;;;
 ;; support for 'included'
@@ -905,6 +881,7 @@
                                            (*resources* . ,*resources*)
                                            (*cache-store* . ,*cache-store*)
                                            (*included-items-store* . ,included-items-store)
+                                           (hunchentoot:*catch-errors-p* . ,hunchentoot:*catch-errors-p*)
                                            (hunchentoot:*request* . ,hunchentoot:*request*)
                                            (hunchentoot:*reply* . ,hunchentoot:*reply*))))
         (lparallel:*debug-tasks-p* nil))
