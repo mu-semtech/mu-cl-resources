@@ -444,7 +444,7 @@ Caching requests is more complex for a JSONAPI than for a web page.  A single up
 
 In order to enable the external cache, you have to set the `*supply-cache-headers-p*` parameter to `t` in your `domain.lisp`.
 
-    (defparameter *supply-cache-headers* t)
+    (defparameter *supply-cache-headers-p* t)
 
 Note: mu-cl-resources speaks the protocol of this cache, but does not update the cache yet when external resources update the semantic model.
 
