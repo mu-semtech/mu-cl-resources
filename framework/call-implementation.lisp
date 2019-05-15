@@ -808,25 +808,41 @@
            for subject = (jsown:filter triple "subject" "value")
            for predicate = (jsown:filter triple "predicate" "value")
            for object = (jsown:filter triple "object" "value")
-           for subject-item-spec = (make-item-spec :node-url subject)
-           for object-is-uri = (string= (jsown:filter triple "object" "type") "uri")
            for subject-classes = (find-classes-for-uri subject)
-           for object-classes = (and object-is-uri (find-classes-for-uri object))
+           for resources =
+             (remove-if-not
+              #'identity
+              (mapcar (lambda (subject-class)
+                        (handler-case
+                            (find-resource-by-class-uri subject-class)
+                          (no-such-instance (err)
+                            (declare (ignore err))
+                            nil)))
+                      subject-classes))
+           for subject-item-specs =
+             (mapcar (lambda (resource)
+                       (make-item-spec :node-url subject
+                                       :type (resource-name resource)))
+                     resources)
+           for object-is-uri = (string= (jsown:filter triple "object" "type") "uri")
+           for subject-resources = (mapcar #'find-resource-by-class-uri subject-classes)
            do
-             (cache-clear-object subject-item-spec)
+             (dolist (subject-item-spec subject-item-specs)
+               (cache-clear-object subject-item-spec))
              (when object-is-uri
-               ;; TODO use abstractions for clearing keys
-               (add-clear-key :uri subject
-                              :ld-relation predicate)
-               ;; I think inverse relations are covered in the way they are stored
-               ;; (add-clear-key :uri object
-               ;;                :ld-relation predicate)
-               )
-             (format t "~&Subject classes are ~A and object-classes are ~A~%" subject-classes object-classes)
-             (dolist (class (union subject-classes object-classes))
-               ;; TODO use abstractions for clearing keys
-               (add-clear-key :ld-resource (s-url class)))))
-      (format t "~&All response headers ~A~%" (hunchentoot:headers-out*))
+               (loop
+                  for subject-item-spec in subject-item-specs
+                  for resource in resources
+                  for relation = (handler-case (find-resource-link-by-ld-link resource predicate)
+                                   (no-such-instance (err)
+                                     (declare (ignore err))
+                                     nil))
+                  if relation
+                  do
+                    (cache-clear-relation subject-item-spec relation)))
+             (dolist (resource resources)
+               (cache-clear-class resource))))
+      ;; (format t "~&All response headers ~A~%" (hunchentoot:headers-out*))
       (let ((out-headers (cdr (assoc :clear-keys (hunchentoot:headers-out*)))))
         (format t "~&Sending clear keys: ~A~%" out-headers)
         (when (and *cache-clear-path* out-headers)

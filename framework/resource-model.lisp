@@ -187,6 +187,11 @@
                                     (resource-name link) (resource-name link))))
       resource)))
 
+(defgeneric expanded-ld-link (link)
+  (:documentation "Expanded version of the ld-link of the has-link")
+  (:method ((link has-link))
+    (full-uri (ld-link link))))
+
 (defun find-resource-by-path (path)
   "finds a resource based on the supplied request path"
   (maphash (lambda (name resource)
@@ -218,6 +223,18 @@
         (error 'no-such-link
                :resource resource
                :path path))
+      link)))
+
+(defgeneric find-resource-link-by-ld-link (resource ld-link)
+  (:documentation "Finds the link object corresponding to the specified
+    resource and the specified ld-link value.")
+  (:method ((resource resource) ld-link)
+    (let ((link (find ld-link (all-links resource)
+                      :test (lambda (ld-link link)
+                              (string= ld-link (expanded-ld-link link))))))
+      (unless link
+        (error 'no-such-link
+               :resource resource))
       link)))
 
 (defgeneric find-resource-link-by-json-key (resource json-key)
