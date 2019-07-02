@@ -487,7 +487,52 @@ One example is the mu-application-generator which scaffolds an resource editing 
 
 ### Configuration parameters
 
-There are a wider set of configuration parameters which allow you to configure mu-cl-resources to your liking.  Including enabling experimental features.  These are not documented for now.  Many can be found in the release notes.
+There are a wider set of configuration parameters which allow you to configure mu-cl-resources to your liking.  Including enabling experimental features.  Many of these are currently not documented, most can be found in the release notes.  Following is a set of the configuration options.
+
+You con configure an option by calling `(setf property-name value)` after the `in-package` statement of your domain.lisp.  Eg:
+
+    (in-package :mu-cl-resources)
+
+    (setf *verify-content-type-header* nil)
+    (setf *verify-accept-header* nil)
+
+
+#### Content and accept types
+
+The content-type and accept type should be validated as per jsonapi.org specification.  Due to historic reasons, the ACCEPT type is not checked by default, whereas the CONTENT-TYPE is checked on update/create requests.  Following parameters allow for configuration.
+
+- *`*verify-accept-header*`* _[default: nil]_ Validation on the ACCEPT header to contain application/vndi+json.
+- *`*verify-content-type-header*`* _[default: t]_ Validation on the CONTENT-TYPE header to contain application/vndi+json.
+
+#### Logging
+
+mu-cl-resources logs all queries by default.  You can configure which queries should be logged by setting the `sparql:*query-log-types*` provided by the cl-fuseki library.  The parameter should be an array with (some of) the following keywords or `nil` for no logging.
+
+- *`:update`* Logging of update queries
+- *`:query`* Logging of retrieval queries
+- *`:ask`* Logging of queries indicated to be ASK queries explicitly
+- *`:update-group`* Logging of queries in case update queries are requested to be executed in a postpone fashion (see cl-fuseki)
+- *`:default`* Logging of queries which are not explicitly typed (could be any of the above)
+
+An example configuration to only log known update queries and known ask queries would be:
+
+    `(defparameter *sparql:*query-log-types* '(:update :ask))`
+
+#### Pagination
+
+Pagination is described separately above.  Not that included resources are never paginated.  Both the default page size, as well as the amount of available results can be returned.
+
+- *`*default-page-size*`* _[default: 20]_ Sets the default page size.
+- *`*include-count-in-paginated-responses*`* _[default: nil]_ Adds the amount of available results in the meta object of the response.
+
+#### Caching
+
+See the separate section on caching.  Following properties can be configured:
+
+- *`*supply-cache-headers-p*`* _[default: nil]_ Supply cache-headers in responses for the mu-cache if set to t.
+- *`*cache-model-properties-p*`* _[default: nil]_ Cache model properties internally for all models if set to t.
+- *`*cache-count-queries-p*` * _[default: nil]_ Cache result of count queries internally if set to t.
+- *`*cache-clear-path*`* _[default: nil]_ If set and deltas are received, cache clear keys will be sent to this endpoint.
 
 ### Separate domain.lisp files
 
