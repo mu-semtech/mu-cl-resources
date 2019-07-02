@@ -7,6 +7,8 @@
   "when non-nil, json variable names should be camelcased, rather than dasherized.")
 (defparameter *verify-accept-header* nil
   "when non-nil, the application/vndi+json ACCEPT header is checked.")
+(defparameter *verify-content-type-header* t
+  "when non-nil, the application/vndi+json CONTENT-TYPE header is checked.")
 
 (defparameter sparql:*application-graph*
   (s-url (or (uiop:getenv "MU_APPLICATION_GRAPH")

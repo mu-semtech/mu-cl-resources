@@ -137,8 +137,9 @@
    application/vnd.api+json Accept header."
   ;; NOTE: I'm not convinced that the server is required to check this
   ;;       this constraint.  It is not explicited in the spec.
-  (unless (search "application/vnd.api+json"
-                  (webserver:header-in* :content-type))
+  (unless (or (not *verify-content-type-header*)
+             (search "application/vnd.api+json"
+                     (webserver:header-in* :content-type)))
     (error 'incorrect-content-type
            :description "application/vnd.api+json not found in Content-Type header")))
 
