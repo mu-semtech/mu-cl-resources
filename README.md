@@ -438,16 +438,6 @@ Efficient caching is a complex story.  mu-cl-resources ships with support for tw
 
 Both of these caches are subject to change in their implementation, but the end-user API should stay the same.
 
-### External cache
-
-Caching requests is more complex for a JSONAPI than for a web page.  A single update may invalidate a wide range of pages, but it should not invalidate too many pages.  As such, we've written a separate cache for JSONAPI-like bodies.  Find it at [mu-semtech/mu-cache](https://github.com/mu-semtech/mu-cache).
-
-In order to enable the external cache, you have to set the `*supply-cache-headers-p*` parameter to `t` in your `domain.lisp`.
-
-    (defparameter *supply-cache-headers-p* t)
-
-Note: mu-cl-resources speaks the protocol of this cache, but does not update the cache yet when external resources update the semantic model.
-
 ### Internal cache
 
 In order to opt in to the internal model caching, set `*cache-model-properties*` to `t`.  Note that this currently assumes mu-cl-resources is the only service altering the resources.
@@ -457,6 +447,88 @@ In order to opt in to the internal model caching, set `*cache-model-properties*`
 Separate from this, you can choose to also cache the count queries.  On very large datasets, counting the amount of results may become expensive.  Set the `*cache-count-queries*` parameter to `t` for this.
 
     (defparameter *cache-count-queries* t)
+
+Note: mu-cl-resources does not clear its internal caches when external services update the semantic model without wiring.  See below for wiring the delta-notifier.
+
+### External cache
+
+Caching requests is more complex for a JSONAPI than for a web page.  A single update may invalidate a wide range of pages, but it should not invalidate too many pages.  As such, we've written a separate cache for JSONAPI-like bodies.  Find it at [mu-semtech/mu-cache](https://github.com/mu-semtech/mu-cache).
+
+In order to enable the external cache, you have to set the `*supply-cache-headers-p*` parameter to `t` in your `domain.lisp`.
+
+    (defparameter *supply-cache-headers-p* t)
+
+Note: mu-cl-resources speaks the protocol of this cache, but does not update the cache when external resources update the semantic model without see below for wiring the delta-notifier.
+
+### Cache clearing with delta-notifier
+
+mu-cl-resources has multiple levels of caching and can update these when it updates the model in the database.  when external services update the semantic model, mu-cl-resources needs to be informed about these changes so it can correctly clear the caches it maintains.
+
+In order for cache clearing to work, delta's need to be received.  This requires setting up mu-authorization and delta-notifier to receive the delta's.  mu-authorization needs to be configured so it sends raw delta messages to the delta-notifier.  The delta-notifier needs to be configured so it forwards the correct format to mu-cl-resources.  mu-cl-resources needs to be wired to the mu-cache so it can clear those caches when changes arrive.
+
+#### Configuring mu-authorization and wiring to delta-notifier
+
+mu-authorization handles security for most calls in your backend and creates delta messages for all updated triples.  See the [mu-semtech/mu-authorization readme](https://github.com/mu-semtech/mu-authorization) for information on how to set up this security layer.
+
+The delta-notifier can send messages to various entities to update their internal caches.  See [mu-semtech/delta-notifier readme](https://github.com/mu-semtech/delta-notifier) for more information on how to add the delta-notifier to your stack.
+
+
+#### Wiring the delta-notifier, mu-cache, and mu-cl-resources
+
+In the following setup we assume a few names.  `resource` is the name for the mu-cl-resources component, `resourcecache` is the name for the mu-cl-resources cache.  Update the examples so they match your use-case.
+
+All services need to be booted up, and we need to ensure we have the naming right for our further wiring.
+
+Update the `docker-compose.yml` so the wiring contains the following (we only discuss the pieces relevant for our setup):
+
+``` yaml
+  services:
+    resourcebackend:
+      image: semtech/mu-cl-resources:1.18.0
+      environment:
+        CACHE_CLEAR_PATH: "http://resourcecache/.mu/clear-keys"
+    resourcecache:
+      image: semtech/mu-cache
+      links:
+        - resourcebackend:backend
+    deltanotifier:
+      image: semtech/mu-delta-notifier
+      volumes:
+          - ./config/delta:/config
+```
+
+The delta-notifier has to inform resources about all changes which did not originate from mu-cl-resources.  Version 1.18.0 experts resource format v0.0.1.
+
+Ensure the `./config/delta/rules.js` contains at least the following rule (you can add rules to the top-level array):
+
+``` javascript
+  export default [
+    {
+      match: {
+        subject: { }
+      },
+      callback: {
+        url: "http://resourcebackend/update",
+        method: "POST"
+      },
+      options: {
+        resourceFormat: "v0.0.1",
+        gracePeriod: 250,
+        ignoreFromSelf: true
+      }
+    }
+  ];
+```
+
+To ensure mu-cl-resources sends its updates back to the resourcecache, it needs to have the `CACHE_CLEAR_PATH` environment variable set, as in the example docker-compose.yml above.
+
+``` yaml
+  services:
+    resourcebackend:
+      image: semtech/mu-cl-resources:1.18.0
+      environment:
+        CACHE_CLEAR_PATH: "http://resourcecache/.mu/clear-keys"
+```
 
 ## Features to be documented
 
