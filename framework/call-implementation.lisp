@@ -797,9 +797,12 @@
   (:documentation "Performs removal of data based on the received
     delta messages.")
   (:method (body)
-    ;; TODO consume and progress MU_AUTH_ALLOWED_GROUPS.  This could
+    ;; TODO: consume and progress MU_AUTH_ALLOWED_GROUPS.  This could
     ;; be done automatically with the right changes in the DELTA
     ;; service.
+    ;;
+    ;; TODO: cope with MU_AUTH_SUDO specified through delta-service or
+    ;; by corresponding sudo setting in MU_AUTH_ALLOWED_GROUPS.
     (let ((triples (loop for diff in body
                       append (union (jsown:val diff "inserts")
                                     (jsown:val diff "deletes")))))
