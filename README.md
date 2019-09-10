@@ -475,7 +475,7 @@ The delta-notifier can send messages to various entities to update their interna
 
 #### Wiring the delta-notifier, mu-cache, and mu-cl-resources
 
-In the following setup we assume a few names.  `resource` is the name for the mu-cl-resources component, `resourcecache` is the name for the mu-cl-resources cache.  Update the examples so they match your use-case.
+In the following setup we assume a few names.  `resourcebackend` is the name for the mu-cl-resources component, `resourcecache` is the name for the mu-cl-resources cache.  Update the examples so they match your use-case.
 
 All services need to be booted up, and we need to ensure we have the naming right for our further wiring.
 
