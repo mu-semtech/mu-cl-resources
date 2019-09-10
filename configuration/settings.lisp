@@ -54,3 +54,7 @@
   "when set, received delta's will be cleared on the supplied path.  a
   POST update is sent to the given path with the clear-keys header
   set.")
+
+(defparameter *log-delta-clear-keys* nil
+  "when non-nil, the clear-keys sent to the cache based on received
+  delta messages will be logged in the console.")

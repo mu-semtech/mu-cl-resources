@@ -578,6 +578,10 @@ The content-type and accept type should be validated as per jsonapi.org specific
 
 #### Logging
 
+mu-cl-resources can log queries and delta messages which should be cleared by the cache.
+
+##### Queries
+
 mu-cl-resources logs all queries by default.  You can configure which queries should be logged by setting the `sparql:*query-log-types*` provided by the cl-fuseki library.  The parameter should be an array with (some of) the following keywords or `nil` for no logging.
 
 - *`:update`* Logging of update queries
@@ -589,6 +593,13 @@ mu-cl-resources logs all queries by default.  You can configure which queries sh
 An example configuration to only log known update queries and known ask queries would be:
 
     `(defparameter *sparql:*query-log-types* '(:update :ask))`
+
+##### Delta-based cache clearing
+
+The cache of the delta service can be cleared by wiring the delta-notifier to mu-cl-resources.  mu-cl-resources will only clear the me-cache if cache-keys are being sent.  The clear-keys which mu-cl-resources sends to the mu-cache on delta messages can be configured by setting the `*log-delta-clear-keys*` to a non-nil value.
+
+     (setf *log-delta-clear-keys* t)
+
 
 #### Pagination
 
