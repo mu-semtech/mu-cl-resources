@@ -849,9 +849,9 @@
              (dolist (resource subject-resources)
                (cache-clear-class resource))))
       (let ((out-headers (cdr (assoc :clear-keys (hunchentoot:headers-out*)))))
-        (when *log-delta-clear-keys*
-          (format t "~&Sending clear keys: ~A~%" out-headers))
         (when (and *cache-clear-path* out-headers)
+          (when *log-delta-clear-keys*
+            (format t "~&Sending clear keys: ~A~%" out-headers))
           (drakma:http-request *cache-clear-path*
                                :method :post
                                :additional-headers `(("clear-keys" . ,out-headers))))))))
