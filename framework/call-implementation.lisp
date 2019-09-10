@@ -812,7 +812,7 @@
            for predicate = (jsown:filter triple "predicate" "value")
            for object = (jsown:filter triple "object" "value")
            for subject-classes = (find-classes-for-uri subject)
-           for resources =
+           for subject-resources =
              (remove-if-not
               #'identity
               (mapcar (lambda (subject-class)
@@ -826,26 +826,28 @@
              (mapcar (lambda (resource)
                        (make-item-spec :node-url subject
                                        :type (resource-name resource)))
-                     resources)
+                     subject-resources)
            for object-is-uri = (string= (jsown:filter triple "object" "type") "uri")
-           for subject-resources = (mapcar #'find-resource-by-class-uri subject-classes)
            do
              (dolist (subject-item-spec subject-item-specs)
                (cache-clear-object subject-item-spec))
              (when object-is-uri
                (loop
                   for subject-item-spec in subject-item-specs
-                  for resource in resources
+                  for resource in subject-resources
                   for relation = (handler-case (find-resource-link-by-ld-link resource predicate)
+                                   (no-such-link (err)
+                                     (declare (ignore err))
+                                     nil)
                                    (no-such-instance (err)
                                      (declare (ignore err))
+                                     (format t "PLEASE INFORM AT madnificent@gmail.com THAT \"CASE E11 HAS OCCURRED\"")
                                      nil))
                   if relation
                   do
                     (cache-clear-relation subject-item-spec relation)))
-             (dolist (resource resources)
+             (dolist (resource subject-resources)
                (cache-clear-class resource))))
-      ;; (format t "~&All response headers ~A~%" (hunchentoot:headers-out*))
       (let ((out-headers (cdr (assoc :clear-keys (hunchentoot:headers-out*)))))
         (format t "~&Sending clear keys: ~A~%" out-headers)
         (when (and *cache-clear-path* out-headers)
