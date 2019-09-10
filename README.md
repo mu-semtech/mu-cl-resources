@@ -508,7 +508,7 @@ Ensure the `./config/delta/rules.js` contains at least the following rule (you c
         subject: { }
       },
       callback: {
-        url: "http://resourcebackend/update",
+        url: "http://resourcebackend/.mu/delta",
         method: "POST"
       },
       options: {
