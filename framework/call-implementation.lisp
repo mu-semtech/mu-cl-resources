@@ -807,47 +807,48 @@
                       append (union (jsown:val diff "inserts")
                                     (jsown:val diff "deletes")))))
       (with-cache-store
-        (loop for triple in triples
-           for subject = (jsown:filter triple "subject" "value")
-           for predicate = (jsown:filter triple "predicate" "value")
-           for object = (jsown:filter triple "object" "value")
-           for subject-classes = (find-classes-for-uri subject)
-           for subject-resources =
-             (remove-if-not
-              #'identity
-              (mapcar (lambda (subject-class)
-                        (handler-case
-                            (find-resource-by-class-uri subject-class)
-                          (no-such-instance (err)
-                            (declare (ignore err))
-                            nil)))
-                      subject-classes))
-           for subject-item-specs =
-             (mapcar (lambda (resource)
-                       (make-item-spec :node-url subject
-                                       :type (resource-name resource)))
-                     subject-resources)
-           for object-is-uri = (string= (jsown:filter triple "object" "type") "uri")
-           do
-             (dolist (subject-item-spec subject-item-specs)
-               (cache-clear-object subject-item-spec))
-             (when object-is-uri
-               (loop
-                  for subject-item-spec in subject-item-specs
-                  for resource in subject-resources
-                  for relation = (handler-case (find-resource-link-by-ld-link resource predicate)
-                                   (no-such-link (err)
-                                     (declare (ignore err))
-                                     nil)
-                                   (no-such-instance (err)
-                                     (declare (ignore err))
-                                     (format t "PLEASE INFORM AT madnificent@gmail.com THAT \"CASE E11 HAS OCCURRED\"")
-                                     nil))
-                  if relation
-                  do
-                    (cache-clear-relation subject-item-spec relation)))
-             (dolist (resource subject-resources)
-               (cache-clear-class resource))))
+        (with-request-uri-cache
+          (loop for triple in triples
+             for subject = (jsown:filter triple "subject" "value")
+             for predicate = (jsown:filter triple "predicate" "value")
+             for object = (jsown:filter triple "object" "value")
+             for subject-classes = (find-classes-for-uri subject)
+             for subject-resources =
+               (remove-if-not
+                #'identity
+                (mapcar (lambda (subject-class)
+                          (handler-case
+                              (find-resource-by-class-uri subject-class)
+                            (no-such-instance (err)
+                              (declare (ignore err))
+                              nil)))
+                        subject-classes))
+             for subject-item-specs =
+               (mapcar (lambda (resource)
+                         (make-item-spec :node-url subject
+                                         :type (resource-name resource)))
+                       subject-resources)
+             for object-is-uri = (string= (jsown:filter triple "object" "type") "uri")
+             do
+               (dolist (subject-item-spec subject-item-specs)
+                 (cache-clear-object subject-item-spec))
+               (when object-is-uri
+                 (loop
+                    for subject-item-spec in subject-item-specs
+                    for resource in subject-resources
+                    for relation = (handler-case (find-resource-link-by-ld-link resource predicate)
+                                     (no-such-link (err)
+                                       (declare (ignore err))
+                                       nil)
+                                     (no-such-instance (err)
+                                       (declare (ignore err))
+                                       (format t "PLEASE INFORM AT madnificent@gmail.com THAT \"CASE E11 HAS OCCURRED\"")
+                                       nil))
+                    if relation
+                    do
+                      (cache-clear-relation subject-item-spec relation)))
+               (dolist (resource subject-resources)
+                 (cache-clear-class resource)))))
       (let ((out-headers (cdr (assoc :clear-keys (hunchentoot:headers-out*)))))
         (when (and *cache-clear-path* out-headers)
           (when *log-delta-clear-keys*
@@ -857,15 +858,6 @@
                                :additional-headers `(("clear-keys" . ,out-headers)))))
       (setf (hunchentoot:header-out :clear-keys) "null")
       (jsown:new-js ("message" "processed delta")))))
-
-(defun find-classes-for-uri (uri)
-  "Finds all classes for a given uri"
-  ;; TODO: this should be cached
-  (jsown:filter
-   (sparql:select (s-distinct (s-var "target"))
-                  (format nil "~A a ?target."
-                          (s-url uri)))
-   map "target" "value"))
 
 
 ;;;;

@@ -130,3 +130,32 @@
   (:method ((uuid string))
     (rem-ua-hash uuid *cached-resources*)
     (clear-uri-cache-for-uuid uuid)))
+
+
+;; Cache for classes belonging to URI, currently scoped to a single
+;; request and used by .mu/delta.
+(defmacro with-request-uri-cache (&body body)
+  "Executes body with a cache for find-classes-for-uri"
+  `(let ((*request-uri-cache* (make-hash-table :test 'equal)))
+     (declare (special *request-uri-cache*))
+     ,@body body))
+
+(defun find-classes-for-uri (uri)
+  "Finds all classes for a given uri"
+  ;; TODO: this should be cached
+  (declare (special *request-uri-cache*))
+  (flet ((find-uri-classes-from-db (uri)
+           (jsown:filter
+            (sparql:select (s-distinct (s-var "target"))
+                           (format nil "~A a ?target."
+                                   (s-url uri)))
+            map "target" "value")))
+    (if *request-uri-cache*
+        (multiple-value-bind (value present-p)
+            (gethash (princ-to-string (s-url uri)) *request-uri-cache*)
+          (if present-p
+              value
+              (setf (gethash (princ-to-string (s-url uri)) *request-uri-cache*)
+                    (find-uri-classes-from-db uri))))
+        (find-uri-classes-from-db uri))))
+
