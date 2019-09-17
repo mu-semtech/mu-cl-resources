@@ -54,9 +54,14 @@
   "Executes a SPARQL SELECT query on the current graph.
    Takes with-query-group into account."
   (declare (ignore order-by limit offset group-by))
-  (query
-   (s-select variables args
-             (s-graph *application-graph* body))))
+  (if (and *experimental-no-application-graph-for-sudo-select-queries*
+         (string= (string-downcase (hunchentoot:header-in* :mu-auth-allowed-groups))
+                  "sudo"))
+      (query
+       (s-select variables args body))
+      (query
+       (s-select variables args
+                 (s-graph *application-graph* body)))))
 
 (defun insert (body)
   "Executes a SPARQL INSERT DATA query on the current graph.

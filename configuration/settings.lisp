@@ -58,3 +58,7 @@
 (defparameter *log-delta-clear-keys* nil
   "when non-nil, the clear-keys sent to the cache based on received
   delta messages will be logged in the console.")
+
+(defparameter *experimental-no-application-graph-for-sudo-select-queries*
+  "when non-nil no application graph will be set when sending out sudo
+  queries, thus resulting in queries across the full database.")
