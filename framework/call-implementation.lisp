@@ -854,7 +854,9 @@
             (format t "~&Sending clear keys: ~A~%" out-headers))
           (drakma:http-request *cache-clear-path*
                                :method :post
-                               :additional-headers `(("clear-keys" . ,out-headers))))))))
+                               :additional-headers `(("clear-keys" . ,out-headers)))))
+      (setf (hunchentoot:header-out :clear-keys) "null")
+      (jsown:new-js ("message" "processed delta")))))
 
 (defun find-classes-for-uri (uri)
   "Finds all classes for a given uri"
