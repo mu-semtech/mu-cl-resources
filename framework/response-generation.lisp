@@ -246,6 +246,15 @@
                    source-variable
                    (butlast (property-path-for-filter-components resource new-components))
                    (s-genvar "anything"))))
+        ((smart-filter-p ":not:")
+         (let ((new-components (append (butlast components)
+                                       (list (subseq last-component (length ":not:"))))))
+           (multiple-value-bind (property-path last-slot)
+               (property-path-for-filter-components resource new-components)
+             (format nil "FILTER( NOT EXISTS { ~A ~{~A~^/~} ~A. } )"
+                     source-variable
+                     property-path
+                     (interpret-json-value last-slot search)))))
         ;; standard semi-fuzzy search
         (t
          (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
