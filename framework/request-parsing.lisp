@@ -50,6 +50,19 @@
   (:method ((slot resource-slot) (type (eql :boolean)) value)
     (s-from-json value)))
 
+(defgeneric interpret-json-string (slot string)
+  (:documentation "Interprets a string as if it contained content
+   placed in a json object, with respect to the given slot.  This means
+   slots for which the content would be parsed in json will be parsed,
+   whereas others will be treated as strings, and shifted through
+   interpret-json-value.")
+  (:method ((slot resource-slot) value)
+    (let ((interpreted-value
+           (if (find (resource-type slot) '(:number :string-set :uri-set :language-string :language-string-set :boolean))
+               (jsown:parse value)
+               value)))
+      (interpret-json-value slot interpreted-value))))
+
 (defun respond-no-content ()
   "Returns a 204 No Content response."
   (setf (webserver:return-code*) webserver:+http-no-content+)

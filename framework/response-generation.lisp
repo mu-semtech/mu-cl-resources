@@ -183,7 +183,7 @@
                          search-var
                          search-var
                          comparator
-                         (interpret-json-value last-slot search))))))
+                         (interpret-json-string last-slot search))))))
       (cond
         ;; search for multiple ids
         ((and (or (deprecated (:silent "Use [:id:] instead.")
@@ -224,7 +224,7 @@
              (format nil "~A ~{~A~^/~} ~A. ~&"
                      source-variable
                      property-path
-                     (interpret-json-value last-slot search)))))
+                     (interpret-json-string last-slot search)))))
         ;; comparison searches
         ((smart-filter-p ":gt:") (comparison-filter ":gt:" ">"))
         ((smart-filter-p ":lt:") (comparison-filter ":lt:" "<"))
@@ -246,6 +246,7 @@
                    source-variable
                    (butlast (property-path-for-filter-components resource new-components))
                    (s-genvar "anything"))))
+        ;; not
         ((smart-filter-p ":not:")
          (let ((new-components (append (butlast components)
                                        (list (subseq last-component (length ":not:"))))))
@@ -254,7 +255,7 @@
              (format nil "FILTER( NOT EXISTS { ~A ~{~A~^/~} ~A. } )"
                      source-variable
                      property-path
-                     (interpret-json-value last-slot search)))))
+                     (interpret-json-string last-slot search)))))
         ;; standard semi-fuzzy search
         (t
          (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
