@@ -45,14 +45,14 @@
       (t (error "Don't know version ~A of domain" version)))))
 
 (defun import-jsown-domain-resource (resource-name resource-description)
-  (let ((properties (jsown:val resource-description "properties"))
-        (relationships (map-jsown-object (jsown:val resource-description "relationships")
+  (let ((properties (jsown:val-safe resource-description "properties"))
+        (relationships (map-jsown-object (jsown:val-safe resource-description "relationships")
                                          #'import-jsown-domain-relationship))
         (path (jsown:val resource-description "path"))
         (class (jsown:val resource-description "class"))
         (resource-base (jsown:val resource-description "newResourceBase"))
         (features (mapcar (lambda (feature)
-                            (intern (string-upcase (jsown:val jsown-relationship "resource"))))
+                            (intern (string-upcase feature)))
                           (jsown:val-safe resource-description "features"))))
     (make-instance 'resource
                    :resource-name (intern (string-upcase resource-name))
@@ -76,12 +76,12 @@
    \"value\"."
   (if (stringp value)
       (parse-simple-uri-reference value)
-      (cond ((string= (jsown:val value "type") "prefix")
+      (cond ((string= (jsown:val-safe value "type") "prefix")
              (s-prefix value))
-            ((string= (jsown:val value "type") "url")
+            ((string= (jsown:val-safe value "type") "url")
              (s-url value))
             (t (error "Type of uri reference should be \"prefix\" or \"url\" but got \"~A\" instead."
-                      (jsown:val value "type"))))))
+                      (jsown:val-safe value "type"))))))
 
 (defun parse-simple-uri-reference (value)
   "Parses a simple uri reference.  This allows you to type
@@ -93,14 +93,13 @@
 
 (defun import-jsown-domain-relationship (relationship-path jsown-relationship)
   "Imports a single belongs-to or has-many relationship from jsown."
-  (let ((type (if (string= "one" (jsown:val jsown-relationship "cardinality"))
+  (let ((type (if (string= "one" (string-downcase (jsown:val jsown-relationship "cardinality")))
                   'has-one-link
                   'has-many-link)))
     (make-instance type
                    :via (read-uri-from-json (jsown:val jsown-relationship "predicate"))
                    :as relationship-path
-                   :inverse (and (jsown:keyp jsown-relationship "inverse")
-                               (jsown:val jsown-relationship "inverse"))
+                   :inverse (jsown:val-safe jsown-relationship "inverse")
                    :resource (intern (string-upcase (jsown:val jsown-relationship "resource"))))))
 
 (defun import-jsown-domain-property (property-path jsown-property)
