@@ -51,7 +51,9 @@
         (path (jsown:val resource-description "path"))
         (class (jsown:val resource-description "class"))
         (resource-base (jsown:val resource-description "newResourceBase"))
-        (features (jsown:val resource-description "features")))
+        (features (mapcar (lambda (feature)
+                            (intern (string-upcase (jsown:val jsown-relationship "resource"))))
+                          (jsown:val-safe resource-description "features"))))
     (make-instance 'resource
                    :resource-name (intern (string-upcase resource-name))
                    :ld-class (read-uri-from-json class)
