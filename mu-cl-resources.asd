@@ -18,7 +18,6 @@
                (:file "framework/query-parsing")
                (:file "framework/resource-model")
                (:file "framework/domain-parsing")
-               (:file "framework/prefixes-parsing")
                (:file "framework/request-parsing")
                (:file "framework/response-generation")
                (:file "framework/call-implementation")
