@@ -108,7 +108,7 @@ defining the relationship."
                 'has-one)
                ((string= "many" (string-downcase (jsown:val jsown-relationship "cardinality")))
                 'has-many)
-               (t (error "Did not recognize cardinality of relationships %s, should be either \"one\" or \"many\"."
+               (t (error "Did not recognize cardinality of relationships ~A, should be either \"one\" or \"many\"."
                          (jsown:val jsown-relationship "cardinality"))))))
     (cons kind
           (list
