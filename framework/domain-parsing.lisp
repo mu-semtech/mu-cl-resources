@@ -53,16 +53,9 @@
 
 (defun import-jsown-domain-resource (resource-name resource-description)
   (let ((properties (jsown:val-safe resource-description "properties"))
-        (has-one-relationships
-         (remove-if-not #'identity
-                        (map-jsown-object
-                         (jsown:val-safe resource-description "relationships")
-                         #'maybe-import-jsown-has-one-relationship)))
-        (has-many-relationships
-         (remove-if-not #'identity
-                        (map-jsown-object
-                         (jsown:val-safe resource-description "relationships")
-                         #'maybe-import-jsown-has-many-relationship)))
+        (relationships (map-jsown-object
+                        (jsown:val-safe resource-description "relationships")
+                        #'import-jsown-relationship))
         (path (jsown:val resource-description "path"))
         (class (jsown:val resource-description "class"))
         (resource-base (jsown:val resource-description "newResourceBase"))
@@ -73,8 +66,12 @@
         :ld-class (read-uri-from-json class)
         :ld-properties (map-jsown-object properties
                                          #'import-jsown-domain-property)
-        :has-many has-many-relationships
-        :has-one has-one-relationships
+        :has-many (loop for (type . relationship) in relationships
+                        when (eq type 'has-many)
+                        collect relationship)
+        :has-one (loop for (type . relationship) in relationships
+                       when (eq type 'has-one)
+                       collect relationship)
         :ld-resource-base resource-base
         :on-path path
         :features features)))
@@ -101,21 +98,24 @@
       (s-url value)
       (s-prefix value)))
 
-(defun maybe-import-jsown-has-one-relationship (relationship-path jsown-relationship)
-  (when (string= "one" (string-downcase (jsown:val jsown-relationship "cardinality")))
-    (list
-     (intern (string-upcase (jsown:val jsown-relationship "resource")))
-     :via (read-uri-from-json (jsown:val jsown-relationship "predicate"))
-     :inverse (jsown:val-safe jsown-relationship "inverse")
-     :as relationship-path)))
+(defun import-jsown-relationship (relationship-path jsown-relationship)
+  "Imports a single jsown relationship.
 
-(defun maybe-import-jsown-has-many-relationship (relationship-path jsown-relationship)
-  (when (string= "many" (string-downcase (jsown:val jsown-relationship "cardinality")))
-    (list
-     (intern (string-upcase (jsown:val jsown-relationship "resource")))
-     :via (read-uri-from-json (jsown:val jsown-relationship "predicate"))
-     :inverse (jsown:val-safe jsown-relationship "inverse")
-     :as relationship-path)))
+Emits a cons cell with the kind 'has-one or 'has-many and a list
+defining the relationship."
+  (let ((kind
+         (cond ((string= "one" (string-downcase (jsown:val jsown-relationship "cardinality")))
+                'has-one)
+               ((string= "many" (string-downcase (jsown:val jsown-relationship "cardinality")))
+                'has-many)
+               (t (error "Did not recognize cardinality of relationships %s, should be either \"one\" or \"many\"."
+                         (jsown:val jsown-relationship "cardinality"))))))
+    (cons kind
+          (list
+           (intern (string-upcase (jsown:val jsown-relationship "resource")))
+           :via (read-uri-from-json (jsown:val jsown-relationship "predicate"))
+           :inverse (jsown:val-safe jsown-relationship "inverse")
+           :as relationship-path))))
 
 (defun import-jsown-domain-property (property-path jsown-property)
   "Imports a single domain property from the jsown format."
