@@ -52,7 +52,7 @@
                version)))))
 
 (defun import-jsown-domain-resource (resource-name resource-description)
-  (let ((properties (jsown:val-safe resource-description "properties"))
+  (let ((properties (jsown:val-safe resource-description "attributes"))
         (relationships (map-jsown-object
                         (jsown:val-safe resource-description "relationships")
                         #'import-jsown-relationship))
