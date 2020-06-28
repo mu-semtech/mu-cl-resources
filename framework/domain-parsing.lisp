@@ -58,7 +58,7 @@
                         #'import-jsown-relationship))
         (path (jsown:val resource-description "path"))
         (class (jsown:val resource-description "class"))
-        (resource-base (jsown:val resource-description "newResourceBase"))
+        (resource-base (jsown:val resource-description "new-resource-base"))
         (features (mapcar (lambda (feature)
                             (intern (string-upcase feature)))
                           (jsown:val-safe resource-description "features"))))
@@ -72,7 +72,7 @@
         :has-one (loop for (type . relationship) in relationships
                        when (eq type 'has-one)
                        collect relationship)
-        :ld-resource-base resource-base
+        :ld-resource-base (s-url resource-base)
         :on-path path
         :features features)))
 
