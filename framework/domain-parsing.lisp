@@ -22,19 +22,18 @@
 
 (defun read-domain-json-string (string)
   "Imports the json string as a domain file"
-  (funcall (alexandria:compose
-            #'import-domain-from-jsown
-            #'jsown:parse)
-           string))
+  (let ((parsed-content (jsown:parse string)))
+    (import-prefixes-from-jsown parsed-content)
+    (import-domain-from-jsown parsed-content)))
 
-(defun import-prefixes-from-jsown (jsown-prefixes)
+(defun import-prefixes-from-jsown (jsown-config)
   "Imports the domain from the jsown file"
-  (let ((version (jsown:val jsown-prefixes "version")))
+  (let ((version (jsown:val jsown-config "version")))
     (cond
       ((string= version "0.1")
-       (if (jsown:keyp jsown-prefixes "prefixes")
+       (if (jsown:keyp jsown-config "prefixes")
            (map-jsown-object
-            (jsown:val jsown-prefixes "prefixes")
+            (jsown:val jsown-config "prefixes")
             (lambda (key value)
               (add-prefix key value)))
            (warn "Did not find \"prefixes\" key in json domain file")))
