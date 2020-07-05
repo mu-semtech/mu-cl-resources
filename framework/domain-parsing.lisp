@@ -56,17 +56,24 @@
   (let ((version (jsown:val js-domain "version")))
     (cond
       ((string= version "0.1")
-       (map-jsown-object (jsown:val js-domain "resources")
-                         #'import-jsown-domain-resource))
+       (if (jsown:keyp js-domain "paths")
+           (map-jsown-object (jsown:val js-domain "paths")
+                             #'import-jsown-domain-resource)
+           (warn "Could not find path in domain specification.")))
       (t (warn "Don't know version ~A for resources definition, skipping."
                version)))))
 
-(defun import-jsown-domain-resource (resource-name resource-description)
-  (let ((properties (jsown:val-safe resource-description "attributes"))
+(defun import-jsown-domain-resource (path resource-description)
+  (let ((resource-name                  ; default to primary key
+         (intern (string-upcase (or (jsown:val-safe resource-description "name")
+                                    path))))
+        (path                           ; default to primary key
+         (or (jsown:val-safe resource-description "path")
+             path))
+        (properties (jsown:val-safe resource-description "attributes"))
         (relationships (map-jsown-object
                         (jsown:val-safe resource-description "relationships")
                         #'import-jsown-relationship))
-        (path (jsown:val resource-description "path"))
         (class (jsown:val resource-description "class"))
         (resource-base (jsown:val resource-description "new-resource-base"))
         (features (mapcar (lambda (feature)
@@ -77,11 +84,11 @@
         :ld-properties (map-jsown-object properties
                                          #'import-jsown-domain-property)
         :has-many (loop for (type . relationship) in relationships
-                        when (eq type 'has-many)
-                        collect relationship)
+                     when (eq type 'has-many)
+                     collect relationship)
         :has-one (loop for (type . relationship) in relationships
-                       when (eq type 'has-one)
-                       collect relationship)
+                    when (eq type 'has-one)
+                    collect relationship)
         :ld-resource-base (s-url resource-base)
         :on-path path
         :features features)))
@@ -122,7 +129,7 @@ defining the relationship."
                          (jsown:val jsown-relationship "cardinality"))))))
     (cons kind
           (list
-           (intern (string-upcase (jsown:val jsown-relationship "resource")))
+           (intern (string-upcase (jsown:val jsown-relationship "target")))
            :via (read-uri-from-json (jsown:val jsown-relationship "predicate"))
            :inverse (jsown:val-safe jsown-relationship "inverse")
            :as relationship-path))))
