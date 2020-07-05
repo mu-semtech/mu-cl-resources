@@ -1,5 +1,7 @@
 (in-package :mu-cl-resources)
 
+;;; external interface
+
 (defun read-domain-file (relative-path)
   "Reads the JSON file from a relative path."
   (let ((type (pathname-type relative-path))
@@ -11,6 +13,9 @@
            (read-domain-json-file-from-path pathname))
           ((string= type "lisp")
            (load pathname)))))
+
+
+;;; top-level processing
 
 (defun read-domain-json-file-from-path (file)
   "Imports contents from the json file specified by
@@ -26,6 +31,9 @@
     (import-prefixes-from-jsown parsed-content)
     (import-domain-from-jsown parsed-content)))
 
+
+;;; support for prefixes
+
 (defun import-prefixes-from-jsown (jsown-config)
   "Imports the domain from the jsown file"
   (let ((version (jsown:val jsown-config "version")))
@@ -39,6 +47,9 @@
            (warn "Did not find \"prefixes\" key in json domain file")))
       (t (warn "Don't know version ~A for prefixes definition, skipping."
                version)))))
+
+
+;;; importing of domain
 
 (defun import-domain-from-jsown (js-domain)
   "Imports the domain from the jsown file"
@@ -122,6 +133,7 @@ defining the relationship."
    (intern (string-upcase property-path) :keyword)
    (intern (string-upcase (jsown:val jsown-property "type")) :keyword)
    (parse-simple-uri-reference (jsown:val jsown-property "predicate"))))
+
 
 ;;; helpers
 
