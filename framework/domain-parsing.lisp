@@ -125,8 +125,8 @@ defining the relationship."
                 'has-one)
                ((string= "many" (string-downcase (jsown:val jsown-relationship "cardinality")))
                 'has-many)
-               (t (error "Did not recognize cardinality of relationships ~A, should be either \"one\" or \"many\"."
-                         (jsown:val jsown-relationship "cardinality"))))))
+               (t (error "Did not recognize cardinality of relationship, should be either \"one\" or \"many\".  See ~A"
+                         (jsown:to-json jsown-relationship))))))
     (cons kind
           (list
            (intern (string-upcase (jsown:val jsown-relationship "target")))
