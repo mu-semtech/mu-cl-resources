@@ -56,8 +56,8 @@
   (let ((version (jsown:val js-domain "version")))
     (cond
       ((string= version "0.1")
-       (if (jsown:keyp js-domain "paths")
-           (map-jsown-object (jsown:val js-domain "paths")
+       (if (jsown:keyp js-domain "resources")
+           (map-jsown-object (jsown:val js-domain "resources")
                              #'import-jsown-domain-resource)
            (warn "Could not find path in domain specification.")))
       (t (warn "Don't know version ~A for resources definition, skipping."
