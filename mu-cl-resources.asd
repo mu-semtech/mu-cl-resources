@@ -22,4 +22,5 @@
                (:file "framework/response-generation")
                (:file "framework/call-implementation")
                (:file "framework/call-specification")
+               (:file "framework/resource-validations")
                (:file "configuration/domain")))
