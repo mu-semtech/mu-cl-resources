@@ -121,9 +121,9 @@
 Emits a cons cell with the kind 'has-one or 'has-many and a list
 defining the relationship."
   (let ((kind
-         (cond ((string= "one" (string-downcase (jsown:val jsown-relationship "cardinality")))
+         (cond ((string= "one" (string-downcase (or (jsown:val-safe jsown-relationship "cardinality") "")))
                 'has-one)
-               ((string= "many" (string-downcase (jsown:val jsown-relationship "cardinality")))
+               ((string= "many" (string-downcase (or (jsown:val-safe jsown-relationship "cardinality") "")))
                 'has-many)
                (t (error "Did not recognize cardinality of relationship, should be either \"one\" or \"many\".  See ~A"
                          (jsown:to-json jsown-relationship))))))
