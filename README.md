@@ -6,7 +6,7 @@ Most configuration happens in the domain.lisp file.  See `configuration/domain.l
 
 The documentation offered here is not exhaustive.  This component handles a wide variety of use-cases and has support for esotheric features for experimentation, which may land in the core at a later time.  As such, some features which the component offers are not documented in this readme.
 
-## Brief hands-on overview
+## Tutorials
 
 This service is driven from the domain.lisp file which you should adapt to describe your domain.  In this section we briefly describe how everything is wired together, and how you can quickly get an API up and running.
 
@@ -148,7 +148,8 @@ The complete mu-cl-resources instance, a specific resource, as well as a propert
   - *resource specific options:* The keyword `:features` at the same level as the `:class` may specify options which alter the behaviour of the specific resource.
   - *property options:* Symbols following the definition of a single property may give mu-cl-resources extra information on how the property will be used.
 
-## Defining resources
+## Reference
+### Defining resources
 
 As the integration with the frontend data-store is handled automatically, most of your time with mu-cl-resources will be spent configuring resources.  This overview provides a non-exhaustive list of the most common features of mu-cl-resources.
 
@@ -171,7 +172,7 @@ Each defined resource is specified by the `define-resource` construction.  An ex
 
 We will use this example to explain how various features in mu-cl-resources work.
 
-### Overview of keys
+#### Overview of keys
 
 Each call to `define-resource` starts out with the name of the resource (used when referring to the resource internally), a set of empty parens (for future use), and a set of key-value pairs.  This section gives a brief overview of the valid keys, and what their use is.
 
@@ -183,7 +184,7 @@ Each call to `define-resource` starts out with the name of the resource (used wh
   - *`:resource-base`* An `s-url` containing the prefix for the URI used when creating new resources.
   - *`:on-path`* The path on which the resource is supplied, this corresponds to the `type` property in the JSON body.  JSONAPI advises to use the plural form here.
 
-### Simple properties
+#### Simple properties
 
 The properties section in the mu-cl-resources configuration corresponds to the attributes in the JSON payload.  This section describes how to set properties.
 
@@ -215,7 +216,7 @@ A wide set of types is supported.  Extensions are necessary in order to implemen
   - *g-year* Experimental: A specific representation of a year
   - *geometry* Experimental: A geometry-string in a format your triplestore understands
 
-### Relationships
+#### Relationships
 
 Relationships are split into single value `:has-one` and multiple value `:has-many` relationships.  In both cases, having a value is optional.
 
@@ -234,7 +235,7 @@ The format of a single value consists of the internal name of the resource to be
   - *`:as`* Contains the attribute in the JSON API.
   - *`:inverse`* Optional, when set to `t` it inverses the direction of the relationship supplied in `:via`.
 
-## Querying the API
+### Querying the API
 
 mu-cl-resources provides extensive support for searching and filtering through results.  A notable exception is fuzzy text search as that is not a built-in for standard SPARQL.
 
@@ -268,7 +269,7 @@ We will mostly base ourselves on the example which was previous supplied.
 
 Various resources have not been defined in our example.  `location` and `document` are left as an exercise to the reader.
 
-### Basic filtering
+#### Basic filtering
 
 Basic searching is done by using the `?filter` query parameter.  We can search for "John Doe" in any key of our `person` by sending
 
@@ -284,7 +285,7 @@ All of these searches are case-insensitive, and they search for any field which 
 
 All filter modifiers start with a colon (:) followed by the name of the filter, followed by a configuration parameter.  This specific filter will search for a name with exactly "John Doe" in its contents.  No more, no less.
 
-### Filtering relationships
+#### Filtering relationships
 
 Filters can also be scoped to relationships.  JSONAPI guarantees that attributes and relationships will never share a name.  Hence we can use the same syntax as we used to identify an attribute in order to identify a relationship.
 
@@ -300,7 +301,7 @@ We can add more filters as we please.  We can search for all documents belonging
 
 This will return all documents belonging to anyone named John in an account named exactly `Dropbox`.
 
-### Sorting
+#### Sorting
 
 Sorting is specified in [JSONAPI](http://jsonapi.org/format/#fetching-sorting) somewhat more extensively.  What is specified there works, but is augmented to sorting by relationships.
 
@@ -316,7 +317,7 @@ Sorting by relationships allows us to sort accounts by the name of their owner
 
     GET /accounts?sort=owner.name
 
-### Filtering on exact relationships
+#### Filtering on exact relationships
 
 Objects in JSONAPI are identified by their type and their identifier.  To find all objects that link to another object through some relationship, we can use this feature.
 
@@ -330,7 +331,7 @@ This pattern becomes more intersting when we start searching for more than one d
 
 This filter can be combined with the other filters to provide very extensive search interfaces.
 
-### Special filters
+#### Special filters
 
 Aside from regular text searches, a set of custom filters have been added.  These filters are the last component of a search, and are easy to identify as they start with a colon (:).  Following is a brief list of filters which exist.  This list may be extended over time.
 
@@ -356,7 +357,7 @@ Aside from regular text searches, a set of custom filters have been added.  Thes
 
 - *:has:* The inverse of `:has-no:` forces the relationship to exist.  Syntax may be subject to change.
 
-### Including results
+#### Including results
 
 There exists an optional part of [the JSONAPI spec](http://jsonapi.org/format/#fetching-includes) which handles the inclusion of related resources.  It specifies how you can request resources related to your response so you don't have to make too many calls to the server.
 
@@ -378,7 +379,7 @@ We can also include the location if we'd want to render that too:
 
 Combining included results with filters makes for a very powerful API.  Note that including results does require more queries to be sent to the database.
 
-### Pagination
+#### Pagination
 
 Pagination is also included in [the JSONAPI spec](http://jsonapi.org/format/#fetching-pagination).  All resources have it enabled by default.  We support the `page[number]` and `page[size]` variant.
 
@@ -415,7 +416,7 @@ If you want mu-cl-resources to yield the total amount of results in the `meta` p
     (defparameter *include-count-in-paginated-response* t)
 
 
-### Sparse fieldsets
+#### Sparse fieldsets
 
 Sparse fieldsets is also [a feature of JSONAPI](http://jsonapi.org/format/#fetching-sparse-fieldsets).  If your model has many attributes, but you do not intend to render them on the frontend, you can opt out of fetching them.  Use the `fields` query parameter to fetch only the necessary results.
 
@@ -432,13 +433,13 @@ You can add filters to ensure we only get authors of papers aged over 42 which h
     GET /people?filter[accounts][:exact:name]=Dropbox&filter[:gt:age]=42&filter[:has:publication]=true&include=publications
 
 
-## Caching
+### Caching
 
 Efficient caching is a complex story.  mu-cl-resources ships with support for two levels of caching: an internal cache which can keep track of object properties and counts, and an external cache which can cache complete queries.
 
 Both of these caches are subject to change in their implementation, but the end-user API should stay the same.
 
-### Internal cache
+#### Internal cache
 
 In order to opt in to the internal model caching, set `*cache-model-properties*` to `t`.  Note that this currently assumes mu-cl-resources is the only service altering the resources.
 
@@ -450,7 +451,7 @@ Separate from this, you can choose to also cache the count queries.  On very lar
 
 Note: mu-cl-resources does not clear its internal caches when external services update the semantic model without wiring.  See below for wiring the delta-notifier.
 
-### External cache
+#### External cache
 
 Caching requests is more complex for a JSONAPI than for a web page.  A single update may invalidate a wide range of pages, but it should not invalidate too many pages.  As such, we've written a separate cache for JSONAPI-like bodies.  Find it at [mu-semtech/mu-cache](https://github.com/mu-semtech/mu-cache).
 
@@ -460,20 +461,20 @@ In order to enable the external cache, you have to set the `*supply-cache-header
 
 Note: mu-cl-resources speaks the protocol of this cache, but does not update the cache when external resources update the semantic model without see below for wiring the delta-notifier.
 
-### Cache clearing with delta-notifier
+#### Cache clearing with delta-notifier
 
 mu-cl-resources has multiple levels of caching and can update these when it updates the model in the database.  when external services update the semantic model, mu-cl-resources needs to be informed about these changes so it can correctly clear the caches it maintains.
 
 In order for cache clearing to work, delta's need to be received.  This requires setting up mu-authorization and delta-notifier to receive the delta's.  mu-authorization needs to be configured so it sends raw delta messages to the delta-notifier.  The delta-notifier needs to be configured so it forwards the correct format to mu-cl-resources.  mu-cl-resources needs to be wired to the mu-cache so it can clear those caches when changes arrive.
 
-#### Configuring mu-authorization and wiring to delta-notifier
+##### Configuring mu-authorization and wiring to delta-notifier
 
 mu-authorization handles security for most calls in your backend and creates delta messages for all updated triples.  See the [mu-semtech/mu-authorization readme](https://github.com/mu-semtech/mu-authorization) for information on how to set up this security layer.
 
 The delta-notifier can send messages to various entities to update their internal caches.  See [mu-semtech/delta-notifier readme](https://github.com/mu-semtech/delta-notifier) for more information on how to add the delta-notifier to your stack.
 
 
-#### Wiring the delta-notifier, mu-cache, and mu-cl-resources
+##### Wiring the delta-notifier, mu-cache, and mu-cl-resources
 
 In the following setup we assume a few names.  `resourcebackend` is the name for the mu-cl-resources component, `resourcecache` is the name for the mu-cl-resources cache.  Update the examples so they match your use-case.
 
@@ -530,9 +531,25 @@ To ensure mu-cl-resources sends its updates back to the resourcecache, it needs 
         CACHE_CLEAR_PATH: "http://resourcecache/.mu/clear-keys"
 ```
 
-## Features to be documented
+## Discussions
+### Why this component?
+This component is in use in a great deal of mu.semte.ch stacks.  A high-level picture as to why we built this component, and how it fits in the architecture, is suiting.
 
-### Authorization
+The idea of mu-cl-resources is to provide an API which can easily be consumed by frontend applications.  The most common calls which a backend offers are repetitive and boring to implement.  Good developers should not be bothered with these boring details.  Instead, a declarative configuration can get rid of all of this.
+
+Furthermore, the wide reuse of this component provides us with a rich shared code-base.  The wide use of the code-base allows us to unlock an enormous amount of shared value by implementing small features in this codebase.  On the flipside, we should take great care that this repository does not get out of hand, as that may impact many applications.
+
+### Is this a microservice?
+
+Much of the code needed to implement this component was written specifically for this component.  It can be argued that this component is therefore not a typical microservice component.  We would argue differently.
+
+From a consumer's perspective, the configuration supplied of mu-cl-resources is the relevant portion of this service.  The API which is offered may be broad, but the configuration to maintain is comparatively small.  As the consumer has a good overview of the code necessary to configure this service, this could be considered a microservice from the consumer's perspective.
+
+From the developer's perspective things may look different.  It is clear that mu-cl-resources quite a broad code base.  Replacing it with other components has proven to be more expensive than expected.  Although this holds, many of the used functions could (and should) be abstracted into separate libraries over time.  Furthermore, we expect a similar code-base to work in different languages, although more code may need to be written.
+
+### Features to be documented
+
+#### Authorization
 
 The current implementation of mu-cl-resources ships with an extensive authorization model.  This model is being revized as we aim to cut authorization out of the microservices and convert it into a layer on top of the SPARQL endpoint.  Thereby abstracting authorization and ensuring it is configured correctly throughout the whole stack.
 
@@ -547,17 +564,17 @@ Current configuration follows a model which has a grant token on a per-object ba
 
 We do not document this in depth as support for this is only useful at this time.
 
-### Using different sparql stores
+#### Using different sparql stores
 
 The default connector assumes you'll connect to a Virtuoso endpoint.  However, this is not a requirement.  By adding the necessary content into the dependencies folder, you can choose to enable a different store.  This may mock specific details of the store, such as wrapping incorrect results or choosing a different connector point.  An example of this can be found at [madnificent/cl-fuseki-blazegraph-plugin](https://github.com/madnificent/cl-fuseki-blazegraph-plugin)
 
-### Generators
+#### Generators
 
 There are a few applications which build on top of mu-cl-resources to generate meaningful content.
 
 One example is the mu-application-generator which scaffolds an resource editing application based on your API, another is [mu-semtech/cl-resources-openapi-generator](https://github.com/mu-semtech/cl-resources-openapi-generator).
 
-### Configuration parameters
+#### Configuration parameters
 
 There are a wider set of configuration parameters which allow you to configure mu-cl-resources to your liking.  Including enabling experimental features.  Many of these are currently not documented, most can be found in the release notes.  Following is a set of the configuration options.
 
@@ -569,18 +586,18 @@ You con configure an option by calling `(setf property-name value)` after the `i
     (setf *verify-accept-header* nil)
 
 
-#### Content and accept types
+##### Content and accept types
 
 The content-type and accept type should be validated as per jsonapi.org specification.  Due to historic reasons, the ACCEPT type is not checked by default, whereas the CONTENT-TYPE is checked on update/create requests.  Following parameters allow for configuration.
 
 - *`*verify-accept-header*`* _[default: nil]_ Validation on the ACCEPT header to contain application/vndi+json.
 - *`*verify-content-type-header*`* _[default: t]_ Validation on the CONTENT-TYPE header to contain application/vndi+json.
 
-#### Logging
+##### Logging
 
 mu-cl-resources can log queries and delta messages which should be cleared by the cache.
 
-##### Queries
+###### Queries
 
 mu-cl-resources logs all queries by default.  You can configure which queries should be logged by setting the `sparql:*query-log-types*` provided by the cl-fuseki library.  The parameter should be an array with (some of) the following keywords or `nil` for no logging.
 
@@ -594,21 +611,21 @@ An example configuration to only log known update queries and known ask queries 
 
     `(defparameter *sparql:*query-log-types* '(:update :ask))`
 
-##### Delta-based cache clearing
+###### Delta-based cache clearing
 
 The cache of the delta service can be cleared by wiring the delta-notifier to mu-cl-resources.  mu-cl-resources will only clear the me-cache if cache-keys are being sent.  The clear-keys which mu-cl-resources sends to the mu-cache on delta messages can be configured by setting the `*log-delta-clear-keys*` to a non-nil value.
 
      (setf *log-delta-clear-keys* t)
 
 
-#### Pagination
+##### Pagination
 
 Pagination is described separately above.  Not that included resources are never paginated.  Both the default page size, as well as the amount of available results can be returned.
 
 - *`*default-page-size*`* _[default: 20]_ Sets the default page size.
 - *`*include-count-in-paginated-responses*`* _[default: nil]_ Adds the amount of available results in the meta object of the response.
 
-#### Caching
+##### Caching
 
 See the separate section on caching.  Following properties can be configured:
 
@@ -617,27 +634,9 @@ See the separate section on caching.  Following properties can be configured:
 - *`*cache-count-queries-p*` * _[default: nil]_ Cache result of count queries internally if set to t.
 - *`*cache-clear-path*`* _[default: nil]_ If set and deltas are received, cache clear keys will be sent to this endpoint.
 
-### Separate domain.lisp files
+#### Separate domain.lisp files
 
 The domain.lisp file exists in multiple formats.  As such, experimental drafts in json also exist.  It is also possible to split your domain.lisp file in multiple files and ensure they're all loaded.  In order to load a second file, you could use `read-domain-file` in your domain.lisp.  It understands lisp files and json files.
 
     (read-domain-file "my-main-domain.lisp")
     (read-domain-file "my-other-domain.lisp")
-
-## High-level questions
-
-This component is in use in a great deal of mu.semte.ch stacks.  A high-level picture as to why we built this component, and how it fits in the architecture, is suiting.
-
-### Why this component?
-
-The idea of mu-cl-resources is to provide an API which can easily be consumed by frontend applications.  The most common calls which a backend offers are repetitive and boring to implement.  Good developers should not be bothered with these boring details.  Instead, a declarative configuration can get rid of all of this.
-
-Furthermore, the wide reuse of this component provides us with a rich shared code-base.  The wide use of the code-base allows us to unlock an enormous amount of shared value by implementing small features in this codebase.  On the flipside, we should take great care that this repository does not get out of hand, as that may impact many applications.
-
-## Is this a microservice?
-
-Much of the code needed to implement this component was written specifically for this component.  It can be argued that this component is therefore not a typical microservice component.  We would argue differently.
-
-From a consumer's perspective, the configuration supplied of mu-cl-resources is the relevant portion of this service.  The API which is offered may be broad, but the configuration to maintain is comparatively small.  As the consumer has a good overview of the code necessary to configure this service, this could be considered a microservice from the consumer's perspective.
-
-From the developer's perspective things may look different.  It is clear that mu-cl-resources quite a broad code base.  Replacing it with other components has proven to be more expensive than expected.  Although this holds, many of the used functions could (and should) be abstracted into separate libraries over time.  Furthermore, we expect a similar code-base to work in different languages, although more code may need to be written.
