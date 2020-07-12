@@ -10,15 +10,37 @@ The domain.json format is still growing, some configuration parameters can only 
 
 ## Tutorials
 
+### Add mu-cl-resources to a stack
+Add the following snippet to the services block of your `docker-compose.yml`:
+
+```yml
+services:
+  resource:
+    image: semtech/mu-cl-resources:1.18.0
+    links:
+      - db:database
+    volumes:
+      - ./config/resources:/config
+```
+
+Next, copy the configuration files from the `examples/` folder in this repository inside the `./config/resources` folder of your project. You have to copy either the JSON configuration file `examples/domain.json` or the Lisp configuration files `examples/domain.lisp` and `examples/repository.lisp`.
+
+Finally, add a new rule to the dispatcher configuration of your project in `./config/dispatcher/dispatcher.ex` to forward requests to `/themes` to the new resource service:
+```yml
+  get "/themes/*path", @any do
+    forward conn, path, "http://resource/themes/"
+  end
+```
+
+Start your stack running `docker-compose up -d`. Assuming the identifier is published on port 80, sending a request to http://localhost/themes should return an empty array coming from mu-cl-resources.
+
+Since it is common for a mu.semte.ch project to contain mu-cl-resources, the default blueprint for a mu.semte.ch project, [mu-semtech/mu-project](https://github.com/mu-semtech/mu-project), contains mu-cl-resources.
+
+### Introduction to a configuration through domain.lisp
 This service is driven from the domain.lisp file which you should adapt to describe your domain.  In this section we briefly describe how everything is wired together, and how you can quickly get an API up and running.
 
 mu-cl-resources is driven from the domain.lisp file.  This file describes the connection between the JSONAPI and the semantic model.  Secondly, there is the repository.lisp file, in which you can define new prefixes to shorten your domain description.  This repository contains an example of both files in the configuration folder.
 
-### Setup in mu.semte.ch project
-
-It is common for a mu.semte.ch project to contain mu-cl-resources.  The default blueprint for a mu.semte.ch project, [mu-semtech/mu-project](https://github.com/mu-semtech/mu-project), contains mu-cl-resources.  Furthermore, there is an example written to config/domain.lisp.  This is where we will apply our changes.  Secondly, there is the repositories.lisp, in which you can change add prefixes to use in your domain specification.  If you're setting up mu-cl-resources in a mu.semte.ch project, be sure to check out the documentation of the dispatcher to ensure mu-cl-resources receives your queries.
-
-### Introduction to a configuration through domain.lisp
 #### /configuration/domain.lisp
 
 The domain.lisp contains resource definitions for each file in the application.  These resource definitions provide a three-way connection:
