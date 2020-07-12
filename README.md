@@ -18,7 +18,8 @@ mu-cl-resources is driven from the domain.lisp file.  This file describes the co
 
 It is common for a mu.semte.ch project to contain mu-cl-resources.  The default blueprint for a mu.semte.ch project, [mu-semtech/mu-project](https://github.com/mu-semtech/mu-project), contains mu-cl-resources.  Furthermore, there is an example written to config/domain.lisp.  This is where we will apply our changes.  Secondly, there is the repositories.lisp, in which you can change add prefixes to use in your domain specification.  If you're setting up mu-cl-resources in a mu.semte.ch project, be sure to check out the documentation of the dispatcher to ensure mu-cl-resources receives your queries.
 
-### /configuration/domain.lisp
+### Introduction to a configuration through domain.lisp
+#### /configuration/domain.lisp
 
 The domain.lisp contains resource definitions for each file in the application.  These resource definitions provide a three-way connection:
 
@@ -116,13 +117,13 @@ The complete setup of our user and account looks as follows:
       :resource-base (s-url "http://my-application.com/accounts/")
       :on-path "accounts")
 
-### /configuration/repositories.lisp
+#### /configuration/repositories.lisp
 
 The previous example used the foaf prefix in order to denote classes and properties.  The `/configuration/repositories.lisp` allows you to specify your own prefixes to use in your definitions.  A good source for commonly used abbreviations is [prefix.cc](https://prefix.cc).
 
     (add-prefix "foaf" "http://xmlns.com/foaf/0.1/")
 
-### Resulting API
+#### Resulting API
 We intend to support the full spec of [JSONAPI](http://jsonapi.org).  Support for this API comes out of the box with frameworks such as [ember-data](https://github.com/emberjs/data).  Most of what you read there will work, errors being a notable exception.  Here, we list some common calls which you could execute using the resources specified above.
 
   - `# GET /people`
@@ -142,7 +143,7 @@ We intend to support the full spec of [JSONAPI](http://jsonapi.org).  Support fo
 
 More information on each of these calls can be found throughout this document.
 
-### More configuration options
+#### More configuration options
 
 The complete mu-cl-resources instance, a specific resource, as well as a property can have options set to override the default behaviour.
 
@@ -150,9 +151,13 @@ The complete mu-cl-resources instance, a specific resource, as well as a propert
   - *resource specific options:* The keyword `:features` at the same level as the `:class` may specify options which alter the behaviour of the specific resource.
   - *property options:* Symbols following the definition of a single property may give mu-cl-resources extra information on how the property will be used.
 
-## Reference
-### Defining resources
+### Introduction to a configuration through domain.json
+#### /configuration/domain.json
+#### Resulting API
+#### More configuration options
 
+## Reference
+### Defining resources in Lisp
 As the integration with the frontend data-store is handled automatically, most of your time with mu-cl-resources will be spent configuring resources.  This overview provides a non-exhaustive list of the most common features of mu-cl-resources.
 
 Each defined resource is specified by the `define-resource` construction.  An example could look like this:
@@ -236,6 +241,9 @@ The format of a single value consists of the internal name of the resource to be
   - *`:via`* Contains the URI of the RDF property by which the related objects can be found.
   - *`:as`* Contains the attribute in the JSON API.
   - *`:inverse`* Optional, when set to `t` it inverses the direction of the relationship supplied in `:via`.
+
+### Defining resources in JSON
+TODO
 
 ### Querying the API
 
