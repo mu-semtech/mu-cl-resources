@@ -1,10 +1,12 @@
 # JSONAPI to SPARQL, and back
 
-mu-cl-resources provides a [JSONAPI](http://jsonapi.org) compatible interface to the content specified in the configuration.  Most configuration occurs in the configuration/domain.lisp file, an example of which can be found in this repository.
+mu-cl-resources provides a [JSONAPI](http://jsonapi.org) compatible interface to the content specified in the configuration.  Most configuration occurs in the configuration/domain.json or configuration/domain.lisp file (your choice), an examples of which can be found in this repository.
 
-Most configuration happens in the domain.lisp file.  See `configuration/domain.lisp` for an example.  This file defines the glue between the JSON world and the RDF world.  When defining a model, be sure to have a good idea on what both worlds will look like.
+Most configuration happens in the domain file.  See `configuration/domain.json` and `configuration/domain.lisp` for an introduction.  This file defines the glue between the JSON world and the RDF world.  When defining a model, be sure to have a good idea on what both worlds will look like.
 
 The documentation offered here is not exhaustive.  This component handles a wide variety of use-cases and has support for esotheric features for experimentation, which may land in the core at a later time.  As such, some features which the component offers are not documented in this readme.
+
+The domain.json format is still growing, some configuration parameters can only be set in the lisp variant.  You can combine both formats, see Tutorial: Combining domain.lisp and domain.json.
 
 ## Tutorials
 
