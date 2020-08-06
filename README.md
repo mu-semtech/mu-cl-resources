@@ -265,7 +265,164 @@ The format of a single value consists of the internal name of the resource to be
   - *`:inverse`* Optional, when set to `t` it inverses the direction of the relationship supplied in `:via`.
 
 ### Defining resources in JSON
-TODO
+As the integration with the frontend data-store is handled automatically, most of your time with mu-cl-resources will be spent configuring resources. This overview provides a non-exhaustive list of the most common features of mu-cl-resources in JSON format.
+
+The base structure of the JSON configuration file looks like this:
+```javascript
+{
+  "version": "0.1",
+  "prefixes": {
+    // prefix definitions
+  },
+  "resources": {
+    // resource definitions
+  }
+}
+```
+
+The following keys are valid at the root level of the JSON configuration:
+* version: currently there is only one version supported: v0.1
+* prefixes: a map of RDF prefixes to a namespace URI
+* resources: a map of API paths to resource definitions. An entry is defined for each resource type in your domain.
+
+#### Prefixes
+The `prefixes` key contains an object mapping RDF prefixes to a namespace URI.
+
+E.g.
+```javascript
+  "prefixes": {
+    "schema": "http://schema.org/",
+    "foaf": "http://xmlns.com/foaf/0.1/"
+  }
+```
+
+The prefixes can be used to shorten URIs in the resource definitions as explained in the following section.
+
+#### Resource definitions
+A example resource definition looks as follows:
+
+```javascript
+{
+  ...
+  "resources": {
+    "people": {
+      "name": "person",
+      "class": "foaf:Person",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "foaf:name"
+        },
+        "age": {
+          "type": "number",
+          "predicate": "foaf:age"
+        }
+      },
+      "relationships": {
+        "location": {
+          "predicate": "foaf:based_near",
+          "target": "location",
+          "cardinality": "one"
+        },
+        "accounts": {
+          "predicate": "foaf:account",
+          "target": "account",
+          "cardinality": "many"
+        },
+        "publications": {
+          "predicate": "foaf:publications",
+          "target": "document",
+          "cardinality": "many"
+        }
+      }
+      "features": ["include-uri"],
+      "new-resource-base": "https://my-application.com/people/"
+    }
+  }
+}
+```
+
+We will use this example to explain how various features in mu-cl-resources work.
+
+##### Overview of the keys
+Each resource definition is an key/object pair in the top-level `resources` object. The key (e.g. `people`) is used as default for the `name` and `path` properties.
+
+The resource definition object consists of the following keys:
+* `name (optional)`: Name of the resource to use when referring to the resource internally in the domain configuration. If not specified, the object's key will be used as name.
+* `path (optional)`: Path on which the resource is supplied in the API (e.g. `people`). If not specified, the object's  key will be used as path. This also corresponds to the `type` property in the JSON body.  JSONAPI advises to use the plural form here.
+* `class`: Sets the RDF Class to which instances should belong
+* `attributes`: Describes the attributes of the resource.
+* `relationships`: Describes relationships of the resource.
+* `features`: Optional features to be used in this resource. Our example indicates the URI should be returned as an attribute.
+* `new-resource-base`: The prefix for the URI used when creating new resources.
+
+##### Attributes
+The attributes section in the resource definition corresponds to the attributes in the JSON payload.  This section describes how to define attributes.
+
+The attributes section in our example looks like:
+
+```javascript
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "foaf:name"
+        },
+        "age": {
+          "type": "number",
+          "predicate": "foaf:age"
+        }
+      }
+```
+
+Each attribute is a key/object pair in the attributes object. The key reflects the name of the attribute (e.g. `age`). The attribute definitions consists of the following properties:
+* `type`: Type of the attribute.  This ensures we correctly translate the attribute from JSON to SPARQL and vice-versa.
+* `predicate`: RDF property of the attribute.  This is the URL used on the arrow of the RDF model in the triplestore.
+
+A wide set of types is supported.  Extensions are necessary in order to implement new types:
+
+  - *string* A regular string
+  - *number* A number (can be integers or floats)
+  - *boolean* A boolean, true or false
+  - *date* A date as understood by your triplestore
+  - *datetime* A date and time combination, as understood by your triplestore
+  - *url* A URL to another resource
+  - *uri-set* An array of URIs
+  - *string-set* An array of strings
+  - *language-string* A string which has a language connected to it (may contain multiple languages)
+  - *language-string-set* An array of strings which have a language connected to it (may contain multiple languages per answer)
+  - *g-year* Experimental: A specific representation of a year
+  - *geometry* Experimental: A geometry-string in a format your triplestore understands
+
+##### Relationships
+The relationships section in the resource definition corresponds to the relationships in the JSON payload.  This section describes how to define relationships.
+
+The relationships section in our example looks like:
+
+```javascript
+      "relationships": {
+        "location": {
+          "predicate": "foaf:based_near",
+          "target": "location",
+          "cardinality": "one"
+        },
+        "accounts": {
+          "predicate": "foaf:account",
+          "target": "account",
+          "cardinality": "many"
+        },
+        "publications": {
+          "predicate": "foaf:publications",
+          "target": "document",
+          "cardinality": "many"
+        }
+      }
+```
+
+Each relationship is a key/object pair in the relationships object. The key reflects the name of the relationship (e.g. `publications`). The relationship definitions consists of the following properties:
+* `predicate`: URI of the RDF property by which the related objects can be found.
+* `target`: Name of the resource to be linked to.
+* `cardinality`: Cardinality of the relationship. Must be `"one"` or `"many"`.
+* `inverse (optional)`: When set to `true` it inverses the direction of the relationship supplied in `predicate`.
 
 ### Querying the API
 
