@@ -39,17 +39,17 @@ Since it is common for a mu.semte.ch project to contain mu-cl-resources, the def
 ### Introduction to a configuration through domain.lisp
 This service is driven from the domain.lisp file which you should adapt to describe your domain.  In this section we briefly describe how everything is wired together, and how you can quickly get an API up and running.
 
-mu-cl-resources is driven from the domain.lisp file.  This file describes the connection between the JSONAPI and the semantic model.  Secondly, there is the repository.lisp file, in which you can define new prefixes to shorten your domain description.  This repository contains an example of both files in the configuration folder.
+mu-cl-resources is driven from the domain.lisp file.  This file describes the connection between the JSONAPI and the semantic model.  Secondly, there is the repository.lisp file, in which you can define new prefixes to shorten your domain description.  This repository contains an example of both files in the examples folder.
 
 #### /configuration/domain.lisp
 
-The domain.lisp contains resource definitions for each file in the application.  These resource definitions provide a three-way connection:
+The domain.lisp contains resource definitions for each resource type in the application.  These resource definitions provide a three-way connection:
 
   - It names things to make connections within the domain.lisp file
   - It describes the properties as seen through the json api
   - It describes the semantic model used in order to implement the json api
 
-Each resource definition is a combination of these three views.  Let us assume an exmaple using [foaf](http://xmlns.com/foaf/0.1/).  In our example, we will model a Person, having one or more online accounts.  This model can be vizualised using [WebVOWL](http://visualdataweb.de/webvowl/#).
+Each resource definition is a combination of these three views.  Let us assume an example using [foaf](http://xmlns.com/foaf/0.1/).  In our example, we will model a Person, having one or more online accounts.  This model can be vizualised using [WebVOWL](http://visualdataweb.de/webvowl/#).
 
 Intermezzo: mu-cl-resources is mainly configured in lisp.  Lisp uses parens () for grouping content.  If a paren is followed by a word, that word tends to indicate the content of the group.  If there is no word, it tends to be a list.  Other characters, like the backtick (`) or the comma (,) are best copied from examples.
 
@@ -63,10 +63,11 @@ A simple definition of a person uses the foaf vocabulary to write the person and
 
   - *Line 1* contains `define-resource person`, which indicates that we'll create a new endpoint which we will name `person` in this file.  It is most customary to use a singular name for this name.
   - *Line 2* specifies that the RDF class to which the person belongs in the triplestore is [foaf:Person](http://xmlns.com/foaf/0.1/Person).
-  - *Line 3* specifies a singular property of the person.  The JSONAPI will assume content of type `string` is stored in the json key `data.attributes.name` (because of `:name`).  This value is connected to our resource in the triplestore by the perdicate [foaf:name](http://xmlns.com/foaf/0.1/name).  Note that this word may contain dashes, but not capitals (capitals are ignored).
-  - *Line 4* indicates the URI to use in the triplestore when we create new resources of this type.  The supplied url is postfixed with a UUID.  Line 5 specifies the endpoint on which we can list/create/update our resource.  In our case, requests to `/people` are mapped to this resource.
+  - *Line 3* specifies a singular property of the person.  The JSONAPI will assume content of type `string` is stored in the json key `data.attributes.name` (because of `:name`).  This value is connected to our resource in the triplestore by the predicate [foaf:name](http://xmlns.com/foaf/0.1/name).  Note that this word may contain dashes, but not capitals (capitals are ignored).
+  - *Line 4* indicates the URI to use in the triplestore when we create new resources of this type.  The supplied url is postfixed with a UUID.
+  - *Line 5* specifies the endpoint on which we can list/create/update our resource.  In our case, requests to `/people` are mapped to this resource.
 
-Assuming the foaf prefix is defined, we can make this example slightly easier to read.  Note the use of `s-prefix`.
+Assuming the foaf `prefix` is defined, we can make this example slightly easier to read.  Note the use of `s-prefix`.
 
     (define-resource person ()
       :class (s-prefix "foaf:Person")
@@ -174,9 +175,274 @@ The complete mu-cl-resources instance, a specific resource, as well as a propert
   - *property options:* Symbols following the definition of a single property may give mu-cl-resources extra information on how the property will be used.
 
 ### Introduction to a configuration through domain.json
+mu-cl-resources is driven from the domain.json file.  This file describes the connection between the JSONAPI and the semantic model.   In this section we briefly describe how everything is wired together, and how you can quickly get an API up and running. This repository contains an example file in the examples folder.
+
+
 #### /configuration/domain.json
+The domain.lisp contains resource definitions for each resource type in the application.  These resource definitions provide a three-way connection:
+
+  - It names things to make connections within the domain.lisp file
+  - It describes the properties as seen through the json api
+  - It describes the semantic model used in order to implement the json api
+
+Each resource definition is a combination of these three views.  Let us assume an example using [foaf](http://xmlns.com/foaf/0.1/).  In our example, we will model a Person, having one or more online accounts.  This model can be vizualised using [WebVOWL](http://visualdataweb.de/webvowl/#).
+
+```javascript
+{
+  "resources": {
+    "people": {
+      "name": "person",
+      "class": "http://xmlns.com/foaf/0.1/Person",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "http://xmlns.com/foaf/0.1/name"
+        }
+      }
+      "new-resource-base": "https://my-application.com/people/"
+    }
+  }
+}
+```
+
+A simple definition of a person uses the foaf vocabulary to write the person and the person name.
+
+  - *Line 2* specifies the endpoint on which we can list/create/update our resource.  In our case, requests to `/people` are mapped to this resource.
+  - *Line 3* contains the name `person` we will use to reference the resource in this file.  It is most customary to use a singular name for this name.
+  - *Line 4* specifies that the RDF class to which the person belongs in the triplestore is [foaf:Person](http://xmlns.com/foaf/0.1/Person).
+  - *Line 5-10* specifies an attribute of the person.  The JSONAPI will assume content of type `string` is stored in the json key `data.attributes.name` (because of `name` as attribute key).  This value is connected to our resource in the triplestore by the predicate [foaf:name](http://xmlns.com/foaf/0.1/name).  Note that the attribute key may contain dashes, but not capitals (capitals are ignored).
+  - *Line 11* indicates the URI to use in the triplestore when we create new resources of this type.  The supplied url is postfixed with a UUID.
+
+Assuming the `foaf` prefix is defined, we can make this example slightly easier to read.
+
+```javascript
+{
+  "prefixes": {
+    "foaf": "http://xmlns.com/foaf/0.1/"
+  },
+  "resources": {
+    "people": {
+      "name": "person",
+      "class": "foaf:Person",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "foaf:name"
+        }
+      }
+      "new-resource-base": "https://my-application.com/people/"
+    }
+  }
+}
+```
+
+This code sample implements the same functionality as the example above, yet it is easier on the eyes.
+
+We can insert multiple attributes if desired. We can update our example to also contain the age of the person, expressed as a number.
+
+```javascript
+{
+  "prefixes": {
+    "foaf": "http://xmlns.com/foaf/0.1/"
+  },
+  "resources": {
+    "people": {
+      "name": "person",
+      "class": "foaf:Person",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "foaf:name"
+        },
+        "age": {
+          "type": "number",
+          "predicate": "foaf:age"
+        }
+      }
+      "new-resource-base": "https://my-application.com/people/"
+    }
+  }
+}
+```
+
+With this minor change, our person supports the name and age attributes.
+
+Most resources link to other resources.  Let's first define a second resouce, an [OnlineAccount](http://xmlns.com/foaf/0.1/OnlineAccount).
+
+```javascript
+{
+  "prefixes": {
+    "foaf": "http://xmlns.com/foaf/0.1/"
+  },
+  "resources": {
+    "people": { ... },
+    "accounts": {
+      "name": "account",
+      "class": "foaf:OnlineAccount",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "foaf:accountName"
+        }
+      }
+      "new-resource-base": "https://my-application.com/accounts/"
+    }
+  }
+}
+```
+
+The definition of this `account` resource is very similar to that of the `person` resource.  How do we link a person to an account?  Assuming the person has many accounts, we link by defining a `relationships` block on the `person` resource.
+
+
+```javascript
+{
+  ...
+  "resources": {
+    "people": {
+      "name": "person",
+      "class": "foaf:Person",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "foaf:name"
+        },
+        "age": {
+          "type": "number",
+          "predicate": "foaf:age"
+        }
+      },
+      "relationships": {
+        "accounts": {
+          "predicate": "foaf:account",
+          "target": "account",
+          "cardinality": "many"
+        }
+      }
+      "new-resource-base": "https://my-application.com/people/"
+    },
+    "accounts": {
+      "name": "account",
+      "class": "foaf:OnlineAccount",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "foaf:accountName"
+        }
+      }
+      "new-resource-base": "https://my-application.com/accounts/"
+    }
+  }
+}
+```
+
+The `relationships` object specifies that a `person` may link to many resources of target type `account`.  In the triplestore, the link can be found by following the [foaf:account](http://xmlns.com/foaf/0.1/account) predicate, originating from the person's URI.  This relationship is exposed to the JSON API by using the relationship name "accounts".  Hence a GET to `/people/42/accounts` would yield the accounts of the person with UUID 42.
+
+How about getting the person which links to this account.  There is only a single person connected to an account.  Hence we can specify a relationship with cardinality `"one"` on the `account` resource.  In the semantic model of the triplestore, the relationship uses the [foaf:account](http://xmlns.com/foaf/0.1/account) property going from the person to the account.  Finding the person for an account therefore means we have to follow the same relationship in the other direction.  We can add the property `"inverse": true` to any relationship to make the semantic model follow the inverse arrow.  Here, the key in the json body will be `owner` rather than person.
+
+```javascript
+{
+  ...
+  "resources": {
+    "people": { ... },
+    "accounts": {
+      "name": "account",
+      "class": "foaf:OnlineAccount",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "foaf:accountName"
+        }
+      },
+      "relationships": {
+        "owner": {
+          "predicate": "foaf:account",
+          "target": "person",
+          "cardinality": "one",
+          "inverse": true
+        }
+      }
+      "new-resource-base": "https://my-application.com/accounts/"
+    }
+  }
+}
+```
+
+
+The complete setup of our user and account looks as follows:
+
+```javascript
+{
+  "prefixes": {
+    "foaf": "http://xmlns.com/foaf/0.1/"
+  },
+  "resources": {
+    "people": {
+      "name": "person",
+      "class": "foaf:Person",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "foaf:name"
+        },
+        "age": {
+          "type": "number",
+          "predicate": "foaf:age"
+        }
+      },
+      "relationships": {
+        "accounts": {
+          "predicate": "foaf:account",
+          "target": "account",
+          "cardinality": "many"
+        }
+      }
+      "new-resource-base": "https://my-application.com/people/"
+    },
+    "accounts": {
+      "name": "account",
+      "class": "foaf:OnlineAccount",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "predicate": "foaf:accountName"
+        }
+      },
+      "relationships": {
+        "owner": {
+          "predicate": "foaf:account",
+          "target": "person",
+          "cardinality": "one",
+          "inverse": true
+        }
+      }
+      "new-resource-base": "https://my-application.com/accounts/"
+    }
+  }
+}
+```
+
 #### Resulting API
+We intend to support the full spec of [JSONAPI](http://jsonapi.org).  Support for this API comes out of the box with frameworks such as [ember-data](https://github.com/emberjs/data).  Most of what you read there will work, errors being a notable exception.  Here, we list some common calls which you could execute using the resources specified above.
+
+  - `# GET /people`
+  - `# GET /people/0b29a57a-d324-4302-9c92-61958e4cf250/accounts`
+  - `# GET /people?filter=John`
+  - `# GET /people?filter[age]=42`
+  - `# GET /people?include=accounts`
+  - `# GET /people?filter[:exact:name]=John%20Doe`
+  - `# GET /people?sort=age`
+  - `# GET /accounts?sort=-person.age`
+
+  - `# POST /people/0b29a57a-d324-4302-9c92-61958e4cf250`
+  - `# PATCH /people/0b29a57a-d324-4302-9c92-61958e4cf250`
+  - `# PATCH /people/0b29a57a-d324-4302-9c92-61958e4cf250/relationships/accounts`
+  - `# DELETE /people/0b29a57a-d324-4302-9c92-61958e4cf250/relationships/accounts`
+  - `# DELETE /people/0b29a57a-d324-4302-9c92-61958e4cf250`
+
+More information on each of these calls can be found throughout this document.
+
 #### More configuration options
+Configuration of the complete mu-cl-resource instance can only be done using a configuration file in Lisp.
 
 ## Reference
 ### Defining resources in Lisp
