@@ -444,6 +444,20 @@ More information on each of these calls can be found throughout this document.
 #### More configuration options
 Configuration of the complete mu-cl-resource instance can only be done using a configuration file in Lisp.
 
+### How to spread the domain configuration across multiple files
+For larger applications with a broad domain, defining all resources in one domain file may become clumsy and confusing. Mu-cl-resources supports spreading your domain definitions across multiple files. The root domain files must be in Lisp format, but the included files may be in Lisp or JSON format.
+
+To include additional files in your domain configuration, add `read-domain-file` statements on top of the `domain.lisp` file.
+
+```lisp
+(in-package :mu-cl-resources)
+
+(read-domain-file "users.json")
+(read-domain-file "publications.lisp")
+```
+
+Restart the service. The additional configuration files will be picked up by mu-cl-resources.
+
 ## Reference
 ### Defining resources in Lisp
 As the integration with the frontend data-store is handled automatically, most of your time with mu-cl-resources will be spent configuring resources.  This overview provides a non-exhaustive list of the most common features of mu-cl-resources.
