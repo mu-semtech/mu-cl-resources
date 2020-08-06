@@ -1,0 +1,69 @@
+{
+  "version": "0.1",
+  "prefixes": {
+    "ext": "http://mu.semte.ch/vocabularies/ext/",
+    "dcat": "http://www.w3.org/ns/dcat#",
+    "dct": "http://purl.org/dc/terms/",
+    "skos": "http://www.w3.org/2004/02/skos/core#"
+  },
+  "resources": {
+    "catalogs": {
+      "class": "dcat:Catalog",
+      "attributes": {
+        "title": { "type": "string", "predicate": "dct:title" }
+      },
+      "relationships": {
+        "datasets": {
+          "target": "datasets",
+          "predicate": "dcat:dataset",
+          "cardinality": "many"
+        }
+      },
+      "new-resource-base": "http://webcat.tmp.semte.ch/catalogs/"
+    },
+    "datasets": {
+      "class": "dcat:Dataset",
+      "attributes": {
+        "title": { "type": "string", "predicate": "dct:title" },
+        "description": { "type": "string", "predicate": "dct:description" }
+      },
+      "relationships": {
+        "catalog": {
+          "target": "catalogs",
+          "predicate": "dcat:dataset",
+          "inverse": true,
+          "cardinality": "one"
+        },
+        "themes": {
+          "target": "themes",
+          "predicate": "dcat:theme",
+          "cardinality": "many"
+        }
+      },
+      "new-resource-base": "http://webcat.tmp.semte.ch/datasets/"
+    },
+    "distributions": {
+      "class": "dcat:Distribution",
+      "attributes": {
+        "title": { "type": "string", "predicate": "dct:title" },
+        "access-url": { "type": "url", "predicate": "dcat:accessURL" }
+      },
+      "new-resource-base": "http://webcat.tmp.semte.ch/distributions/"
+    },
+    "themes": {
+      "class": "dcat:Theme",
+      "attributes": {
+        "pref-label": { "type": "string", "predicate": "skos:prefLabel" }
+      },
+      "relationships": {
+        "datasets": {
+          "target": "datasets",
+          "predicate": "dcat:theme",
+          "inverse": true,
+          "cardinality": "many"
+        }
+      },
+      "new-resource-base": "http://webcat.tmp.semte.ch/themes/"
+    }
+  }
+}
