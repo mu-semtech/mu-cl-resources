@@ -104,12 +104,15 @@
         (with-surrounding-hook (:create (resource-name resource))
             (json-input item-spec)
           (sparql:insert-triples
-           `((,s-resource-uri ,(s-prefix "a") ,(ld-class resource))
-             (,s-resource-uri ,(s-prefix "mu:uuid") ,(s-str uuid))
+           `((,s-resource-uri ,(s-prefix "mu:uuid") ,(s-str uuid))
+             ;; types
+             ,@(loop for ld-class in (flattened-ld-class-tree resource)
+                     collect `(,s-resource-uri ,(s-prefix "a") ,ld-class))
+             ;; predicates
              ,@(loop for (predicates object)
-                  in (attribute-properties-for-json-input resource json-input)
-                  unless (eq object :null)
-                  collect `(,s-resource-uri ,@predicates ,object))))
+                     in (attribute-properties-for-json-input resource json-input)
+                     unless (eq object :null)
+                     collect `(,s-resource-uri ,@predicates ,object))))
           (setf (webserver:return-code*) webserver:+http-created+)
           (setf (webserver:header-out :location)
                 (construct-resource-item-path item-spec))
@@ -275,8 +278,8 @@
          :resource resource
          :self (self-for-list-call resource)
          :sparql-body (filter-body-for-search
-                       :sparql-body  (format nil "?s mu:uuid ?uuid; a ~A. ~@[~A~]"
-                                             (ld-class resource)
+                       :sparql-body  (format nil "?s mu:uuid ?uuid; a ?class. VALUES ?class {~{~A~,^ ~}}. ~@[~A~]"
+                                             (ld-subclasses resource)
                                              (authorization-query resource :show (s-var "s")))
                        :source-variable (s-var "s")
                        :resource resource)
@@ -417,7 +420,7 @@
                (or (not sparse-fields-p)
                   (find field requested-fields))))
         (let ((solution (ensure-solution item-spec))
-              (resource (resource item-spec))
+              (resource (most-specific-applicable-resource item-spec))
               (attributes (jsown:empty-object)))
           ;; ensure solution is complete
           (let ((unavailable-fields
@@ -540,38 +543,42 @@
           (cache-clear-object item-spec)
           (let (relation-content)
             (loop for slot in (ld-properties resource)
-               do (push (list (ld-property-list slot)
-                              (s-var (sparql-variable-name slot)))
-                        relation-content))
+                  do (push (list (ld-property-list slot)
+                                 (s-var (sparql-variable-name slot)))
+                           relation-content))
             (loop for link in (all-links resource)
-               do (push (list (ld-property-list link)
-                              (s-var (sparql-variable-name link)))
-                        relation-content))
+                  do (push (list (ld-property-list link)
+                                 (s-var (sparql-variable-name link)))
+                           relation-content))
             (setf relation-content (reverse relation-content))
             (sparql:delete
                 (apply #'concatenate 'string
                        (loop for triple-clause
-                          in
-                            `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))
-                              (,(s-var "s") ,(s-prefix "a") ,(ld-class resource))
-                              ,@(loop for (property-list value) in relation-content
-                                   collect `(,(s-var "s") ,@property-list ,value)))
-                          for (subject predicate object) = triple-clause
-                          collect (if (s-inv-p predicate)
-                                      (format nil "~4t~A ~A ~A.~%"
-                                              object (s-inv predicate) subject)
-                                      (format nil "~4t~A ~A ~A.~%"
-                                              subject predicate object))))
+                             in
+                             `(;; uuid
+                               (,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))
+                               ;; types
+                               ,@(loop for ld-class in (flattened-ld-class-tree
+                                                        (most-specific-applicable-resource item-spec))
+                                       collect `(,(s-var "s") ,(s-prefix "a") ,ld-class))
+                               ;; properties
+                               ,@(loop for (property-list value) in relation-content
+                                       collect `(,(s-var "s") ,@property-list ,value)))
+                             for (subject predicate object) = triple-clause
+                             collect (if (s-inv-p predicate)
+                                         (format nil "~4t~A ~A ~A.~%"
+                                                 object (s-inv predicate) subject)
+                                         (format nil "~4t~A ~A ~A.~%"
+                                                 subject predicate object))))
                 (concatenate 'string
                              (format nil "~{~&~4t~{~A ~A ~A~}.~%~}"
-                                     `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))
-                                       (,(s-var "s") ,(s-prefix "a") ,(ld-class resource))))
+                                     `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))))
                              (format nil "~{~&~4tOPTIONAL {~{~A ~A ~A~}.}~%~}"
                                      (loop for (property-list value) in relation-content
-                                        if (s-inv-p (first property-list))
-                                        collect `(,value ,(s-inv (first property-list)) ,(s-var "s"))
-                                        else
-                                        collect `(,(s-var "s") ,(first property-list) ,value)))))))
+                                           if (s-inv-p (first property-list))
+                                           collect `(,value ,(s-inv (first property-list)) ,(s-var "s"))
+                                           else
+                                           collect `(,(s-var "s") ,(first property-list) ,value)))))))
         (respond-no-content)))))
 
 (defgeneric show-relation-call (resource id link)
@@ -644,9 +651,9 @@
                                           (authorization-query item-spec :show resource-url)))))
            (linked-resource (resource-name (referred-resource link))))
       (and query-results
-           (list
-            (make-item-spec :type linked-resource
-                            :uuid (jsown:filter query-results "uuid" "value"))))))
+         (list
+          (make-item-spec :type linked-resource
+                          :uuid (jsown:filter query-results "uuid" "value"))))))
   (:method ((item-spec item-spec) (link has-many-link))
     (let* ((resource-url (s-url (node-url item-spec)))
            (query-results

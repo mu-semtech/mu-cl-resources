@@ -26,8 +26,12 @@
   (:documentation "Describes a has-one link to another resource"))
 
 (defclass resource ()
-  ((ld-class :initarg :ld-class :reader ld-class)
-   (ld-properties :initarg :ld-properties :reader ld-properties)
+  ((superclass-names :initarg :superclass-names :reader superclass-names :initform nil)
+   (ld-class :initarg :ld-class :reader ld-class)
+   (ld-properties :initarg :ld-properties)
+   (ld-properties-cache :documentation
+                        "A cache for faster calculation of the
+                        existing properties of a resource.")
    (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)
    (json-type :initarg :json-type :reader json-type)
    (has-many-links :initarg :has-many :reader has-many-links)
@@ -37,7 +41,10 @@
    (features :initarg :features :reader features)
    (authorization :initarg :authorization :reader authorization)
    (query-count-cache :initform (make-user-aware-hash-table :test 'equal)
-                      :accessor query-count-cache)))
+                      :accessor query-count-cache)
+   (resource-subclass-cache :documentation
+                            "A cache for faster calculation of a
+                            resource's children")))
 
 (defparameter *resources* (make-hash-table)
   "contains all currently known resources")
@@ -138,6 +145,70 @@
   (:documentation "Expanded version of the ld-property-list of the relationship.")
   (:method ((relation has-link))
     (full-uri (ld-property-list relation))))
+
+(defgeneric flattened-class-tree (resource)
+  (:documentation "Yields an ordered list of all types which apply to
+  this resource, most specific type first.
+
+  This means we yield this resource, as well as all parents this resource has.
+
+  The superclass-names are reversed from their original definition, as
+  later names are assumed to be of less importance.")
+  (:method ((resource resource))
+    (cons resource
+          (loop for resource-name in (reverse (superclass-names resource))
+                append (flattened-class-tree
+                        (find-resource-by-name resource-name))))))
+
+(defgeneric flattened-ld-class-tree (resource)
+  (:documentation "Yields a list of all ld-class specifications for
+  the supplied resource, most specific ld-class first.")
+  (:method ((resource resource))
+    (mapcar #'ld-class (flattened-class-tree resource))))
+
+(defgeneric ld-properties (resource)
+  (:documentation "Yields the ld-properties which apply to this
+  resource.  Either because they have been defined on this resource or
+  because they are defined on one of its parents.
+
+  MAY contain duplicates.")
+  (:method ((resource resource))
+    (if (slot-boundp resource 'ld-properties-cache)
+        (slot-value resource 'ld-properties-cache)
+        (setf (slot-value resource 'ld-properties-cache)
+              ;; We choose not to remove duplicates here because we doubt this
+              ;; will occur often.
+              (loop for resource in (flattened-class-tree resource)
+                    append (progn
+                             (and (slot-boundp resource 'ld-properties)
+                                  (slot-value resource 'ld-properties))))))))
+
+(defun resource-distance (parent child)
+  "Yields the distance between the child and parent resources, or nil
+  if there is no such relation."
+  (position parent (flattened-class-tree child)))
+
+(defgeneric subclass-resources (resource)
+  (:documentation "Yields an ordered list of subclasses of this resource, including itself.
+
+   The most specific resource is listed first.")
+  (:method ((resource resource))
+    (if (slot-boundp resource 'resource-subclass-cache)
+        (slot-value resource 'resource-subclass-cache)
+        (setf (slot-value resource 'resource-subclass-cache)
+              (mapcar #'cdr
+                      (sort
+                       (loop for maybe-subresource being the hash-values of *resources*
+                             for distance = (resource-distance resource maybe-subresource)
+                             when distance
+                             collect (cons distance maybe-subresource))
+                       #'< :key #'car))))))
+
+(defgeneric ld-subclasses (resource)
+  (:documentation "Yields a list of ld-classes for the current class
+  and all of its subclasses.")
+  (:method ((resource resource))
+    (mapcar #'ld-class (subclass-resources resource))))
 
 (defmethod json-key ((link has-link))
   (request-path link))
@@ -301,7 +372,7 @@
             last-slot
             slots)))
 
-(defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization features)
+(defun define-resource* (name superclass-names &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization features)
   "defines a resource for which get and set requests exist"
   (let* ((properties (loop for (key type prop . options) in ld-properties
                         collect (make-instance 'resource-slot
@@ -314,6 +385,7 @@
          (has-one-links (mapcar (alexandria:curry #'apply #'make-instance 'has-one-link :resource)
                                 has-one)))
     (make-instance 'resource
+                   :superclass-names superclass-names
                    :ld-class ld-class
                    :ld-properties properties
                    :ld-resource-base ld-resource-base
@@ -325,9 +397,8 @@
                    :features features
                    :resource-name name)))
 
-(defmacro define-resource (name options &key class properties resource-base has-many has-one on-path authorization features)
-  (declare (ignore options))
-  `(define-resource* ',name
+(defmacro define-resource (name superclass-names &key class properties resource-base has-many has-one on-path authorization features)
+  `(define-resource* ',name ',superclass-names
        :ld-class ,class
        :ld-properties ,properties
        :ld-resource-base ,resource-base
