@@ -153,8 +153,7 @@
           (when (jsown:keywords attributes)
             (sparql:with-update-group
               (let ((delete-vars (loop for key in (jsown:keywords attributes)
-                                    for i from 0
-                                    collect (s-var (format nil "gensym~A" i)))))
+                                       collect (sparql-gensym-var key))))
                 (sparql:delete-triples
                  (loop for key in (jsown:keywords attributes)
                     for slot = (resource-slot-by-json-key resource key)
@@ -615,10 +614,13 @@
                  :sparql-body (filter-body-for-search
                                :sparql-body (format nil
                                                     (s+ "~A ~{~A~,^/~} ?resource. "
-                                                        "?resource mu:uuid ?uuid. "
+                                                        "?resource mu:uuid ?uuid; "
+                                                        "          a ?class. "
+                                                        "VALUES ?class {~{~A~,^ ~}}."
                                                         "~@[~A~] ")
                                                     resource-url
                                                     (ld-property-list link)
+                                                    (ld-subclasses resource)
                                                     (authorization-query resource :show resource-url))
                                :source-variable (s-var "resource")
                                :resource (referred-resource link))

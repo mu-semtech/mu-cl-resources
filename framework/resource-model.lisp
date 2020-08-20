@@ -1,3 +1,4 @@
+
 (in-package :mu-cl-resources)
 
 
@@ -333,22 +334,32 @@
                  (setf current-resource (referred-resource link)) ; set resource of last link
                  link))))))
 
-(defun property-path-for-filter-components (resource components)
-  "Constructs the SPARQL property path for a set of filter
-   components.  Assumes the components end with an attribute
-   specification if specific attributes are targeted.
+(defun sparql-pattern-for-filter-components (source-var resource components &optional wildcardp)
+  "Constructs the SPARQL pattern for a set of filter components,
+   starting from source-var.  If ending in a search statement should
+   result in a wildcard search for properties of the element,
+   wildcardp should be truethy.
+
+   TODO: Splitting this method into a 'base' which detects the last
+   element, a portion which follows constraints for the resource
+   paths, and a part which contains the ending constraint for the
+   specified (or all) properties, would make this function easier to
+   read.  Consumers would likely know which base case to call, hence
+   the latter two could receive a wrapper as an entry-point if that
+   makes things easier to read in the consumer.
 
    If the last component of the specification yields a resource,
    rather than a property, the search path will allow for all
    properties in that search path.
 
-   Returns (values property-path last-slot slots) in which the
-   property-path is the description above, last-slot is the slot
-   or has-link corresponding to the last component, and slots is
-   the content from slots-for-filter-components as used by this
-   function."
+   Returns (values sparql-pattern target-variable last-slot slots) in
+   which the property-path is the description above, target-variable
+   is a sparql variable containing the last most specific match,
+   last-slot is the slot or has-link corresponding to the last
+   component, and slots is the content from
+   slots-for-filter-components as used by this function."
   (let* ((slots (slots-for-filter-components resource components))
-         (path-components (alexandria:flatten (mapcar #'ld-property-list slots)))
+         ;; REMOVE (path-components (alexandria:flatten (mapcar #'ld-property-list slots)))
          (last-slot (car (last slots)))
          (ends-in-link-p
           ;; we have a general search if the last element is a link,
@@ -362,15 +373,50 @@
           (and ends-in-link-p
                (if (eq components nil)
                    resource
-                   (referred-resource last-slot)))))
-    (values (if ends-in-link-p
-                `(,@path-components
-                  ,(format nil "(~{(~{~A~^/~})~^|~})"
-                           (mapcar #'ld-property-list
-                                   (ld-properties last-resource))))
-                path-components)
-            last-slot
-            slots)))
+                   (referred-resource last-slot))))
+         (path-slots (if ends-in-link-p slots (butlast slots)))
+         (target-variable (sparql-gensym-var "values")) ; Will always contain the values on which will be searched.
+         ;; following is a loop calculation of which we need te have
+         ;; the last-subject-var near the end of this computation.
+         (last-subject-var source-var)
+         (constraints-to-last-object
+          (format nil "~{~A~,^ ~}"
+                  (loop for slot in path-slots
+                        for object-var = (sparql-gensym-var)
+                        for type-var = (sparql-gensym-var "class")
+                        for target-resource = (find-resource-by-name (resource-name slot))
+                        collect (prog1
+                                    (format nil "~A ~{~A~,^/~} ~A. ~A a ~A. VALUES ~A (~{~A~,^ ~}). "
+                                            last-subject-var (ld-property-list slot) object-var
+                                            object-var type-var
+                                            type-var (ld-subclasses target-resource))
+                                  (setf last-subject-var object-var)))))
+         ;; following is another logical flow building on the previous
+         ;; which runs when the last element is a resourc and we need
+         ;; to search broadly.
+         (constraint-to-key (when last-resource
+                              (format nil "~A ~{(~{~A~^/~})~^|~} ~A. "
+                                      last-subject-var
+                                      (mapcar #'ld-property-list
+                                              (ld-properties last-resource))
+                                      target-variable))))
+    (cond ((and ends-in-link-p wildcardp)
+           (values (format nil "~A ~A" constraints-to-last-object constraint-to-key)
+                   target-variable
+                   last-slot
+                   slots))
+          ((and ends-in-link-p (not wildcardp))
+           (values constraints-to-last-object
+                   last-subject-var
+                   last-slot
+                   slots))
+          (t ; (not ends-in-link-p)
+           (values (format nil "~A ~A ~{~A~^/~} ~A. "
+                           constraints-to-last-object
+                           last-subject-var (ld-property-list last-slot) target-variable)
+                   target-variable
+                   last-slot
+                   slots)))))
 
 (defun define-resource* (name superclass-names &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization features)
   "defines a resource for which get and set requests exist"
