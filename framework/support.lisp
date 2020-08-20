@@ -22,12 +22,6 @@
   (declare (ignore silent))
   `(progn ,@body))
 
-(defparameter *sparql-gensym-var-index* 0
-  "Current index for gensym variables.")
-(defun sparql-gensym-var (&optional (name "gensym"))
-  "Yield a gensym variable for a query."
-  (s-var (format nil "~A~A" name (incf *sparql-gensym-var-index*))))
-
 (defun symbol-to-camelcase (content &key (cap-first nil))
   "builds a javascript variable from anything string-like"
   (format nil "~{~A~}"

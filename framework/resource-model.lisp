@@ -375,15 +375,15 @@
                    resource
                    (referred-resource last-slot))))
          (path-slots (if ends-in-link-p slots (butlast slots)))
-         (target-variable (sparql-gensym-var "values")) ; Will always contain the values on which will be searched.
+         (target-variable (s-genvar "values")) ; Will always contain the values on which will be searched.
          ;; following is a loop calculation of which we need te have
          ;; the last-subject-var near the end of this computation.
          (last-subject-var source-var)
          (constraints-to-last-object
           (format nil "~{~A~,^ ~}"
                   (loop for slot in path-slots
-                        for object-var = (sparql-gensym-var)
-                        for type-var = (sparql-gensym-var "class")
+                        for object-var = (s-genvar)
+                        for type-var = (s-genvar "class")
                         for target-resource = (find-resource-by-name (resource-name slot))
                         collect (prog1
                                     (format nil "~A ~{~A~,^/~} ~A. ~A a ~A. VALUES ~A (~{~A~,^ ~}). "

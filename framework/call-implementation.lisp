@@ -153,7 +153,7 @@
           (when (jsown:keywords attributes)
             (sparql:with-update-group
               (let ((delete-vars (loop for key in (jsown:keywords attributes)
-                                       collect (sparql-gensym-var key))))
+                                       collect (s-genvar key))))
                 (sparql:delete-triples
                  (loop for key in (jsown:keywords attributes)
                     for slot = (resource-slot-by-json-key resource key)
