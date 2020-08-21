@@ -39,7 +39,7 @@
    (has-one-links :initarg :has-one :reader has-one-links)
    (request-path :initarg :request-path :reader request-path)
    (name :initarg :resource-name :reader resource-name)
-   (features :initarg :features :reader features)
+   (features :initarg :features)
    (authorization :initarg :authorization :reader authorization)
    (query-count-cache :initform (make-user-aware-hash-table :test 'equal)
                       :accessor query-count-cache)
@@ -160,6 +160,19 @@
           (loop for resource-name in (reverse (superclass-names resource))
                 append (flattened-class-tree
                         (find-resource-by-name resource-name))))))
+
+(defgeneric features (resource)
+  (:documentation "Features for the current resource, being the features specified at any level.")
+  (:method ((resource resource))
+    ;; TODO: this could be cleaner by checking if features was
+    ;; explicitly set, and using the higest explicitly set features
+    ;; even if empty.
+    (let ((features (slot-value resource 'features)))
+      (if features
+          features
+          (loop for resource in (flattened-class-tree resource)
+                when (slot-value resource 'features)
+                return it)))))
 
 (defgeneric flattened-ld-class-tree (resource)
   (:documentation "Yields a list of all ld-class specifications for

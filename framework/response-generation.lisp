@@ -145,7 +145,7 @@
         (multiple-value-bind (data-item-specs included-item-specs)
             (augment-data-with-attached-info
              (loop for uuid in uuids
-                collect (make-item-spec :uuid uuid :type resource-type)))
+                   collect (make-item-spec :uuid uuid :type resource-type)))
           (let ((response
                  (jsown:new-js ("data" (mapcar #'item-spec-to-jsown data-item-specs))
                                ("links" (merge-jsown-objects

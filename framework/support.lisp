@@ -138,35 +138,21 @@
 
 (defun item-spec-hash-key (item-spec)
   "Creates a key which can be compared through #'equal."
-  (list (resource-name item-spec) (uuid item-spec)))
-
-(defgeneric resource (item-spec)
-  (:documentation "Yields the specified resource for this item-spec.")
-  (:method ((spec item-spec))
-    (find-resource-by-name (resource-name spec))))
+  (list (resource item-spec) (uuid item-spec)))
 
 (defun item-spec-current-ld-classes (item-spec)
   "Yields the current LD classes the triplestore has on the given item-spec."
-  (current-classes-for-uri (node-url item-spec)))
+  (classes-for-uri (node-url item-spec)))
 
-(defun current-classes-for-uri (uri)
-  "Yields the classes which the database has for the current class's URL"
-  ;; TODO: add caching for these classes, populate by caching during
-  ;; creation, clear by delta messages and delete calls.
-  (mapcar #'s-url
-          (jsown:filter (sparql:select (s-var "class")
-                                       (format nil "~A a ?class" (s-url uri)))
-                        map "class" "value")))
-
-(defgeneric most-specific-applicable-resource (item-spec)
+(defgeneric resource (item-spec)
   (:documentation "Yields the most specific resource based on the
   types of the supplied entity.  Assumes the resource could be found
   in the database.")
   (:method ((spec item-spec))
     ;; TODO: cache the types for the resources and clear that cache on
     ;; delta messages about the resource.
-    (let ((specified-ld-classes (item-spec-current-ld-classes spec))
-          (subresources (subclass-resources (resource spec))))
+    (let ((specified-ld-classes (mapcar #'s-url (item-spec-current-ld-classes spec)))
+          (subresources (subclass-resources (find-resource-by-name (slot-value spec 'type)))))
       ;; Subresources are ordered most broad to most specific.  As
       ;; such, we need to find the last subresource for which we have
       ;; the class in our set of specified-ld-classes.
