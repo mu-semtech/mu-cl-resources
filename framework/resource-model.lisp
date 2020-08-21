@@ -35,8 +35,8 @@
                         existing properties of a resource.")
    (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)
    (json-type :initarg :json-type :reader json-type)
-   (has-many-links :initarg :has-many :reader has-many-links)
-   (has-one-links :initarg :has-one :reader has-one-links)
+   (has-many-links :initarg :has-many)
+   (has-one-links :initarg :has-one)
    (request-path :initarg :request-path :reader request-path)
    (name :initarg :resource-name :reader resource-name)
    (features :initarg :features)
@@ -53,6 +53,7 @@
 (defmethod initialize-instance :after ((resource resource) &key &allow-other-keys)
   (let ((name (resource-name resource)))
     (setf (gethash name *resources*) resource))
+  ;; TODO: should inheritance impact inverse property lists?
   (dolist (link (all-links resource))
     (alexandria:when-let ((linked-resource (find-resource-by-name (resource-name link)))
                           (inverse-property-list (reverse
@@ -61,6 +62,7 @@
                                                           (ld-property-list link)))))
       inverse-property-list
       ;; find inverse relationship
+      ;; TODO: do inverse links impact inheritance?
       (dolist (inverse-link (all-links linked-resource))
         (when (equalp inverse-property-list
                       (mapcar (lambda (prop) (format nil "~A" prop))
@@ -173,6 +175,22 @@
           (loop for resource in (flattened-class-tree resource)
                 when (slot-value resource 'features)
                 return it)))))
+
+(defgeneric has-one-links (resource)
+  (:documentation "Yields all has-one links (based on the inheritance
+  tree) which link from this resource.")
+  (:method ((resource resource))
+    ;; TODO: filter out duplicate names?
+    (loop for resource in (flattened-class-tree resource)
+          append (slot-value resource 'has-one-links))))
+
+(defgeneric has-many-links (resource)
+  (:documentation "Yields all has-many links (based on the inheritance
+  tree) which link from this resource.")
+  (:method ((resource resource))
+    ;; TODO: filter out duplicate names?
+    (loop for resource in (flattened-class-tree resource)
+          append (slot-value resource 'has-many-links))))
 
 (defgeneric flattened-ld-class-tree (resource)
   (:documentation "Yields a list of all ld-class specifications for
