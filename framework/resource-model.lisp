@@ -53,7 +53,16 @@
 (defmethod initialize-instance :after ((resource resource) &key &allow-other-keys)
   (let ((name (resource-name resource)))
     (setf (gethash name *resources*) resource))
-  ;; TODO: should inheritance impact inverse property lists?
+  ;; When links and inverse links are specified, we don't need to
+  ;; cater for extra specific cases.  Reason is that inverse links
+  ;; should be specified on the parent classes.  As we follow the
+  ;; reified inheritance tree, this should have been applied to all
+  ;; relevant classes, and their subclasses should take this into
+  ;; account.
+
+  ;; TODO: further testing is needed to ensure this set of inverse
+  ;; properties cannot override certain properties due to subclasses
+  ;; now existing, and thus incorrectly setting the property list.
   (dolist (link (all-links resource))
     (alexandria:when-let ((linked-resource (find-resource-by-name (resource-name link)))
                           (inverse-property-list (reverse
@@ -62,7 +71,6 @@
                                                           (ld-property-list link)))))
       inverse-property-list
       ;; find inverse relationship
-      ;; TODO: do inverse links impact inheritance?
       (dolist (inverse-link (all-links linked-resource))
         (when (equalp inverse-property-list
                       (mapcar (lambda (prop) (format nil "~A" prop))
