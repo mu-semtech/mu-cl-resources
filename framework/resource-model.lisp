@@ -29,14 +29,20 @@
 (defclass resource ()
   ((superclass-names :initarg :superclass-names :reader superclass-names :initform nil)
    (ld-class :initarg :ld-class :reader ld-class)
-   (ld-properties :initarg :ld-properties)
+   (ld-properties :initarg :ld-properties
+                  :reader direct-ld-properties) ; used for uml
+                                                ; generators etc
    (ld-properties-cache :documentation
                         "A cache for faster calculation of the
                         existing properties of a resource.")
    (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)
    (json-type :initarg :json-type :reader json-type)
-   (has-many-links :initarg :has-many)
-   (has-one-links :initarg :has-one)
+   (has-many-links :initarg :has-many
+                   :reader direct-has-many-links)
+                                        ; used for uml generators etc
+   (has-one-links :initarg :has-one
+                  :reader direct-has-one-links)
+                                        ; used for uml generators etc
    (request-path :initarg :request-path :reader request-path)
    (name :initarg :resource-name :reader resource-name)
    (features :initarg :features)
@@ -265,6 +271,13 @@
     Both the has-many-links and has-one-links.")
   (:method ((resource resource))
     (append (has-many-links resource) (has-one-links resource))))
+
+(defgeneric all-direct-links (resource)
+  (:documentation "Retrieves all direct links for the supplied
+    resource.  Both the has-many-links and has-one-links but only
+    those defined on the supplied resource.")
+  (:method ((resource resource))
+    (append (direct-has-many-links resource) (direct-has-one-links resource))))
 
 (defgeneric resource-slot-by-json-key (resource key)
   (:documentation "Returns the slot which should be communicated
