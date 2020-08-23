@@ -432,8 +432,17 @@
                  :ld-relation (expanded-ld-relation relation)))
 
 (defun cache-clear-class (resource)
-  (clear-cached-count-queries resource)
-  (add-clear-key :ld-resource (expanded-ld-class resource)))
+  "Clears the current class.
+
+   Considering inheritance, this must also clear all of the
+   superclasses as they may contain elements of this subclass.
+   Subclasses don't need to be considered as their views cannot be
+   updated by a change which only affects a parent."
+  ;; TODO: clear for all parent instances
+  (dolist (super-resource (flattened-class-tree resource))
+    ;; note: super-resource includes current resource
+    (clear-cached-count-queries super-resource)
+    (add-clear-key :ld-resource (expanded-ld-class super-resource))))
 
 (defun cache-clear-object (item-spec)
   (clear-solution item-spec)

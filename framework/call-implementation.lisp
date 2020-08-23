@@ -148,7 +148,7 @@
       (with-surrounding-hook (:update (resource-name resource))
           (json-input item-spec)
         (with-cache-store
-          (cache-clear-class resource)
+          (cache-clear-class (resource item-spec))
           (cache-clear-object item-spec)
           (when (jsown:keywords attributes)
             (sparql:with-update-group

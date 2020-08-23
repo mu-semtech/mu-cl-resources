@@ -124,7 +124,6 @@
   (:documentation "Clears the solution from the given specification
    accepts both an item-spec as well as a uuid")
   (:method ((item-spec item-spec))
-
     (rem-ua-hash (uuid item-spec) *cached-resources*)
     (clear-uri-cache-for-uuid (uuid item-spec)))
   (:method ((uuid string))
