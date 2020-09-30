@@ -198,7 +198,7 @@ Each resource definition is a combination of these three views.  Let us assume a
           "type": "string",
           "predicate": "http://xmlns.com/foaf/0.1/name"
         }
-      }
+      },
       "new-resource-base": "https://my-application.com/people/"
     }
   }
@@ -229,7 +229,7 @@ Assuming the `foaf` prefix is defined, we can make this example slightly easier 
           "type": "string",
           "predicate": "foaf:name"
         }
-      }
+      },
       "new-resource-base": "https://my-application.com/people/"
     }
   }
@@ -258,7 +258,7 @@ We can insert multiple attributes if desired. We can update our example to also 
           "type": "number",
           "predicate": "foaf:age"
         }
-      }
+      },
       "new-resource-base": "https://my-application.com/people/"
     }
   }
@@ -284,7 +284,7 @@ Most resources link to other resources.  Let's first define a second resouce, an
           "type": "string",
           "predicate": "foaf:accountName"
         }
-      }
+      },
       "new-resource-base": "https://my-application.com/accounts/"
     }
   }
@@ -317,7 +317,7 @@ The definition of this `account` resource is very similar to that of the `person
           "target": "account",
           "cardinality": "many"
         }
-      }
+      },
       "new-resource-base": "https://my-application.com/people/"
     },
     "accounts": {
@@ -328,7 +328,7 @@ The definition of this `account` resource is very similar to that of the `person
           "type": "string",
           "predicate": "foaf:accountName"
         }
-      }
+      },
       "new-resource-base": "https://my-application.com/accounts/"
     }
   }
@@ -360,7 +360,7 @@ How about getting the person which links to this account.  There is only a singl
           "cardinality": "one",
           "inverse": true
         }
-      }
+      },
       "new-resource-base": "https://my-application.com/accounts/"
     }
   }
@@ -395,7 +395,7 @@ The complete setup of our user and account looks as follows:
           "target": "account",
           "cardinality": "many"
         }
-      }
+      },
       "new-resource-base": "https://my-application.com/people/"
     },
     "accounts": {
@@ -414,7 +414,7 @@ The complete setup of our user and account looks as follows:
           "cardinality": "one",
           "inverse": true
         }
-      }
+      },
       "new-resource-base": "https://my-application.com/accounts/"
     }
   }
