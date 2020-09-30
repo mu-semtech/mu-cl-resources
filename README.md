@@ -179,9 +179,9 @@ mu-cl-resources is driven from the domain.json file.  This file describes the co
 
 
 #### /configuration/domain.json
-The domain.lisp contains resource definitions for each resource type in the application.  These resource definitions provide a three-way connection:
+The domain.json contains resource definitions for each resource type in the application.  These resource definitions provide a three-way connection:
 
-  - It names things to make connections within the domain.lisp file
+  - It names things to make connections within the domain.json file
   - It describes the properties as seen through the json api
   - It describes the semantic model used in order to implement the json api
 
