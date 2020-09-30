@@ -337,7 +337,7 @@ The definition of this `account` resource is very similar to that of the `person
 
 The `relationships` object specifies that a `person` may link to many resources of target type `account`.  In the triplestore, the link can be found by following the [foaf:account](http://xmlns.com/foaf/0.1/account) predicate, originating from the person's URI.  This relationship is exposed to the JSON API by using the relationship name "accounts".  Hence a GET to `/people/42/accounts` would yield the accounts of the person with UUID 42.
 
-How about getting the person which links to this account.  There is only a single person connected to an account.  Hence we can specify a relationship with cardinality `"one"` on the `account` resource.  In the semantic model of the triplestore, the relationship uses the [foaf:account](http://xmlns.com/foaf/0.1/account) property going from the person to the account.  Finding the person for an account therefore means we have to follow the same relationship in the other direction.  We can add the property `"inverse": true` to any relationship to make the semantic model follow the inverse arrow.  Here, the key in the json body will be `owner` rather than person.
+How about getting the person which links to this account.  There is only a single person connected to an account.  Hence we can specify a relationship with cardinality `one` on the `account` resource.  In the semantic model of the triplestore, the relationship uses the [foaf:account](http://xmlns.com/foaf/0.1/account) property going from the person to the account.  Finding the person for an account therefore means we have to follow the same relationship in the other direction.  We can add the property `"inverse": true` to any relationship to make the semantic model follow the inverse arrow.  Here, the key in the json body will be `owner` rather than person.
 
 ```javascript
 {
@@ -442,7 +442,7 @@ We intend to support the full spec of [JSONAPI](http://jsonapi.org).  Support fo
 More information on each of these calls can be found throughout this document.
 
 #### More configuration options
-Configuration of the complete mu-cl-resource instance can only be done using a configuration file in Lisp.
+Configuration of the complete mu-cl-resource instance can only be done using a configuration file in Lisp. See Tutorial: Configuring settings using a domain.json file.
 
 ### Combining domain.lisp and domain.json
 For larger applications with a broad domain, defining all resources in one domain file may become clumsy and confusing. Mu-cl-resources supports spreading your domain definitions across multiple files. The root domain files must be in Lisp format, but the included files may be in Lisp or JSON format.
@@ -457,6 +457,22 @@ To include additional files in your domain configuration, add `read-domain-file`
 ```
 
 Restart the service. The additional configuration files will be picked up by mu-cl-resources.
+
+### Configuring settings using a domain.json file
+Most settings can only be configured in Lisp format. This tutorial describes how to configure the settings if you defined your resources using a `domain.json` file.
+
+First create a `domain.lisp` file next to the existing `domain.json` file.
+
+Next, add the following contents to the `domain.lisp` file:
+```
+(in-package :mu-cl-resources)
+
+(read-domain-file "domain.json")
+```
+
+Add your settings in `domain.lisp`.
+
+Restart the service. The newly configured settings will be picked up by mu-cl-resources.
 
 ## Reference
 ### Defining resources in Lisp
