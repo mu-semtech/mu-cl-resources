@@ -320,9 +320,11 @@
                        (json-type (resource item-spec))))))
     (values (and spec
                  (loop for key in (cl-ppcre:split "," spec)
-                    collect
-                      (or (resource-slot-by-json-key (resource item-spec) key)
-                          (find-link-by-json-name (resource item-spec) key))))
+                       collect (handler-case
+                                   (resource-slot-by-json-key (resource item-spec) key)
+                                 (no-such-property (c)
+                                   (declare (ignore c))
+                                   (find-link-by-json-name (resource item-spec) key)))))
             (and spec t))))
 
 (defclass solution ()

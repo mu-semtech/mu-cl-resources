@@ -1,6 +1,5 @@
 (in-package :mu-cl-resources)
 
-
 (define-condition configuration-error (error)
   ((description :initarg :description :reader description))
   (:documentation "Indicates the system was configured incorrectly"))
@@ -21,6 +20,12 @@
    (path :initarg :path :reader path))
   (:documentation "Indicates the specified link does not exist
     for the supplied resource."))
+
+(define-condition no-such-property (error)
+  ((resource :initarg :resource :reader resource)
+   (path :initarg :path :reader path))
+  (:documentation "Indicates the specified property does not exist for
+    the supplied resource."))
 
 (define-condition simple-described-condition (error)
   ((description :initarg :description :reader description))

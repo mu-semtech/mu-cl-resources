@@ -20,6 +20,13 @@
       (respond-not-found))
     (access-denied (condition)
       (response-for-access-denied-condition condition))
+    (no-such-property (condition)
+      (let ((message
+             (format nil "Could not find property (~A) on resource (~A)."
+                     (path condition) (json-type (resource condition)))))
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" message)))))))
     (configuration-error (condition)
       (respond-server-error
        (jsown:new-js
@@ -49,7 +56,14 @@
     (incorrect-accept-header (condition)
       (respond-not-acceptable (jsown:new-js
                                 ("errors" (jsown:new-js
-                                            ("title" (description condition)))))))))
+                                            ("title" (description condition)))))))
+    (no-such-property (condition)
+      (let ((message
+             (format nil "Could not find property (~A) on resource (~A)."
+                     (path condition) (json-type (resource condition)))))
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" message)))))))))
 
 (defcall :post (base-path)
   (let ((body (jsown:parse (post-body))))
@@ -105,7 +119,14 @@
            ("errors" (jsown:new-js
                        ("title" (format nil "Supplied type (~A) did not match type for path (~A)."
                                         (content-defined-type condition)
-                                        (path-defined-type condition)))))))))))
+                                        (path-defined-type condition))))))))
+      (no-such-property (condition)
+        (let ((message
+               (format nil "Could not find property (~A) on resource (~A)."
+                       (path condition) (json-type (resource condition)))))
+          (respond-not-acceptable (jsown:new-js
+                                    ("errors" (jsown:new-js
+                                                ("title" message))))))))))
 
 (defcall :patch (base-path id)
   (let ((body (jsown:parse (post-body))))
@@ -163,7 +184,14 @@
            ("errors" (jsown:new-js
                        ("title" (format nil "id in data (~A) did not match id in path (~A)."
                                         (content-defined-id condition)
-                                        (path-defined-id condition)))))))))))
+                                        (path-defined-id condition))))))))
+      (no-such-property (condition)
+        (let ((message
+               (format nil "Could not find property (~A) on resource (~A)."
+                       (path condition) (json-type (resource condition)))))
+          (respond-not-acceptable (jsown:new-js
+                                    ("errors" (jsown:new-js
+                                                ("title" message))))))))))
 
 (defcall :delete (base-path id)
   (handler-case
@@ -203,6 +231,13 @@
                      ("title" (s+ "Server configuration issue: " (description condition))))))))
     (no-such-resource ()
       (respond-not-found))
+    (no-such-property (condition)
+      (let ((message
+             (format nil "Could not find property (~A) on resource (~A)."
+                     (path condition) (json-type (resource condition)))))
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" message)))))))
     (no-such-link (condition)
       (let ((message
              (format nil "Could not find link (~A) on resource (~A)."
@@ -252,6 +287,13 @@
                                         ("title" "Must supply id in primary data."))))))
       (no-such-resource ()
         (respond-not-found))
+      (no-such-property (condition)
+        (let ((message
+               (format nil "Could not find property (~A) on resource (~A)."
+                       (path condition) (json-type (resource condition)))))
+          (respond-not-acceptable (jsown:new-js
+                                    ("errors" (jsown:new-js
+                                                ("title" message)))))))
       (no-such-link (condition)
         (let ((message
                (format nil "Could not find link (~A) on resource (~A)."
@@ -306,6 +348,13 @@
                                         ("title" "Must supply id in primary data."))))))
       (no-such-resource ()
         (respond-not-found))
+      (no-such-property (condition)
+        (let ((message
+               (format nil "Could not find property (~A) on resource (~A)."
+                       (path condition) (json-type (resource condition)))))
+          (respond-not-acceptable (jsown:new-js
+                                    ("errors" (jsown:new-js
+                                                ("title" message)))))))
       (no-such-link (condition)
         (let ((message
                (format nil "Could not find link (~A) on resource (~A)."
