@@ -148,8 +148,6 @@
       (with-surrounding-hook (:update (resource-name resource))
           (json-input item-spec)
         (with-cache-store
-          (cache-clear-class (resource item-spec))
-          (cache-clear-object item-spec)
           (when (jsown:keywords attributes)
             (sparql:with-update-group
               (let ((delete-vars (loop for key in (jsown:keywords attributes)
@@ -179,6 +177,9 @@
                  (update-resource-relation item-spec relation
                                            (jsown:filter json-input
                                                          "data" "relationships" relation "data"))))
+          ;; clear caches after updating the database
+          (cache-clear-class (resource item-spec))
+          (cache-clear-object item-spec)
           (respond-no-content))))))
 
 (defgeneric update-resource-relation (item-spec relation resource-specification)
@@ -189,7 +190,6 @@
                               resource-specification))
   (:method ((item-spec item-spec) (link has-one-link) resource-specification)
     (check-access-rights-for-item-spec item-spec :update)
-    (reset-cache-for-resource-relation item-spec link)
     (flet ((delete-query (resource-uri link-uri)
              (sparql:delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
@@ -213,10 +213,11 @@
                               (s-url new-linked-uri))))
             ;; delete content
             (delete-query (s-url resource-uri)
-                          (ld-property-list link))))))
+                          (ld-property-list link)))))
+    ;; reset the cache after updating the triplestore
+    (reset-cache-for-resource-relation item-spec link))
   (:method ((item-spec item-spec) (link has-many-link) resource-specification)
     (check-access-rights-for-item-spec item-spec :update)
-    (reset-cache-for-resource-relation item-spec link)
     (flet ((delete-query (resource-uri link-uri)
              (sparql:delete-triples
               `((,resource-uri ,@link-uri ,(s-var "s")))))
@@ -243,7 +244,9 @@
                               (mapcar #'s-url new-linked-resources))))
             ;; delete content
             (delete-query (s-url resource-uri)
-                          (ld-property-list link)))))))
+                          (ld-property-list link)))))
+    ;; reset the cache after updating the triplestore
+    (reset-cache-for-resource-relation item-spec link)))
 
 (defun cache-list-call (resource)
   "Performs the caching of a list call.
@@ -538,8 +541,6 @@
       (with-surrounding-hook (:delete (resource-name resource))
           (item-spec)
         (with-cache-store
-          (cache-clear-class resource)
-          (cache-clear-object item-spec)
           (let (relation-content)
             (loop for slot in (ld-properties resource)
                   do (push (list (ld-property-list slot)
@@ -577,7 +578,9 @@
                                            if (s-inv-p (first property-list))
                                            collect `(,value ,(s-inv (first property-list)) ,(s-var "s"))
                                            else
-                                           collect `(,(s-var "s") ,(first property-list) ,value)))))))
+                                           collect `(,(s-var "s") ,(first property-list) ,value))))))
+          (cache-clear-class resource)
+          (cache-clear-object item-spec))
         (respond-no-content)))))
 
 (defgeneric show-relation-call (resource id link)
