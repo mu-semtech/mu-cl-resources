@@ -20,6 +20,12 @@
       (respond-not-found))
     (access-denied (condition)
       (response-for-access-denied-condition condition))
+    (cl-fuseki:sesame-exception (exception)
+      (declare (ignore exception))
+      (respond-server-error
+       (jsown:new-js
+         ("errors" (jsown:new-js
+                     ("title" (s+ "Could not execute SPARQL query.")))))))
     (configuration-error (condition)
       (respond-server-error
        (jsown:new-js
@@ -39,6 +45,12 @@
       (respond-not-found))
     (access-denied (condition)
       (response-for-access-denied-condition condition))
+    (cl-fuseki:sesame-exception (exception)
+      (declare (ignore exception))
+      (respond-server-error
+       (jsown:new-js
+         ("errors" (jsown:new-js
+                     ("title" (s+ "Could not execute SPARQL query.")))))))
     (configuration-error (condition)
       (respond-server-error
        (jsown:new-js
@@ -99,6 +111,12 @@
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "Not allow to supply id in primary data."))))))
+      (cl-fuseki:sesame-exception (exception)
+        (declare (ignore exception))
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Could not execute SPARQL query.")))))))
       (request-type-mismatch (condition)
         (respond-conflict
          (jsown:new-js
@@ -125,6 +143,12 @@
                                               ("title" (description condition)))))))
       (access-denied (condition)
         (response-for-access-denied-condition condition))
+      (cl-fuseki:sesame-exception (exception)
+        (declare (ignore exception))
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Could not execute SPARQL query.")))))))
       (configuration-error (condition)
         (respond-server-error
          (jsown:new-js
@@ -175,6 +199,12 @@
                      ("title" (s+ "Server configuration issue: " (description condition))))))))
     (access-denied (condition)
       (response-for-access-denied-condition condition))
+    (cl-fuseki:sesame-exception (exception)
+      (declare (ignore exception))
+      (respond-server-error
+       (jsown:new-js
+         ("errors" (jsown:new-js
+                     ("title" (s+ "Could not execute SPARQL query.")))))))
     (no-such-resource ()
       (respond-forbidden (jsown:new-js
                            ("errors" (jsown:new-js
@@ -203,6 +233,12 @@
                      ("title" (s+ "Server configuration issue: " (description condition))))))))
     (no-such-resource ()
       (respond-not-found))
+    (cl-fuseki:sesame-exception (exception)
+      (declare (ignore exception))
+      (respond-server-error
+       (jsown:new-js
+         ("errors" (jsown:new-js
+                     ("title" (s+ "Could not execute SPARQL query.")))))))
     (no-such-link (condition)
       (let ((message
              (format nil "Could not find link (~A) on resource (~A)."
@@ -263,6 +299,12 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (cl-fuseki:sesame-exception (exception)
+        (declare (ignore exception))
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Could not execute SPARQL query.")))))))
       (no-such-instance (condition)
         (respond-not-acceptable
          (jsown:new-js ("errors"
@@ -317,6 +359,12 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (cl-fuseki:sesame-exception (exception)
+        (declare (ignore exception))
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Could not execute SPARQL query.")))))))
       (no-such-instance (condition)
         (respond-not-acceptable
          (jsown:new-js ("errors"
@@ -371,6 +419,12 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
+      (cl-fuseki:sesame-exception (exception)
+        (declare (ignore exception))
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Could not execute SPARQL query.")))))))
       (no-such-instance (condition)
         (respond-not-acceptable
          (jsown:new-js ("errors"
@@ -380,6 +434,8 @@
                                            (target-id condition)))))))))))
 
 (defcall :post (:.mu :delta)
+  ;; TODO: error out when database doesn't respond here too?
+
   ;; This call is positioned at the end of the stack, as calls at the
   ;; end are checked first.  We need to ensure we run first-hand as
   ;; other calls might overlap in future versions of the jsonapi spec.
