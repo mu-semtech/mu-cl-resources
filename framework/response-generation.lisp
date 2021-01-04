@@ -184,16 +184,15 @@
                          comparator
                          (interpret-json-string last-slot search))))))
       (cond
-        ;; search for multiple ids
+        ;; search for ids
         ((and (or (deprecated (:silent "Use [:id:] instead.")
                     (string= "id" last-component))
-                  (string= ":id:" last-component))
-              (find #\, search :test #'char=))
+                  (string= ":id:" last-component)))
          (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search))))
            (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
              (declare (ignore last-slot slots))
-             (format nil "~A ~A mu:uuid ~A. FILTER ( ~A IN (~{~A~^, ~}) ) ~&"
+             (format nil "~A ~A mu:uuid ~A. VALUES ~A {~{~A~^, ~}} ~&"
                      sparql-pattern
                      target-variable search-var
                      search-var search-components))))
