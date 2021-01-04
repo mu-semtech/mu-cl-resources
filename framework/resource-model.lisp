@@ -210,7 +210,8 @@
   (:documentation "Yields a list of all ld-class specifications for
   the supplied resource, most specific ld-class first.")
   (:method ((resource resource))
-    (mapcar #'ld-class (flattened-class-tree resource))))
+    (remove-if-not #'identity
+                   (mapcar #'ld-class (flattened-class-tree resource)))))
 
 (defgeneric ld-properties (resource)
   (:documentation "Yields the ld-properties which apply to this
@@ -254,7 +255,8 @@
   (:documentation "Yields a list of ld-classes for the current class
   and all of its subclasses.")
   (:method ((resource resource))
-    (mapcar #'ld-class (subclass-resources resource))))
+    (remove-if-not #'identity
+                   (mapcar #'ld-class (subclass-resources resource)))))
 
 (defmethod json-key ((link has-link))
   (request-path link))
@@ -438,7 +440,7 @@
                         for type-var = (s-genvar "class")
                         for target-resource = (find-resource-by-name (resource-name slot))
                         collect (prog1
-                                    (format nil "~A ~{~A~,^/~} ~A. ~A a ~A. VALUES ~A (~{~A~,^ ~}). "
+                                    (format nil "~A ~{~A~,^/~} ~A. ~A a ~A. VALUES ~A {~{~A~,^ ~}}. "
                                             last-subject-var (ld-property-list slot) object-var
                                             object-var type-var
                                             type-var (ld-subclasses target-resource))
