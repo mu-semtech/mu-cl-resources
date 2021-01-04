@@ -623,7 +623,7 @@
                                                         "~@[~A~] ")
                                                     resource-url
                                                     (ld-property-list link)
-                                                    (ld-subclasses resource)
+                                                    (ld-subclasses (find-resource-by-name (resource-name link)))
                                                     (authorization-query resource :show resource-url))
                                :source-variable (s-var "resource")
                                :resource (referred-resource link))
