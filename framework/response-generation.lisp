@@ -145,7 +145,7 @@
         (multiple-value-bind (data-item-specs included-item-specs)
             (augment-data-with-attached-info
              (loop for uuid in uuids
-                collect (make-item-spec :uuid uuid :type resource-type)))
+                   collect (make-item-spec :uuid uuid :type resource-type)))
           (let ((response
                  (jsown:new-js ("data" (mapcar #'item-spec-to-jsown data-item-specs))
                                ("links" (merge-jsown-objects
@@ -175,56 +175,49 @@
            (comparison-filter (pattern comparator)
              (let ((new-components (append (butlast components)
                                            (list (subseq last-component (length pattern))))))
-               (multiple-value-bind (property-path last-slot)
-                   (property-path-for-filter-components resource new-components)
-                 (format nil "~A ~{~A~^/~} ~A. FILTER ( ~A ~A ~A )~&"
-                         source-variable
-                         property-path
-                         search-var
-                         search-var
+               (multiple-value-bind (pattern target-variable last-slot slots)
+                   (sparql-pattern-for-filter-components source-variable resource new-components nil)
+                 (declare (ignore slots))
+                 (format nil "~A FILTER (~A ~A ~A)~&"
+                         pattern
+                         target-variable
                          comparator
                          (interpret-json-string last-slot search))))))
       (cond
-        ;; search for multiple ids
+        ;; search for ids
         ((and (or (deprecated (:silent "Use [:id:] instead.")
                     (string= "id" last-component))
-                  (string= ":id:" last-component))
-              (find #\, search :test #'char=))
+                  (string= ":id:" last-component)))
          (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search))))
-           (format nil "~A ~{~A/~}mu:uuid ~A FILTER ( ~A IN (~{~A~^, ~}) ) ~&"
-                   source-variable
-                   (butlast (property-path-for-filter-components resource (butlast components)))
-                   search-var
-                   search-var
-                   search-components)))
+           (multiple-value-bind (sparql-pattern target-variable last-slot slots)
+               (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
+             (declare (ignore last-slot slots))
+             (format nil "~A ~A mu:uuid ~A. VALUES ~A {~{~A~^, ~}} ~&"
+                     sparql-pattern
+                     target-variable search-var
+                     search-var search-components))))
         ;; search for url
         ((string= ":uri:" last-component)
          (if (> (length components) 1)
-             (format nil "~A ~{~A~^/~} ~A.  VALUES ~A { ~A } ~&"
-                     source-variable
-                     (butlast (property-path-for-filter-components resource (butlast components)))
-                     search-var
-                     search-var (s-url search))
+             (multiple-value-bind (sparql-pattern target-variable last-slot slots)
+                 (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
+               (declare (ignore last-slot slots))
+               (format nil "~A VALUES ~A { ~A } ~&"
+                       sparql-pattern
+                       target-variable (s-url search)))
              (format nil "VALUES ~A { ~A } ~&"
                      source-variable (s-url search))))
-        ;; search for single id
-        ((or (deprecated (:silent "Use [:id:] instead.")
-               (string= "id" last-component))
-             (string= ":id:" last-component))
-         (format nil "~A ~{~A/~}mu:uuid ~A. ~&"
-                 source-variable
-                 (butlast (property-path-for-filter-components resource (butlast components)))
-                 (s-str search)))
         ;; exact search
         ((smart-filter-p ":exact:")
-         (let ((new-components (append (butlast components)
-                                       (list (subseq last-component (length ":exact:"))))))
-           (multiple-value-bind (property-path last-slot)
-               (property-path-for-filter-components resource new-components)
-             (format nil "~A ~{~A~^/~} ~A. ~&"
-                     source-variable
-                     property-path
-                     (interpret-json-string last-slot search)))))
+         (let ((last-property (subseq last-component (length ":exact:"))))
+           (multiple-value-bind (sparql-pattern target-variable last-slot slots)
+               (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
+             (declare (ignore slots))
+             (let ((property-slot
+                    (resource-slot-by-json-key (referred-resource last-slot) last-property)))
+               (format nil "~A ~A ~{~A~^/~} ~A.~&"
+                       sparql-pattern
+                       target-variable (ld-property-list property-slot) (interpret-json-string property-slot search))))))
         ;; comparison searches
         ((smart-filter-p ":gt:") (comparison-filter ":gt:" ">"))
         ((smart-filter-p ":lt:") (comparison-filter ":lt:" "<"))
@@ -234,36 +227,34 @@
         ((smart-filter-p ":has-no:")
          (let ((new-components (append (butlast components)
                                        (list (subseq last-component (length ":has-no:"))))))
-           (format nil "FILTER( NOT EXISTS {~&~T~T~A ~{~A~^/~} ~A.~&~T} )~&"
-                   source-variable
-                   (butlast (property-path-for-filter-components resource new-components))
-                   (s-genvar "anything"))))
+           (format nil "FILTER( NOT EXISTS {~&~T~T~A~&~T} )~&"
+                   (sparql-pattern-for-filter-components source-variable resource new-components nil))))
         ;; has
         ((smart-filter-p ":has:")
          (let ((new-components (append (butlast components)
                                        (list (subseq last-component (length ":has:"))))))
-           (format nil "FILTER( EXISTS {~&~T~T~A ~{~A~^/~} ~A.~&~T} )~&"
-                   source-variable
-                   (butlast (property-path-for-filter-components resource new-components))
-                   (s-genvar "anything"))))
+           (format nil "FILTER( EXISTS {~&~T~T~A~&~T} )~&"
+                   (sparql-pattern-for-filter-components source-variable resource new-components nil))))
         ;; not
         ((smart-filter-p ":not:")
-         (let ((new-components (append (butlast components)
-                                       (list (subseq last-component (length ":not:"))))))
-           (multiple-value-bind (property-path last-slot)
-               (property-path-for-filter-components resource new-components)
-             (format nil "FILTER( NOT EXISTS { ~A ~{~A~^/~} ~A. } )"
-                     source-variable
-                     property-path
-                     (interpret-json-string last-slot search)))))
+         (let ((last-property (subseq last-component (length ":not:"))))
+           (multiple-value-bind (sparql-pattern target-variable last-slot slots)
+               (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
+             (declare (ignore slots))
+             (let ((property-slot
+                    (resource-slot-by-json-key (referred-resource last-slot) last-property)))
+               (format nil "FILTER( NOT EXISTS { ~A ~A ~A ~A. } )"
+                       sparql-pattern
+                       target-variable (ld-property-list property-slot) (interpret-json-string property-slot search))))))
         ;; standard semi-fuzzy search
+        ;; PPFFC: TARGET VALUE=VALUE
         (t
-         (format nil "~A ~{~A~^/~} ~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
-                 source-variable
-                 (property-path-for-filter-components resource components)
-                 search-var
-                 search-var
-                 (s-str search)))))))
+         (multiple-value-bind (sparql-pattern target-variable last-slot slots)
+             (sparql-pattern-for-filter-components source-variable resource components t)
+           (declare (ignore last-slot slots))
+           (format nil "~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
+                   sparql-pattern
+                   target-variable (s-str search))))))))
 
 (defun extract-filters-from-request ()
   "Extracts the filters from the request.  The result is a list

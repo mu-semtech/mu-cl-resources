@@ -1,3 +1,4 @@
+
 (in-package :mu-cl-resources)
 
 
@@ -26,18 +27,31 @@
   (:documentation "Describes a has-one link to another resource"))
 
 (defclass resource ()
-  ((ld-class :initarg :ld-class :reader ld-class)
-   (ld-properties :initarg :ld-properties :reader ld-properties)
+  ((superclass-names :initarg :superclass-names :reader superclass-names :initform nil)
+   (ld-class :initarg :ld-class :reader ld-class)
+   (ld-properties :initarg :ld-properties
+                  :reader direct-ld-properties) ; used for uml
+                                                ; generators etc
+   (ld-properties-cache :documentation
+                        "A cache for faster calculation of the
+                        existing properties of a resource.")
    (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)
    (json-type :initarg :json-type :reader json-type)
-   (has-many-links :initarg :has-many :reader has-many-links)
-   (has-one-links :initarg :has-one :reader has-one-links)
+   (has-many-links :initarg :has-many
+                   :reader direct-has-many-links)
+                                        ; used for uml generators etc
+   (has-one-links :initarg :has-one
+                  :reader direct-has-one-links)
+                                        ; used for uml generators etc
    (request-path :initarg :request-path :reader request-path)
    (name :initarg :resource-name :reader resource-name)
-   (features :initarg :features :reader features)
+   (features :initarg :features)
    (authorization :initarg :authorization :reader authorization)
    (query-count-cache :initform (make-user-aware-hash-table :test 'equal)
-                      :accessor query-count-cache)))
+                      :accessor query-count-cache)
+   (resource-subclass-cache :documentation
+                            "A cache for faster calculation of a
+                            resource's children")))
 
 (defparameter *resources* (make-hash-table)
   "contains all currently known resources")
@@ -45,6 +59,16 @@
 (defmethod initialize-instance :after ((resource resource) &key &allow-other-keys)
   (let ((name (resource-name resource)))
     (setf (gethash name *resources*) resource))
+  ;; When links and inverse links are specified, we don't need to
+  ;; cater for extra specific cases.  Reason is that inverse links
+  ;; should be specified on the parent classes.  As we follow the
+  ;; reified inheritance tree, this should have been applied to all
+  ;; relevant classes, and their subclasses should take this into
+  ;; account.
+
+  ;; TODO: further testing is needed to ensure this set of inverse
+  ;; properties cannot override certain properties due to subclasses
+  ;; now existing, and thus incorrectly setting the property list.
   (dolist (link (all-links resource))
     (alexandria:when-let ((linked-resource (find-resource-by-name (resource-name link)))
                           (inverse-property-list (reverse
@@ -139,6 +163,101 @@
   (:method ((relation has-link))
     (full-uri (ld-property-list relation))))
 
+(defgeneric flattened-class-tree (resource)
+  (:documentation "Yields an ordered list of all types which apply to
+  this resource, most specific type first.
+
+  This means we yield this resource, as well as all parents this resource has.
+
+  The superclass-names are reversed from their original definition, as
+  later names are assumed to be of less importance.")
+  (:method ((resource resource))
+    (cons resource
+          (loop for resource-name in (reverse (superclass-names resource))
+                append (flattened-class-tree
+                        (find-resource-by-name resource-name))))))
+
+(defgeneric features (resource)
+  (:documentation "Features for the current resource, being the features specified at any level.")
+  (:method ((resource resource))
+    ;; TODO: this could be cleaner by checking if features was
+    ;; explicitly set, and using the higest explicitly set features
+    ;; even if empty.
+    (let ((features (slot-value resource 'features)))
+      (if features
+          features
+          (loop for resource in (flattened-class-tree resource)
+                when (slot-value resource 'features)
+                return it)))))
+
+(defgeneric has-one-links (resource)
+  (:documentation "Yields all has-one links (based on the inheritance
+  tree) which link from this resource.")
+  (:method ((resource resource))
+    ;; TODO: filter out duplicate names?
+    (loop for resource in (flattened-class-tree resource)
+          append (slot-value resource 'has-one-links))))
+
+(defgeneric has-many-links (resource)
+  (:documentation "Yields all has-many links (based on the inheritance
+  tree) which link from this resource.")
+  (:method ((resource resource))
+    ;; TODO: filter out duplicate names?
+    (loop for resource in (flattened-class-tree resource)
+          append (slot-value resource 'has-many-links))))
+
+(defgeneric flattened-ld-class-tree (resource)
+  (:documentation "Yields a list of all ld-class specifications for
+  the supplied resource, most specific ld-class first.")
+  (:method ((resource resource))
+    (remove-if-not #'identity
+                   (mapcar #'ld-class (flattened-class-tree resource)))))
+
+(defgeneric ld-properties (resource)
+  (:documentation "Yields the ld-properties which apply to this
+  resource.  Either because they have been defined on this resource or
+  because they are defined on one of its parents.
+
+  MAY contain duplicates.")
+  (:method ((resource resource))
+    (if (slot-boundp resource 'ld-properties-cache)
+        (slot-value resource 'ld-properties-cache)
+        (setf (slot-value resource 'ld-properties-cache)
+              ;; We choose not to remove duplicates here because we doubt this
+              ;; will occur often.
+              (loop for resource in (flattened-class-tree resource)
+                    append (progn
+                             (and (slot-boundp resource 'ld-properties)
+                                  (slot-value resource 'ld-properties))))))))
+
+(defun resource-distance (parent child)
+  "Yields the distance between the child and parent resources, or nil
+  if there is no such relation."
+  (position parent (flattened-class-tree child)))
+
+(defgeneric subclass-resources (resource)
+  (:documentation "Yields an ordered list of subclasses of this resource, including itself.
+
+   The most specific resource is listed first.")
+  (:method ((resource resource))
+    (if (slot-boundp resource 'resource-subclass-cache)
+        (slot-value resource 'resource-subclass-cache)
+        (setf (slot-value resource 'resource-subclass-cache)
+              (mapcar #'cdr
+                      (sort
+                       (loop for maybe-subresource being the hash-values of *resources*
+                             for distance = (resource-distance resource maybe-subresource)
+                             when distance
+                             collect (cons distance maybe-subresource))
+                       #'< :key #'car))))))
+
+(defgeneric ld-subclasses (resource)
+  (:documentation "Yields a list of ld-classes for the current class
+  and all of its subclasses.")
+  (:method ((resource resource))
+    (remove-if-not #'identity
+                   (mapcar #'ld-class (subclass-resources resource)))))
+
 (defmethod json-key ((link has-link))
   (request-path link))
 
@@ -154,6 +273,13 @@
     Both the has-many-links and has-one-links.")
   (:method ((resource resource))
     (append (has-many-links resource) (has-one-links resource))))
+
+(defgeneric all-direct-links (resource)
+  (:documentation "Retrieves all direct links for the supplied
+    resource.  Both the has-many-links and has-one-links but only
+    those defined on the supplied resource.")
+  (:method ((resource resource))
+    (append (direct-has-many-links resource) (direct-has-one-links resource))))
 
 (defgeneric resource-slot-by-json-key (resource key)
   (:documentation "Returns the slot which should be communicated
@@ -263,22 +389,32 @@
                  (setf current-resource (referred-resource link)) ; set resource of last link
                  link))))))
 
-(defun property-path-for-filter-components (resource components)
-  "Constructs the SPARQL property path for a set of filter
-   components.  Assumes the components end with an attribute
-   specification if specific attributes are targeted.
+(defun sparql-pattern-for-filter-components (source-var resource components &optional wildcardp)
+  "Constructs the SPARQL pattern for a set of filter components,
+   starting from source-var.  If ending in a search statement should
+   result in a wildcard search for properties of the element,
+   wildcardp should be truethy.
+
+   TODO: Splitting this method into a 'base' which detects the last
+   element, a portion which follows constraints for the resource
+   paths, and a part which contains the ending constraint for the
+   specified (or all) properties, would make this function easier to
+   read.  Consumers would likely know which base case to call, hence
+   the latter two could receive a wrapper as an entry-point if that
+   makes things easier to read in the consumer.
 
    If the last component of the specification yields a resource,
    rather than a property, the search path will allow for all
    properties in that search path.
 
-   Returns (values property-path last-slot slots) in which the
-   property-path is the description above, last-slot is the slot
-   or has-link corresponding to the last component, and slots is
-   the content from slots-for-filter-components as used by this
-   function."
+   Returns (values sparql-pattern target-variable last-slot slots) in
+   which the property-path is the description above, target-variable
+   is a sparql variable containing the last most specific match,
+   last-slot is the slot or has-link corresponding to the last
+   component, and slots is the content from
+   slots-for-filter-components as used by this function."
   (let* ((slots (slots-for-filter-components resource components))
-         (path-components (alexandria:flatten (mapcar #'ld-property-list slots)))
+         ;; REMOVE (path-components (alexandria:flatten (mapcar #'ld-property-list slots)))
          (last-slot (car (last slots)))
          (ends-in-link-p
           ;; we have a general search if the last element is a link,
@@ -292,17 +428,52 @@
           (and ends-in-link-p
                (if (eq components nil)
                    resource
-                   (referred-resource last-slot)))))
-    (values (if ends-in-link-p
-                `(,@path-components
-                  ,(format nil "(~{(~{~A~^/~})~^|~})"
-                           (mapcar #'ld-property-list
-                                   (ld-properties last-resource))))
-                path-components)
-            last-slot
-            slots)))
+                   (referred-resource last-slot))))
+         (path-slots (if ends-in-link-p slots (butlast slots)))
+         (target-variable (s-genvar "values")) ; Will always contain the values on which will be searched.
+         ;; following is a loop calculation of which we need te have
+         ;; the last-subject-var near the end of this computation.
+         (last-subject-var source-var)
+         (constraints-to-last-object
+          (format nil "~{~A~,^ ~}"
+                  (loop for slot in path-slots
+                        for object-var = (s-genvar)
+                        for type-var = (s-genvar "class")
+                        for target-resource = (find-resource-by-name (resource-name slot))
+                        collect (prog1
+                                    (format nil "~A ~{~A~,^/~} ~A. ~A a ~A. VALUES ~A {~{~A~,^ ~}}. "
+                                            last-subject-var (ld-property-list slot) object-var
+                                            object-var type-var
+                                            type-var (ld-subclasses target-resource))
+                                  (setf last-subject-var object-var)))))
+         ;; following is another logical flow building on the previous
+         ;; which runs when the last element is a resourc and we need
+         ;; to search broadly.
+         (constraint-to-key (when last-resource
+                              (format nil "~A ~{(~{~A~^/~})~^|~} ~A. "
+                                      last-subject-var
+                                      (mapcar #'ld-property-list
+                                              (ld-properties last-resource))
+                                      target-variable))))
+    (cond ((and ends-in-link-p wildcardp)
+           (values (format nil "~A ~A" constraints-to-last-object constraint-to-key)
+                   target-variable
+                   last-slot
+                   slots))
+          ((and ends-in-link-p (not wildcardp))
+           (values constraints-to-last-object
+                   last-subject-var
+                   last-slot
+                   slots))
+          (t ; (not ends-in-link-p)
+           (values (format nil "~A ~A ~{~A~^/~} ~A. "
+                           constraints-to-last-object
+                           last-subject-var (ld-property-list last-slot) target-variable)
+                   target-variable
+                   last-slot
+                   slots)))))
 
-(defun define-resource* (name &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization features)
+(defun define-resource* (name superclass-names &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization features)
   "defines a resource for which get and set requests exist"
   (let* ((properties (loop for (key type prop . options) in ld-properties
                         collect (make-instance 'resource-slot
@@ -315,6 +486,7 @@
          (has-one-links (mapcar (alexandria:curry #'apply #'make-instance 'has-one-link :resource)
                                 has-one)))
     (make-instance 'resource
+                   :superclass-names superclass-names
                    :ld-class ld-class
                    :ld-properties properties
                    :ld-resource-base ld-resource-base
@@ -326,9 +498,8 @@
                    :features features
                    :resource-name name)))
 
-(defmacro define-resource (name options &key class properties resource-base has-many has-one on-path authorization features)
-  (declare (ignore options))
-  `(define-resource* ',name
+(defmacro define-resource (name superclass-names &key class properties resource-base has-many has-one on-path authorization features)
+  `(define-resource* ',name ',superclass-names
        :ld-class ,class
        :ld-properties ,properties
        :ld-resource-base ,resource-base

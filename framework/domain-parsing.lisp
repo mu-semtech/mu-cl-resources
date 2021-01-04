@@ -78,8 +78,10 @@
         (resource-base (jsown:val resource-description "new-resource-base"))
         (features (mapcar (lambda (feature)
                             (intern (string-upcase feature)))
-                          (jsown:val-safe resource-description "features"))))
-    (define-resource* (intern (string-upcase resource-name) :mu-cl-resources)
+                          (jsown:val-safe resource-description "features")))
+        (superclass-names (mapcar (lambda (str) (intern (string-upcase str)))
+                                  (jsown:val-safe resource-description "super"))))
+    (define-resource* resource-name superclass-names
         :ld-class (read-uri-from-json class)
         :ld-properties (map-jsown-object properties
                                          #'import-jsown-domain-property)

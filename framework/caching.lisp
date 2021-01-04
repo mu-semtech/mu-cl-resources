@@ -124,38 +124,42 @@
   (:documentation "Clears the solution from the given specification
    accepts both an item-spec as well as a uuid")
   (:method ((item-spec item-spec))
-
     (rem-ua-hash (uuid item-spec) *cached-resources*)
     (clear-uri-cache-for-uuid (uuid item-spec)))
   (:method ((uuid string))
     (rem-ua-hash uuid *cached-resources*)
     (clear-uri-cache-for-uuid uuid)))
 
+(defvar *uri-classes-cache* (make-hash-table :test 'equal :synchronized t)
+  "Contains a mapping from URI strings to the URI classes belonging to the URI.")
 
-;; Cache for classes belonging to URI, currently scoped to a single
-;; request and used by .mu/delta.
-(defmacro with-request-uri-cache (&body body)
-  "Executes body with a cache for find-classes-for-uri"
-  `(let ((*request-uri-cache* (make-hash-table :test 'equal)))
-     (declare (special *request-uri-cache*))
-     ,@body body))
+(defun classes-for-uri-p (uri)
+  "Yields truethy iff there are classes for the given URI"
+  (second (multiple-value-list (gethash uri *uri-classes-cache*))))
 
-(defun find-classes-for-uri (uri)
+(defun classes-for-uri (uri)
   "Finds all classes for a given uri"
-  ;; TODO: this should be cached
-  (declare (special *request-uri-cache*))
-  (flet ((find-uri-classes-from-db (uri)
-           (jsown:filter
-            (sparql:select (s-distinct (s-var "target"))
-                           (format nil "~A a ?target."
-                                   (s-url uri)))
-            map "target" "value")))
-    (if *request-uri-cache*
-        (multiple-value-bind (value present-p)
-            (gethash (princ-to-string (s-url uri)) *request-uri-cache*)
-          (if present-p
-              value
-              (setf (gethash (princ-to-string (s-url uri)) *request-uri-cache*)
-                    (find-uri-classes-from-db uri))))
-        (find-uri-classes-from-db uri))))
+  (multiple-value-bind (uris present-p)
+      (gethash uri *uri-classes-cache*)
+    (if present-p
+        uris
+        (setf (gethash uri *uri-classes-cache*)
+              (jsown:filter
+               (sparql:select (s-distinct (s-var "target"))
+                              (format nil "~A a ?target."
+                                      (s-url uri)))
+               map "target" "value")))))
 
+(defun (setf classes-for-uri) (value uri)
+  (setf (gethash uri *uri-classes-cache*) value))
+
+(defun add-cached-class-for-uri (uri class)
+  "Adds a cached class for a the given uri.  Handy for delta
+messages."
+  (when (classes-for-uri-p uri)
+    (pushnew class (gethash uri *uri-classes-cache*) :test #'equal)))
+
+(defun remove-cached-class-for-uri (uri class)
+  "Removes a cached class for the given URI.  Handy for delta
+  messages."
+  (delete class (gethash uri *uri-classes-cache*) :test #'equal))

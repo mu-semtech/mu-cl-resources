@@ -138,10 +138,30 @@
 
 (defun item-spec-hash-key (item-spec)
   "Creates a key which can be compared through #'equal."
-  (list (resource-name item-spec) (uuid item-spec)))
+  (list (resource item-spec) (uuid item-spec)))
 
-(defmethod resource ((spec item-spec))
-  (find-resource-by-name (resource-name spec)))
+(defun item-spec-current-ld-classes (item-spec)
+  "Yields the current LD classes the triplestore has on the given item-spec."
+  (classes-for-uri (node-url item-spec)))
+
+(defgeneric resource (item-spec)
+  (:documentation "Yields the most specific resource based on the
+  types of the supplied entity.  Assumes the resource could be found
+  in the database.")
+  (:method ((spec item-spec))
+    ;; TODO: cache the types for the resources and clear that cache on
+    ;; delta messages about the resource.
+    (let ((specified-ld-classes (mapcar #'s-url (item-spec-current-ld-classes spec)))
+          (subresources (subclass-resources (find-resource-by-name (slot-value spec 'type)))))
+      ;; Subresources are ordered most broad to most specific.  As
+      ;; such, we need to find the last subresource for which we have
+      ;; the class in our set of specified-ld-classes.
+      (loop for resource in (reverse subresources)
+            for resource-class = (s-url (full-uri (ld-class resource)))
+            if (find resource-class specified-ld-classes
+                        :test (lambda (a b)
+                                (string= (princ-to-string a) (princ-to-string b))))
+            return resource))))
 
 (defgeneric related-items (item-spec relation)
   (:documentation "Returns the related items for the given relation")
@@ -412,8 +432,17 @@
                  :ld-relation (expanded-ld-relation relation)))
 
 (defun cache-clear-class (resource)
-  (clear-cached-count-queries resource)
-  (add-clear-key :ld-resource (expanded-ld-class resource)))
+  "Clears the current class.
+
+   Considering inheritance, this must also clear all of the
+   superclasses as they may contain elements of this subclass.
+   Subclasses don't need to be considered as their views cannot be
+   updated by a change which only affects a parent."
+  ;; TODO: clear for all parent instances
+  (dolist (super-resource (flattened-class-tree resource))
+    ;; note: super-resource includes current resource
+    (clear-cached-count-queries super-resource)
+    (add-clear-key :ld-resource (expanded-ld-class super-resource))))
 
 (defun cache-clear-object (item-spec)
   (clear-solution item-spec)
