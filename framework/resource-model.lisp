@@ -391,6 +391,44 @@
                  (setf current-resource (referred-resource link)) ; set resource of last link
                  link))))))
 
+(defun property-path-for-filter-components (resource components)
+  "Constructs the SPARQL property path for a set of filter
+   components.  Assumes the components end with an attribute
+   specification if specific attributes are targeted.
+   If the last component of the specification yields a resource,
+   rather than a property, the search path will allow for all
+   properties in that search path.
+   Returns (values property-path last-slot slots) in which the
+   property-path is the description above, last-slot is the slot
+   or has-link corresponding to the last component, and slots is
+   the content from slots-for-filter-components as used by this
+   function."
+  ;; TODO: This overlaps with sparql-pattern-for-filter-components
+  (let* ((slots (slots-for-filter-components resource components))
+         (path-components (alexandria:flatten (mapcar #'ld-property-list slots)))
+         (last-slot (car (last slots)))
+         (ends-in-link-p
+          ;; we have a general search if the last element is a link,
+          ;; or if no search components were supplied
+          (or (typep last-slot 'has-link)
+              (eq nil components)))
+         (last-resource
+          ;; this is relevant only if we end in a link.  it should
+          ;; yield the last resource in the list in case we want to do
+          ;; a search over all properties
+          (and ends-in-link-p
+               (if (eq components nil)
+                   resource
+                   (referred-resource last-slot)))))
+    (values (if ends-in-link-p
+                `(,@path-components
+                  ,(format nil "(~{(~{~A~^/~})~^|~})"
+                           (mapcar #'ld-property-list
+                                   (ld-properties last-resource))))
+                path-components)
+            last-slot
+            slots)))
+
 (defun sparql-pattern-for-filter-components (source-var resource components &optional wildcardp)
   "Constructs the SPARQL pattern for a set of filter components,
    starting from source-var.  If ending in a search statement should
