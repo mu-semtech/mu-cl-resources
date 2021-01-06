@@ -285,10 +285,12 @@
   (:documentation "Returns the slot which should be communicated
     with the json format through the use of the key attribute.")
   (:method ((resource resource) key)
-    (loop for slot in (ld-properties resource)
-          when (string= (json-property-name slot) key)
-          return slot)
-    (error 'no-such-property :resource resource :path key)))
+    (alexandria:if-let
+        ((resource-slot (loop for slot in (ld-properties resource)
+                              when (string= (json-property-name slot) key)
+                              return slot)))
+      resource-slot
+      (error 'no-such-property :resource resource :path key))))
 
 (defgeneric resource-slot-p (resource &key json-key)
   (:documentation "Returns truethy if a resource could be found
