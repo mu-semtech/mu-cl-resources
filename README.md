@@ -136,7 +136,7 @@ The complete setup of our user and account looks as follows:
       :properties `((:name :string ,(s-prefix "foaf:accountName")))
       :has-one `((person :via ,(s-prefix "foaf:account")
                          :inverse t
-                         :as "person"))
+                         :as "owner"))
       :resource-base (s-url "http://my-application.com/accounts/")
       :on-path "accounts")
 
