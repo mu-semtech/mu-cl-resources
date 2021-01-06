@@ -261,7 +261,6 @@
                      ("title" (s+ "Server configuration issue: " (description condition))))))))
     (no-such-resource ()
       (respond-not-found))
-<<<<<<< HEAD
     (no-such-property (condition)
       (let ((message
              (format nil "Could not find property (~A) on resource (~A)."
@@ -269,14 +268,12 @@
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" message)))))))
-=======
     (cl-fuseki:sesame-exception (exception)
       (declare (ignore exception))
       (respond-server-error
        (jsown:new-js
          ("errors" (jsown:new-js
                      ("title" (s+ "Could not execute SPARQL query.")))))))
->>>>>>> feature/inheritance
     (no-such-link (condition)
       (let ((message
              (format nil "Could not find link (~A) on resource (~A)."
