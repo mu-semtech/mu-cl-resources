@@ -280,7 +280,7 @@
          :resource resource
          :self (self-for-list-call resource)
          :sparql-body (filter-body-for-search
-                       :sparql-body  (format nil "?s mu:uuid ?uuid; a ?class. VALUES ?class {~{~A~,^ ~}}. ~@[~A~]"
+                       :sparql-body  (format nil "?s mu:uuid ?uuid; a ?class. VALUES ?class {~{~A~^ ~}}. ~@[~A~]"
                                              (ld-subclasses resource)
                                              (authorization-query resource :show (s-var "s")))
                        :source-variable (s-var "s")
@@ -621,7 +621,7 @@
                                                     (s+ "~A ~{~A~,^/~} ?resource. "
                                                         "?resource mu:uuid ?uuid; "
                                                         "          a ?class. "
-                                                        "VALUES ?class {~{~A~,^ ~}}."
+                                                        "VALUES ?class {~{~A~^ ~}}."
                                                         "~@[~A~] ")
                                                     resource-url
                                                     (ld-property-list link)

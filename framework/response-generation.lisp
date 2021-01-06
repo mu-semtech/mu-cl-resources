@@ -192,7 +192,7 @@
            (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
              (declare (ignore last-slot slots))
-             (format nil "~A ~A mu:uuid ~A. VALUES ~A {~{~A~^, ~}} ~&"
+             (format nil "~A ~A mu:uuid ~A. VALUES ~A {~{~A~^ ~}} ~&"
                      sparql-pattern
                      target-variable search-var
                      search-var search-components))))

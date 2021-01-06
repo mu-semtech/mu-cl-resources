@@ -481,7 +481,7 @@
                         for type-var = (s-genvar "class")
                         for target-resource = (find-resource-by-name (resource-name slot))
                         collect (prog1
-                                    (format nil "~A ~{~A~,^/~} ~A. ~A a ~A. VALUES ~A {~{~A~,^ ~}}. "
+                                    (format nil "~A ~{~A~,^/~} ~A. ~A a ~A. VALUES ~A {~{~A~^ ~}}. "
                                             last-subject-var (ld-property-list slot) object-var
                                             object-var type-var
                                             type-var (ld-subclasses target-resource))
