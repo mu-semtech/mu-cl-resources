@@ -896,9 +896,9 @@ If you want to request a different page and a different page size, supply both `
 
     GET /people?page[size]=42&page[number]=3
 
-If you want mu-cl-resources to yield the total amount of results in the `meta` portion of the response, set `*include-count-in-paginated-response*` to `t` in your `domain.lisp`.
+If you want mu-cl-resources to yield the total amount of results in the `meta` portion of the response, set `*include-count-in-paginated-responses*` to `t` in your `domain.lisp`.
 
-    (defparameter *include-count-in-paginated-response* t)
+    (defparameter *include-count-in-paginated-responses* t)
 
 
 #### Sparse fieldsets
