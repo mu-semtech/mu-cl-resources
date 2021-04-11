@@ -304,12 +304,21 @@
   ;; whether there's a hash within key we're looking for.  We don't
   ;; parse the keys yet, greatly limiting the complexity of this
   ;; method.
+  ;;
+  ;; If the hashed value exists, we'll set the the mu-auth-used-groups
+  ;; to become the current mu-auth-allowed-groups.  This may become more
+  ;; complex in the future when we start interpreting these values.
   (let ((allowed-groups (get-user-allowed-groups)))
     (with-slots (hash-table) user-aware-hash-table
       (multiple-value-bind (nested-hash nested-hash-p)
           (gethash key hash-table)
         (if nested-hash-p
-            (gethash allowed-groups nested-hash default)
+            (multiple-value-bind (value value-p)
+                (gethash allowed-groups nested-hash default)
+              (when value-p
+                (setf (hunchentoot:header-out :mu-auth-used-groups)
+                      allowed-groups))
+              value)
             (values default nil))))))
 
 (defun (setf get-ua-hash) (value key user-aware-hash-table &optional default)

@@ -454,6 +454,13 @@
                do
                  (setf (jsown:val relationships-object (json-key link))
                        (build-relationships-object item-spec link)))
+            ;; ensure we have a mu-auth-allowed-groups in case the full
+            ;; response could be answered by a cache
+            (unless (or (hunchentoot:header-out :mu-auth-allowed-groups)
+                        (not (hunchentoot:header-in* :mu-auth-allowed-groups)))
+              (setf (hunchentoot:header-out :mu-auth-allowed-groups)
+                    (hunchentoot:header-in* :mu-auth-allowed-groups)))
+            ;; construct response structure
             (jsown:new-js
               ("attributes" attributes)
               ("id" (uuid item-spec))
