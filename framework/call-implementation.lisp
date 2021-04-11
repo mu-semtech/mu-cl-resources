@@ -417,7 +417,7 @@
    non-filled relationships of item-spec.  This is the default
    way of fetching the database contents of a single item."
   (handler-bind
-      ((no-such-instance (lambda () :null)))
+      ((no-such-instance (lambda (condition) (declare (ignore condition)) :null)))
     (multiple-value-bind (requested-fields sparse-fields-p)
         (sparse-fields-for-resource item-spec)
       (flet ((field-requested-p (field)
