@@ -432,7 +432,9 @@
                                (ld-properties resource))))
           (if unavailable-fields
               (complete-solution solution item-spec)
-              (format t "Using cached solution for ~A" (uuid item-spec))))
+              (progn
+                ;; (format t "Using cached solution for ~A" (uuid item-spec))
+                t)))
         ;; read attributes from the solution
         (loop for property in (ld-properties resource)
               for sparql-var = (sparql-variable-name property)
