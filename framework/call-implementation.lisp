@@ -416,56 +416,54 @@
   "Returns the jsown representation of the attributes and
    non-filled relationships of item-spec.  This is the default
    way of fetching the database contents of a single item."
-  (handler-bind
-      ((no-such-instance (lambda (condition) (declare (ignore condition)) :null)))
-    (multiple-value-bind (requested-fields sparse-fields-p)
-        (sparse-fields-for-resource item-spec)
-      (flet ((field-requested-p (field)
-               (or (not sparse-fields-p)
-                   (find field requested-fields))))
-        (let ((solution (ensure-solution item-spec))
-              (resource (resource item-spec))
-              (attributes (jsown:empty-object)))
-          ;; ensure solution is complete
-          (let ((unavailable-fields
-                 (remove-if-not (lambda (slot)
-                                  (and (field-requested-p slot)
-                                     (not (solution-field-p solution (json-property-name slot)))))
-                                (ld-properties resource))))
-            (if unavailable-fields
-                (complete-solution solution item-spec)
-                (format t "Using cached solution for ~A" (uuid item-spec))))
-          ;; read attributes from the solution
-          (loop for property in (ld-properties resource)
-                for sparql-var = (sparql-variable-name property)
-                for json-var = (json-property-name property)
-                if (and (field-requested-p property)
-                        (solution-value solution json-var))
+  (multiple-value-bind (requested-fields sparse-fields-p)
+      (sparse-fields-for-resource item-spec)
+    (flet ((field-requested-p (field)
+             (or (not sparse-fields-p)
+                 (find field requested-fields))))
+      (let ((solution (ensure-solution item-spec))
+            (resource (resource item-spec))
+            (attributes (jsown:empty-object)))
+        ;; ensure solution is complete
+        (let ((unavailable-fields
+                (remove-if-not (lambda (slot)
+                                 (and (field-requested-p slot)
+                                      (not (solution-field-p solution (json-property-name slot)))))
+                               (ld-properties resource))))
+          (if unavailable-fields
+              (complete-solution solution item-spec)
+              (format t "Using cached solution for ~A" (uuid item-spec))))
+        ;; read attributes from the solution
+        (loop for property in (ld-properties resource)
+              for sparql-var = (sparql-variable-name property)
+              for json-var = (json-property-name property)
+              if (and (field-requested-p property)
+                      (solution-value solution json-var))
                 do
-                (setf (jsown:val attributes json-var)
-                      (solution-value solution json-var)))
-          ;; attach uri if feature is enabled (after variables were parsed)
-          (when (find 'include-uri (features resource))
-            (setf (jsown:val attributes "uri") (node-url item-spec)))
-          ;; build response data object
-          (let ((relationships-object (jsown:empty-object)))
-            (loop for link in (all-links resource)
-               if (field-requested-p link)
-               do
-                 (setf (jsown:val relationships-object (json-key link))
-                       (build-relationships-object item-spec link)))
-            ;; ensure we have a mu-auth-allowed-groups in case the full
-            ;; response could be answered by a cache
-            (unless (or (hunchentoot:header-out :mu-auth-allowed-groups)
-                        (not (hunchentoot:header-in* :mu-auth-allowed-groups)))
-              (setf (hunchentoot:header-out :mu-auth-allowed-groups)
-                    (hunchentoot:header-in* :mu-auth-allowed-groups)))
-            ;; construct response structure
-            (jsown:new-js
-              ("attributes" attributes)
-              ("id" (uuid item-spec))
-              ("type" (json-type resource))
-              ("relationships" relationships-object))))))))
+                   (setf (jsown:val attributes json-var)
+                         (solution-value solution json-var)))
+        ;; attach uri if feature is enabled (after variables were parsed)
+        (when (find 'include-uri (features resource))
+          (setf (jsown:val attributes "uri") (node-url item-spec)))
+        ;; build response data object
+        (let ((relationships-object (jsown:empty-object)))
+          (loop for link in (all-links resource)
+                if (field-requested-p link)
+                  do
+                     (setf (jsown:val relationships-object (json-key link))
+                           (build-relationships-object item-spec link)))
+          ;; ensure we have a mu-auth-allowed-groups in case the full
+          ;; response could be answered by a cache
+          (unless (or (hunchentoot:header-out :mu-auth-allowed-groups)
+                      (not (hunchentoot:header-in* :mu-auth-allowed-groups)))
+            (setf (hunchentoot:header-out :mu-auth-allowed-groups)
+                  (hunchentoot:header-in* :mu-auth-allowed-groups)))
+          ;; construct response structure
+          (jsown:new-js
+            ("attributes" attributes)
+            ("id" (uuid item-spec))
+            ("type" (json-type resource))
+            ("relationships" relationships-object)))))))
 
 (defun retrieve-item (item-spec)
   "Returns (values item-json included-items)

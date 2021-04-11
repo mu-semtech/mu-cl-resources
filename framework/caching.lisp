@@ -65,9 +65,7 @@
                                    (format nil "?s mu:uuid ~A. " (s-str (uuid item-spec)))))))
     (unless result
       (error 'no-such-instance
-             :resource (resource item-spec)
-             :id (uuid item-spec)
-             :type (json-type (resource item-spec))))
+             :id (uuid item-spec)))
     (jsown:filter (first result) "s" "value")))
 
 (defun find-uuid-for-uri-through-sparql (item-spec)
