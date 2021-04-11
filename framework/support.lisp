@@ -270,7 +270,7 @@
   (declare (ignore test size rehash-size rehash-threshold)) ; only used for slime documentation
   (let ((all-table-options (append options *user-aware-hash-table-default-options*)))
     (make-instance 'user-aware-hash-table
-                   :hash-table (apply #'make-hash-table all-table-options))))
+                   :hash-table (apply #'make-hash-table #-abcl :synchronized #-abcl t all-table-options))))
 
 (defun rem-ua-hash (key user-aware-hash-table)
   "Equivalent of remhash.
