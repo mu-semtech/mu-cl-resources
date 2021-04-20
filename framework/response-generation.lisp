@@ -207,6 +207,20 @@
                        target-variable (s-url search)))
              (format nil "VALUES ~A { ~A } ~&"
                      source-variable (s-url search))))
+        ;; search for multiple urls
+        ((smart-filter-p ":uris:")
+         (let ((split-char (elt last-component 6))) ; we support one split character for now
+           (if (> (length components) 1)
+               (multiple-value-bind (sparql-pattern target-variable last-slot slots)
+                   (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
+                 (declare (ignore last-slot slots))
+                 (format nil "~A VALUES ~A { ~{~A ~}} ~&"
+                         sparql-pattern
+                         target-variable
+                         (mapcar #'s-url (split-sequence:split-sequence split-char search))))
+               (format nil "VALUES ~A { ~{~A ~}} ~&"
+                       source-variable
+                       (mapcar #'s-url (split-sequence:split-sequence split-char search))))))
         ;; exact search
         ((smart-filter-p ":exact:")
          (let ((last-property (subseq last-component (length ":exact:"))))

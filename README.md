@@ -841,6 +841,9 @@ Aside from regular text searches, a set of custom filters have been added.  Thes
     GET /people?filter[:has-no:account]=yes
 
 - *:has:* The inverse of `:has-no:` forces the relationship to exist.  Syntax may be subject to change.
+- *:uris:* Searches for multiple uris based on a split character
+
+    GET /people?filter[accounts][:uris:,]=http://my-application.com/people/42,http://my-application.com/people/84
 
 #### Including results
 
