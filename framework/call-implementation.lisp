@@ -360,56 +360,63 @@
         (sparse-fields-for-resource item-spec)
       (flet ((field-requested-p (field)
                (or (not sparse-fields-p)
-                  (find field requested-fields))))
+                   (find field requested-fields))))
         (let* ((resource (resource item-spec))
                (resource-url
-                ;; Fetch URL separately as that speeds up Virtuoso
-                ;; querying.
-                (node-url item-spec))
+                 ;; Fetch URL separately as that speeds up Virtuoso
+                 ;; querying.
+                 (node-url item-spec))
                (missing-properties (remove-if-not
                                     (lambda (slot)
                                       (and (field-requested-p slot)
-                                         (not (solution-field-p solution (json-property-name slot)))))
+                                           (not (solution-field-p solution (json-property-name slot)))))
                                     (ld-properties resource)))
                (missing-single-value-properties
-                (remove-if-not #'single-value-slot-p missing-properties))
+                 (remove-if-not #'single-value-slot-p missing-properties))
                (missing-multi-value-properties
-                (remove-if-not #'multi-value-slot-p missing-properties))
+                 (remove-if-not #'multi-value-slot-p missing-properties))
+               (all-optional (notany #'required-p missing-single-value-properties))
                (query-solution
-                ;; simple attributes
-                (first
-                 (sparql:select
-                  "*"
-                  (format nil
-                          "~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
-                          (loop for slot in missing-single-value-properties
-                             append (list (required-p slot)
-                                          (s-url resource-url)
-                                          (ld-property-list slot)
-                                          (s-var (sparql-variable-name slot)))))))))
+                 ;; simple attributes
+                 (first
+                  (sparql:select
+                   "*"
+                   (format nil
+                           "~@[~{~A ~A ~A~}~]~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
+                                        ; add at least one required output
+                           (and all-optional (list
+                                 (s-url resource-url)
+                                 (s-prefix "mu:uuid")
+                                 (s-genvar "uuid"))) 
+                                        ; all missing properties
+                           (loop for slot in missing-single-value-properties
+                                 append (list (required-p slot)
+                                              (s-url resource-url)
+                                              (ld-property-list slot)
+                                              (s-var (sparql-variable-name slot)))))))))
           ;; read simple attributes from sparql query
           (loop for slot in missing-single-value-properties
-             for sparql-var = (sparql-variable-name slot)
-             for json-var = (json-property-name slot)
-             do
-               (setf (solution-value solution json-var)
-                     (and (jsown:keyp query-solution sparql-var)
-                        (from-sparql (jsown:val query-solution sparql-var)
-                                     (resource-type slot)))))
+                for sparql-var = (sparql-variable-name slot)
+                for json-var = (json-property-name slot)
+                do
+                   (setf (solution-value solution json-var)
+                         (and (jsown:keyp query-solution sparql-var)
+                              (from-sparql (jsown:val query-solution sparql-var)
+                                           (resource-type slot)))))
           ;; read extended variables through separate sparql query
           (loop for slot in missing-multi-value-properties
-             for variable-name = (sparql-variable-name slot)
-             for json-var = (json-property-name slot)
-             do
-               (let ((value (mapcar (lambda (query-solution)
-                                      (jsown:val query-solution variable-name))
-                                    (sparql:select "*"
-                                                   (format nil "~A ~{~A~,^/~} ~A."
-                                                           (s-url resource-url)
-                                                           (ld-property-list slot)
-                                                           (s-var variable-name))))))
-                 (setf (solution-value solution json-var)
-                       (from-sparql value (resource-type slot)))))
+                for variable-name = (sparql-variable-name slot)
+                for json-var = (json-property-name slot)
+                do
+                   (let ((value (mapcar (lambda (query-solution)
+                                          (jsown:val query-solution variable-name))
+                                        (sparql:select "*"
+                                                       (format nil "~A ~{~A~,^/~} ~A."
+                                                               (s-url resource-url)
+                                                               (ld-property-list slot)
+                                                               (s-var variable-name))))))
+                     (setf (solution-value solution json-var)
+                           (from-sparql value (resource-type slot)))))
           solution)))))
 
 (defun item-spec-to-jsown (item-spec)
