@@ -1109,6 +1109,10 @@ Queries can become complex.  You can request a known triple to be added to queri
 
     (setf *include-at-least-one-non-optional* t)
 
+The maximum amount of OPTIONAL clauses used in queries select queries used to fill in partial properties of an item, can be limited using `*max-optionals-per-query*`.  If this is non-nil, it must be a whole number greater than 0.
+
+    (setf *max-optionals-per-query* 8)
+
 ##### Pagination
 
 Pagination is described separately above.  Not that included resources are never paginated.  Both the default page size, as well as the amount of available results can be returned.

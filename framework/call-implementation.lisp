@@ -406,25 +406,38 @@
 (defun query-partial-properties (item-spec slots)
   "Executes a sparql query to fetch the properties of the requested slots."
   (let ((resource-url (node-url item-spec))
-        (all-optional (notany #'required-p slots)))
-    (first
-     (sparql:select
-      "*"
-      (format nil
-              "~@[~{~A ~A ~A.~}~]~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
+        (slot-groups (if *max-optionals-per-query*
+                         (loop for i
+                               from 0 below (length slots)
+                               by *max-optionals-per-query*
+                               collect (subseq slots
+                                               i
+                                               (min (+ i *max-optionals-per-query*)
+                                                    (length slots))))
+                         (list slots))))
+    (apply
+     #'merge-jsown-objects
+     (loop for slots in slot-groups
+           for all-optional = (notany #'required-p slots)
+           collect
+           (first
+            (sparql:select
+             "*"
+             (format nil
+                     "~@[~{~A ~A ~A.~}~]~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
                                         ; add at least one required output
-              (and all-optional
-                   *include-at-least-one-non-optional*
-                   (list
-                    (s-url resource-url)
-                    (s-prefix "mu:uuid")
-                    (s-str (uuid item-spec))))
+                     (and all-optional
+                          *include-at-least-one-non-optional*
+                          (list
+                           (s-url resource-url)
+                           (s-prefix "mu:uuid")
+                           (s-str (uuid item-spec))))
                                         ; all missing properties
-              (loop for slot in slots
-                    append (list (required-p slot)
-                                 (s-url resource-url)
-                                 (ld-property-list slot)
-                                 (s-var (sparql-variable-name slot)))))))))
+                     (loop for slot in slots
+                           append (list (required-p slot)
+                                        (s-url resource-url)
+                                        (ld-property-list slot)
+                                        (s-var (sparql-variable-name slot)))))))))))
 
 (defun item-spec-to-jsown (item-spec)
   "Returns the jsown representation of the attributes and

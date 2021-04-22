@@ -59,6 +59,12 @@
   "when non-nil, the clear-keys sent to the cache based on received
   delta messages will be logged in the console.")
 
+(defparameter *max-optionals-per-query* nil
+  "set this to a number to indicate the maximum amount of OPTIONAL
+  statements to be used when an item is being fetched partially.  not
+  consumed in all queries, use will be extended when necessary.  this is
+  used as a maxmium amount of OPTIONALs, effective amount may be lower.")
+
 (defparameter *include-at-least-one-non-optional* nil
   "when non-nil, we should aim to inject one known statement when
   constructing a query.  not consumed in all queries, use will be
