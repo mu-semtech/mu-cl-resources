@@ -1103,6 +1103,12 @@ The cache of the delta service can be cleared by wiring the delta-notifier to mu
      (setf *log-delta-clear-keys* t)
 
 
+##### Query optimization
+
+Queries can become complex.  You can request a known triple to be added to queries which only contain OPTIONAL elements.  This may make the queries a bit lighter to execute.  Support for this is not fully implemented and might be removed if deemed unnecessary.
+
+    (setf *include-at-least-one-non-optional* t)
+
 ##### Pagination
 
 Pagination is described separately above.  Not that included resources are never paginated.  Both the default page size, as well as the amount of available results can be returned.

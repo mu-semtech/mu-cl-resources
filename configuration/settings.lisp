@@ -59,6 +59,11 @@
   "when non-nil, the clear-keys sent to the cache based on received
   delta messages will be logged in the console.")
 
+(defparameter *include-at-least-one-non-optional* nil
+  "when non-nil, we should aim to inject one known statement when
+  constructing a query.  not consumed in all queries, use will be
+  extended when necessary.")
+
 (defparameter sparql:*experimental-no-application-graph-for-sudo-select-queries* nil
   "when non-nil no application graph will be set when sending out sudo
   queries, thus resulting in queries across the full database.")

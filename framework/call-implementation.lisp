@@ -414,6 +414,7 @@
               "~@[~{~A ~A ~A.~}~]~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
                                         ; add at least one required output
               (and all-optional
+                   *include-at-least-one-non-optional*
                    (list
                     (s-url resource-url)
                     (s-prefix "mu:uuid")
