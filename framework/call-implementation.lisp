@@ -375,25 +375,9 @@
                  (remove-if-not #'single-value-slot-p missing-properties))
                (missing-multi-value-properties
                  (remove-if-not #'multi-value-slot-p missing-properties))
-               (all-optional (notany #'required-p missing-single-value-properties))
                (query-solution
-                 ;; simple attributes
-                 (first
-                  (sparql:select
-                   "*"
-                   (format nil
-                           "~@[~{~A ~A ~A~}~]~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
-                                        ; add at least one required output
-                           (and all-optional (list
-                                 (s-url resource-url)
-                                 (s-prefix "mu:uuid")
-                                 (s-genvar "uuid"))) 
-                                        ; all missing properties
-                           (loop for slot in missing-single-value-properties
-                                 append (list (required-p slot)
-                                              (s-url resource-url)
-                                              (ld-property-list slot)
-                                              (s-var (sparql-variable-name slot)))))))))
+                 ;; fetching of simple attributes
+                 (query-partial-properties item-spec missing-single-value-properties)))
           ;; read simple attributes from sparql query
           (loop for slot in missing-single-value-properties
                 for sparql-var = (sparql-variable-name slot)
@@ -418,6 +402,28 @@
                      (setf (solution-value solution json-var)
                            (from-sparql value (resource-type slot)))))
           solution)))))
+
+(defun query-partial-properties (item-spec slots)
+  "Executes a sparql query to fetch the properties of the requested slots."
+  (let ((resource-url (node-url item-spec))
+        (all-optional (notany #'required-p slots)))
+    (first
+     (sparql:select
+      "*"
+      (format nil
+              "~@[~{~A ~A ~A.~}~]~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
+                                        ; add at least one required output
+              (and all-optional
+                   (list
+                    (s-url resource-url)
+                    (s-prefix "mu:uuid")
+                    (s-str (uuid item-spec))))
+                                        ; all missing properties
+              (loop for slot in slots
+                    append (list (required-p slot)
+                                 (s-url resource-url)
+                                 (ld-property-list slot)
+                                 (s-var (sparql-variable-name slot)))))))))
 
 (defun item-spec-to-jsown (item-spec)
   "Returns the jsown representation of the attributes and
