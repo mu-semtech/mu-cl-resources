@@ -145,7 +145,8 @@
               (jsown:filter
                (sparql:select (s-distinct (s-var "target"))
                               (format nil "~A a ?target."
-                                      (s-url uri)))
+                                      (s-url uri))
+                              :no-graph t)
                map "target" "value")))))
 
 (defun (setf classes-for-uri) (value uri)
@@ -153,11 +154,16 @@
 
 (defun add-cached-class-for-uri (uri class)
   "Adds a cached class for a the given uri.  Handy for delta
-messages."
+  messages."
   (when (classes-for-uri-p uri)
-    (pushnew class (gethash uri *uri-classes-cache*) :test #'equal)))
+    (pushnew class (gethash uri *uri-classes-cache*) :test #'string=)))
 
 (defun remove-cached-class-for-uri (uri class)
   "Removes a cached class for the given URI.  Handy for delta
   messages."
-  (delete class (gethash uri *uri-classes-cache*) :test #'equal))
+  (setf (gethash uri *uri-classes-cache*)
+        (delete class (gethash uri *uri-classes-cache*) :test #'string=)))
+
+(defun clear-cached-classes-for-uri (uri)
+  "Removes all cached clasess for a given uri"
+  (remhash uri *uri-classes-cache*))

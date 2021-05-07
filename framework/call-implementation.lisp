@@ -843,6 +843,14 @@
 
 (defun handle-uri-class-changes (inserts deletes)
   "Handles creations and removals of class changes."
+  ;; TODO: this could become smart and update the classes at runtime.
+  ;; However, when triples are removed from one graph, they may still
+  ;; exist in another graph.  We lack the knowledge about the specific
+  ;; graphs, and therefore cannot store the types based on this.  Once
+  ;; the graphs/access-rights are shared from the delta messages, we can
+  ;; upgrade the type cache.  This type cache can then be used to update
+  ;; the variables in place when needed.  This would make use of
+  ;; (remove-cached-class-for-uri uri type)
   (flet ((filter-class-triples (list)
            (remove-if-not (lambda (triple)
                             ;; TODO: check this is effectively a URI
@@ -851,16 +859,12 @@
                           list)))
     (let ((inserted-types (filter-class-triples inserts))
           (deleted-types (filter-class-triples deletes)))
-      ;; TODO: ignore triples which lift each other
-      ;; TODO: verify order of processing (delete or insert first)
       (loop for triple in deleted-types
             for uri = (jsown:filter triple "subject" "value")
-            for type = (jsown:filter triple "object" "value")
-            do (remove-cached-class-for-uri uri type))
+            do (clear-cached-classes-for-uri uri))
       (loop for triple in inserted-types
             for uri = (jsown:filter triple "subject" "value")
-            for type = (jsown:filter triple "object" "value")
-            do (add-cached-class-for-uri uri type)))))
+            do (clear-cached-classes-for-uri uri)))))
 
 (defgeneric delta-call (body)
   (:documentation "Performs removal of data based on the received
@@ -876,8 +880,20 @@
                           append (jsown:val diff "inserts")))
            (deletes (loop for diff in body
                           append (jsown:val diff "deletes")))
-           (triples (append inserts deletes)))
+           ;; note that something can fall through the cracks with this
+           ;; calculation.  support from mu-authorization would help in
+           ;; these cases.
+           (effective-inserts (set-difference inserts deletes
+                                              :test (lambda (a b)
+                                                      (string= (jsown:to-json a)
+                                                               (jsown:to-json b)))))
+           (effective-deletes (set-difference deletes inserts
+                                              :test (lambda (a b)
+                                                      (string= (jsown:to-json a)
+                                                               (jsown:to-json b)))))
+           (triples (append effective-inserts effective-deletes)))
       (with-cache-store
+        (handle-uri-class-changes effective-inserts effective-deletes)
         (loop for triple in triples
               for subject = (jsown:filter triple "subject" "value")
               for predicate = (jsown:filter triple "predicate" "value")
@@ -901,7 +917,14 @@
               for object-is-uri = (string= (jsown:filter triple "object" "type") "uri")
               do
               (dolist (subject-item-spec subject-item-specs)
-                (cache-clear-object subject-item-spec))
+                (handler-case
+                    (cache-clear-object subject-item-spec)
+                  (no-such-instance (e)
+                    (declare (ignore e))
+                    ;; this is a feasible case, skip it
+                    )
+                  (error (e)
+                    (format t "AN ERROR OCCURRED PROCSSING A DELTA MESSAGE ~A" e))))
               (when object-is-uri
                 (loop
                       for subject-item-spec in subject-item-specs
@@ -916,7 +939,7 @@
                                          nil))
                       if relation
                       do
-                      (cache-clear-relation subject-item-spec relation)))
+                         (cache-clear-relation subject-item-spec relation)))
               (dolist (resource subject-resources)
                 (cache-clear-class resource))))
       (let ((out-headers (cdr (assoc :clear-keys (hunchentoot:headers-out*)))))
