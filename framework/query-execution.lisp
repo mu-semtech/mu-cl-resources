@@ -50,13 +50,15 @@
   (fuseki:with-query-logging (query-log-stream :ask)
     (fuseki:ask *repository* (format nil "ASK WHERE { ~A }" body))))
 
-(defun select (variables body &rest args &key order-by limit offset group-by)
+(defun select (variables body &rest args &key order-by limit offset group-by no-graph)
   "Executes a SPARQL SELECT query on the current graph.
    Takes with-query-group into account."
   (declare (ignore order-by limit offset group-by))
-  (if (and *experimental-no-application-graph-for-sudo-select-queries*
-         (string= (string-downcase (hunchentoot:header-in* :mu-auth-allowed-groups))
-                  "sudo"))
+  (remf args :no-graph)
+  (if (or no-graph
+          (and *experimental-no-application-graph-for-sudo-select-queries*
+               (string= (string-downcase (hunchentoot:header-in* :mu-auth-allowed-groups))
+                        "sudo")))
       (query
        (s-select variables args body))
       (query
