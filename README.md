@@ -189,6 +189,7 @@ Each resource definition is a combination of these three views.  Let us assume a
 
 ```javascript
 {
+  "version": "0.1",
   "resources": {
     "people": {
       "name": "person",
@@ -217,6 +218,7 @@ Assuming the `foaf` prefix is defined, we can make this example slightly easier 
 
 ```javascript
 {
+  "version": "0.1",
   "prefixes": {
     "foaf": "http://xmlns.com/foaf/0.1/"
   },
@@ -242,6 +244,7 @@ We can insert multiple attributes if desired. We can update our example to also 
 
 ```javascript
 {
+  "version": "0.1",
   "prefixes": {
     "foaf": "http://xmlns.com/foaf/0.1/"
   },
@@ -271,6 +274,7 @@ Most resources link to other resources.  Let's first define a second resouce, an
 
 ```javascript
 {
+  "version": "0.1",
   "prefixes": {
     "foaf": "http://xmlns.com/foaf/0.1/"
   },
@@ -372,6 +376,7 @@ The complete setup of our user and account looks as follows:
 
 ```javascript
 {
+  "version": "0.1",
   "prefixes": {
     "foaf": "http://xmlns.com/foaf/0.1/"
   },
