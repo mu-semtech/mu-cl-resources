@@ -488,8 +488,8 @@
   ;; This call is positioned at the end of the stack, as calls at the
   ;; end are checked first.  We need to ensure we run first-hand as
   ;; other calls might overlap in future versions of the jsonapi spec.
-  (let* ((raw-body (let ((p (post-body))) (format t "~&Post body: ~A~%" p) p))
-         (body (let ((p (jsown:parse raw-body))) (format t "~&Parsed body: ~A~%" p) p)))
+  (let* ((raw-body (post-body))
+         (body (jsown:parse raw-body)))
     ;; our goal should be to clear everything that might be impacted
     ;; by the changes here.  in the future we could intelligently
     ;; merge.
