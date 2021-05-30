@@ -394,7 +394,7 @@
                 do
                    (let ((value (mapcar (lambda (query-solution)
                                           (jsown:val query-solution variable-name))
-                                        (sparql:select "*"
+                                        (sparql:select "DISTINCT *"
                                                        (format nil "~A ~{~A~,^/~} ~A."
                                                                (s-url resource-url)
                                                                (ld-property-list slot)
@@ -437,7 +437,8 @@
                            append (list (required-p slot)
                                         (s-url resource-url)
                                         (ld-property-list slot)
-                                        (s-var (sparql-variable-name slot)))))))))))
+                                        (s-var (sparql-variable-name slot)))))
+             :limit 1))))))
 
 (defun item-spec-to-jsown (item-spec)
   "Returns the jsown representation of the attributes and
