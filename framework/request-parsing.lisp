@@ -133,6 +133,13 @@
                                      ("code" "500"))))
                        (or jsown-object (jsown:empty-object))))
 
+(defun respond-general-server-error ()
+  "Returns a general 500 server error without any extra information."
+  (respond-server-error
+   (jsown:new-js
+     ("errors" (jsown:new-js
+                 ("title" "Something went wrong while processing the request"))))))
+
 (defun respond-access-denied (&optional jsown-object)
   "Returns a 403 Access Denied response.  The supplied
    jsown-object is merged with the response if it is supplied.
