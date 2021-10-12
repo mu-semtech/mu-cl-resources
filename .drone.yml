@@ -2,6 +2,10 @@ kind: pipeline
 type: docker
 name: push-latest
 steps:
+- name: submodules
+  image: alpine/git
+  commands:
+  - git submodule update --init --recursive
 - name: build-and-push
   image: plugins/docker
   settings:
@@ -21,6 +25,10 @@ kind: pipeline
 type: docker
 name: push-feature-build
 steps:
+- name: submodules
+  image: alpine/git
+  commands:
+  - git submodule update --init --recursive
 - name: push-feature-build
   image: plugins/docker
   settings:
@@ -42,6 +50,10 @@ kind: pipeline
 type: docker
 name: push-release
 steps:
+- name: submodules
+  image: alpine/git
+  commands:
+  - git submodule update --init --recursive
 - name: build-and-push-tag
   image: plugins/docker
   settings:
@@ -59,6 +71,10 @@ kind: pipeline
 type: docker
 name: dry-run
 steps:
+- name: submodules
+  image: alpine/git
+  commands:
+  - git submodule update --init --recursive
 - name: dry-run
   image: plugins/docker
   settings:
