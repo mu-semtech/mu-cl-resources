@@ -534,7 +534,7 @@ All properties are contained in a backtick (`) quoted list (note that this is *n
 A wide set of types is supported.  Extensions are necessary in order to implement new types:
 
   - *string* A regular string
-  - *number* A number (can be integers or floats)
+  - *number* A number. Can be [decimals](https://www.w3.org/TR/xmlschema-2/#decimal) or [floats](https://www.w3.org/TR/xmlschema-2/#float). For read-only operations more types ([integers](https://www.w3.org/TR/xmlschema-2/#integer)) are supported.
   - *boolean* A boolean, true or false
   - *date* A date as understood by your triplestore
   - *datetime* A date and time combination, as understood by your triplestore
@@ -682,7 +682,7 @@ Each attribute is a key/object pair in the attributes object. The key reflects t
 A wide set of types is supported.  Extensions are necessary in order to implement new types:
 
   - *string* A regular string
-  - *number* A number (can be integers or floats)
+  - *number* A number. Can be [decimals](https://www.w3.org/TR/xmlschema-2/#decimal) or [floats](https://www.w3.org/TR/xmlschema-2/#float). For read-only operations more types ([integers](https://www.w3.org/TR/xmlschema-2/#integer)) are supported.
   - *boolean* A boolean, true or false
   - *date* A date as understood by your triplestore
   - *datetime* A date and time combination, as understood by your triplestore
