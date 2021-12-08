@@ -535,6 +535,8 @@ A wide set of types is supported.  Extensions are necessary in order to implemen
 
   - *string* A regular string
   - *number* A number. Can be [decimals](https://www.w3.org/TR/xmlschema-2/#decimal) or [floats](https://www.w3.org/TR/xmlschema-2/#float). For read-only operations more types ([integers](https://www.w3.org/TR/xmlschema-2/#integer)) are supported.
+  - *integer* An [integer](https://www.w3.org/TR/xmlschema-2/#integer), being a non-bounded whole number
+  - *float* A [float](https://www.w3.org/TR/xmlschema-2/#float), being a floating point number
   - *boolean* A boolean, true or false
   - *date* A date as understood by your triplestore
   - *datetime* A date and time combination, as understood by your triplestore
