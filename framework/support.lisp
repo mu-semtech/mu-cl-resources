@@ -64,6 +64,13 @@
                (rest bs))
         a)))
 
+(defun parse-jsown-primitive (str)
+  "Parses the supplied string as a jsown primitive value.
+  jsown assumes to receive an object so we need to wrap and unwrap."
+  (let ((wrapped-value
+          (format nil "{ \"val\": ~A }" str)))
+    (jsown:val (jsown:parse wrapped-value) "val")))
+
 (defun plist-remove-nil (plist)
   "Removes settings which are nil from <plist>."
   (loop for (key value) on plist by #'cddr

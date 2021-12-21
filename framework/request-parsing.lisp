@@ -67,9 +67,19 @@
    interpret-json-value.")
   (:method ((slot resource-slot) value)
     (let ((interpreted-value
-           (if (find (resource-type slot) '(:number :string-set :uri-set :language-string :language-string-set :boolean))
-               (jsown:parse value)
-               value)))
+            (cond
+              ((find (resource-type slot)
+                     '(:number :integer :float :boolean))
+               ;; this will strip quotes on numbers if they exist.  it's
+               ;; a code-path we should deprecate but it's used in the
+               ;; wild due to earlier quirks.
+               (let ((quote-stripped-value
+                       (cl-ppcre:scan-to-strings "[^\"]+" value)))
+                 (parse-jsown-primitive quote-stripped-value)))
+              ((find (resource-type slot)
+                     '(:string-set :uri-set :language-string :language-string-set))
+               (jsown:parse value))
+              (t value))))
       (interpret-json-value slot interpreted-value))))
 
 (defun respond-no-content ()
