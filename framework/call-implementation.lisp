@@ -255,11 +255,18 @@
    the identifiers which are listed in that filter.
    These needn't be recalculated when any resource is returned,
    only when any of those resources is returned."
-  (let ((id-filter (find "filter[id]" (webserver:get-parameters*) :test #'string= :key #'car)))
-    (if id-filter
-        (dolist (uuid (split-sequence:split-sequence #\, (cdr id-filter)))
-          (cache-object (make-item-spec :uuid uuid :type (resource-name resource))))
-        (cache-class resource))))
+  (flet ((get-parameter-key (key)
+           (rest (find key (webserver:get-parameters*) :test #'string= :key #'car))))
+    (cond ((or (get-parameter-key "filter[id]")
+               (get-parameter-key "filter[:id:]"))
+           (dolist (uuid (split-sequence:split-sequence
+                          #\,
+                          (or (get-parameter-key "filter[id]")
+                              (get-parameter-key "filter[:id:]"))))
+             (cache-object (make-item-spec :uuid uuid :type (resource-name resource)))))
+          ((get-parameter-key "filter[:uri:]")
+           (cache-object (make-item-spec :node-url (get-parameter-key "filter[:uri:]"))))
+          (t (cache-class resource)))))
 
 (defun self-for-list-call (resource)
   "Constructs the self url for the list call for <resource>."
