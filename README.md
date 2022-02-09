@@ -1099,7 +1099,7 @@ mu-cl-resources logs all queries by default.  You can configure which queries sh
 
 An example configuration to only log known update queries and known ask queries would be:
 
-    `(defparameter *sparql:*query-log-types* '(:update :ask))`
+    `(defparameter sparql:*query-log-types* '(:update :ask))`
 
 ###### Delta-based cache clearing
 
