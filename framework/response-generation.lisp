@@ -213,8 +213,8 @@
            (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
              (declare (ignore slots))
-             (let ((property-slot
-                    (resource-slot-by-json-key (referred-resource last-slot) last-property)))
+             (let* ((last-resource (if last-slot (referred-resource last-slot) resource))
+                    (property-slot (resource-slot-by-json-key last-resource last-property)))
                (format nil "~A ~A ~{~A~^/~} ~A.~&"
                        sparql-pattern
                        target-variable (ld-property-list property-slot) (interpret-json-string property-slot search))))))
@@ -241,8 +241,8 @@
            (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
              (declare (ignore slots))
-             (let ((property-slot
-                    (resource-slot-by-json-key (referred-resource last-slot) last-property)))
+             (let* ((last-resource (if last-slot (referred-resource last-slot) resource))
+                    (property-slot (resource-slot-by-json-key last-resource last-property)))
                (format nil "FILTER( NOT EXISTS { ~A ~A ~A ~A. } )"
                        sparql-pattern
                        target-variable (ld-property-list property-slot) (interpret-json-string property-slot search))))))
