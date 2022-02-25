@@ -567,6 +567,23 @@ The format of a single value consists of the internal name of the resource to be
   - *`:as`* Contains the attribute in the JSON API.
   - *`:inverse`* Optional, when set to `t` it inverses the direction of the relationship supplied in `:via`.
 
+#### Inheritance
+
+Superclasses may be specified as a list after the resource name.  If a person is both an animal as well as an agent, we would write it as such:
+
+    (define-resource person (animal agent)
+      :class (s-prefix "foaf:Person")
+      ...)
+
+    (define-resource animal () ...)
+    (define-resource agent ()
+      :class (s-prefix "foaf:Agent")
+      ...)
+
+A definition of this kind includes instances of type `foaf:Person` when listing animals and when listing agents.  Any attributes or relationships set on `animal` or `agent` will be available on `person`.
+
+Used types may change over time as the SPARQL endpoint evolves.  The following is subject to change.  Creating a new person will currently store both the type `foaf:Person` as well as `foaf:Agent`.  When using `agent` in a relationship, anything that has the type `foaf:Agent` or `foaf:Person` is accepted.  The json-api response will yield the most specific type in the listing (when the `foaf:Person` type is found, a `person` will be added to the listing).
+
 ### Defining resources in JSON
 As the integration with the frontend data-store is handled automatically, most of your time with mu-cl-resources will be spent configuring resources. This overview provides a non-exhaustive list of the most common features of mu-cl-resources in JSON format.
 
@@ -726,6 +743,34 @@ Each relationship is a key/object pair in the relationships object. The key refl
 * `target`: Name of the resource to be linked to.
 * `cardinality`: Cardinality of the relationship. Must be `"one"` or `"many"`.
 * `inverse (optional)`: When set to `true` it inverses the direction of the relationship supplied in `predicate`.
+
+##### Inheritance
+
+Superclasses may be specified as a list after the resource name.  If a person is both an animal as well as an agent, we would write it as such:
+
+```javascript
+{
+  ...
+  "resources": {
+    "people": {
+      "name": "person",
+      "class": "foaf:Person",
+      "super": ["animals", "agents"],
+      ...
+    },
+    "animals": { ... },
+    "agents": {
+      "class": "foaf:Agent",
+      ...
+    }
+  }
+}
+```
+
+A definition of this kind includes instances of type `foaf:Person` when listing animals and when listing agents.  Any attributes or relationships set on `animal` or `agent` will be available on `person`.
+
+Used types may change over time as the SPARQL endpoint evolves.  The following is subject to change.  Creating a new person will currently store both the type `foaf:Person` as well as `foaf:Agent`.  When using `agent` in a relationship, anything that has the type `foaf:Agent` or `foaf:Person` is accepted.  The json-api response will yield the most specific type in the listing (when the `foaf:Person` type is found, a `person` will be added to the listing).
+
 
 ### Querying the API
 
@@ -1038,6 +1083,49 @@ Much of the code needed to implement this component was written specifically for
 From a consumer's perspective, the configuration supplied of mu-cl-resources is the relevant portion of this service.  The API which is offered may be broad, but the configuration to maintain is comparatively small.  As the consumer has a good overview of the code necessary to configure this service, this could be considered a microservice from the consumer's perspective.
 
 From the developer's perspective things may look different.  It is clear that mu-cl-resources quite a broad code base.  Replacing it with other components has proven to be more expensive than expected.  Although this holds, many of the used functions could (and should) be abstracted into separate libraries over time.  Furthermore, we expect a similar code-base to work in different languages, although more code may need to be written.
+
+### Future of inheritance
+Inheritance comes into play for two cases: one is yielding a polymorphic API, another is coping with inheritance in the datamodel.  The current implementation may change over time but these cases should work with or without some workarounds.
+
+#### A polymorphic API
+
+A polymorphic API uses the types emitted by mu-cl-resources.  These may overlap exactly with the types in the triplestore but they could diverge.  You might have an API in which you can "score" an item with a score instance.  The scored item doesn't necessarily have a separate class in the triplestore but inheritance in an API should be able to cope with this.  An ideal speciifcation could look like the following:
+
+    (define-resource score ()
+      :class (s-prefix "ext:Score")
+      :properties `((:motivation :string ,(s-prefix "ext:motivation"))
+                    (:value :number ,(s-prefix "ext:value")))
+      :has-one ((scorable :via ,(s-prefix "ext:hasScore")
+                          :inverse t
+                          :as "scorable"))
+      :resource-base (s-url "http://my-application.com/scores/")
+      :on-path "scores")
+
+    (define-resource scorable ()
+       :has-one ((score :via ,(sprefix "ext:hasScore")
+                        :as "score"))
+       :on-path "scorables")
+
+    (define-resource test (scorable)
+      :class (s-prefix "ext:Test")
+      :properties `((:content :string ,(s-prefix "ext:submissionText")))
+      :resource-base (s-url "http://my-application.com/tests/")
+      :on-path "scores")
+
+    (define-resource car (scorable)
+      :class (s-prefix "ext:Car")
+      :properties `()
+      :resource-base (s-url "http://my-application.com/cars/")
+      :on-path "cars")
+
+When fetching scores, the scorable property may have resources from both the `ext:Test` as well as from the `ext:Car` types.  Both will be returned through the API.  Fetching `/scorables` would have a similar effect, there are no items of type `scorable`, only of its subtypes.
+
+#### Datamodel inheritance
+
+The glue layer has inheritance, but the data model may have that too.  Because we currently don't reason on types in the triplestore, inheritance must be handled by components that desire to use it.  This may lead to strange situations as the ideal solution is for the triplestore to handle such use.
+
+In order to experiment with inheritance, mu-cl-resources takes an accepting approach.  Whenever we fetch data, we verify if any of the matching types exist and we assume the most specific type is the one to use.  Whenever we store data we write out all types.  That should make it easier for other services to cope with inheritance without knowing too much about it by themselves.  A reasoner in the triplestore would clearly be an upgrade to this.  Should that arrive, mu-cl-resources may choose not to write out nor to query all types.  At that point, this would not cause a behavioural change to the system as a whole.
+
 
 ### Features to be documented
 
