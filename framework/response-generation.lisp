@@ -246,6 +246,24 @@
                (format nil "FILTER( NOT EXISTS { ~A ~A ~A ~A. } )"
                        sparql-pattern
                        target-variable (ld-property-list property-slot) (interpret-json-string property-slot search))))))
+        ;; paths
+        ;; Example: /people?[:paths:friend.firstName:address.street]=yolo
+        ((smart-filter-p ":paths:")
+         (let ((options (loop for section in (cddr (split-sequence:split-sequence #\: last-component))
+                              collect (concatenate 'list
+                                                   (butlast components)
+                                                   (split-sequence:split-sequence #\. section)))))
+           ;; Once we have these options, we have to union them in the
+           ;; same way we do the "standard semi-fuzzy search"
+           (format nil "~{~&{ ~A }~,^~%UNION~%~}"
+                   (loop for components in options
+                         for (sparql-pattern target-variable last-slot slots)
+                           = (multiple-value-list
+                              (sparql-pattern-for-filter-components source-variable resource components t))
+                         collect
+                         (format nil "~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
+                                 sparql-pattern
+                                 target-variable (s-str search))))))
         ;; standard semi-fuzzy search
         ;; PPFFC: TARGET VALUE=VALUE
         (t

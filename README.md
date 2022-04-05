@@ -895,6 +895,9 @@ Aside from regular text searches, a set of custom filters have been added.  Thes
     GET /people?filter[:has-no:account]=yes
 
 - *:has:* The inverse of `:has-no:` forces the relationship to exist.  Syntax may be subject to change.
+- *:paths:* EXPERIMENTAL Text search for multiple paths in one go
+
+    GET /people?filter[:paths:name:accounts.name]=lap
 
 #### Including results
 
