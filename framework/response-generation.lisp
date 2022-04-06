@@ -271,12 +271,40 @@
                    :search
                    value)))
 
+(let ((or-scanner (cl-ppcre:create-scanner "^:or:" :single-line-mode t)))
+  (defun group-filters (filters)
+    "Groups filters as added to the search to make sure AND and OR is
+  understood correctly."
+    (let ((map (make-hash-table :test 'equal)))
+      (loop for filter-spec in filters
+            for components = (getf filter-spec :components)
+            for search = (getf filter-spec :search)
+            if (cl-ppcre:scan or-scanner (first components))
+              do (push (list :components (rest components) :search search) (gethash (first components) map))
+            else
+              do (push (list :components components :search search) (gethash ":and:" map)))
+      (loop for group being the hash-keys of map
+            for settings = (gethash group map)
+            if (cl-ppcre:scan or-scanner group)
+              collect (cons :or settings)
+            else
+              collect (cons :and settings)))))
+
 (defun filter-body-for-search (&key resource source-variable sparql-body)
   "Adds constraints to sparql-body so that it abides the filters
    which were posed by the user."
-  (dolist (filter (extract-filters-from-request))
-    (setf sparql-body
-          (format nil "~A~&~t~A" sparql-body
-                  (apply #'sparql-pattern-filter-string
-                         resource source-variable filter))))
+  (flet ((expand-filter-string (options)
+           (apply #'sparql-pattern-filter-string
+                  resource source-variable
+                  options)))
+   (loop for (type . group-filters) in (group-filters (extract-filters-from-request))
+         if (eq type :or)
+           do (setf sparql-body         ; append this to the sparql body
+                    (format nil "~A~%~{{~% ~A~%} ~,^ UNION ~%~}" sparql-body
+                            (mapcar #'expand-filter-string group-filters)))
+         else
+           do
+              (setf sparql-body
+                    (format nil "~A~{~%~A~}" sparql-body
+                            (mapcar #'expand-filter-string group-filters)))))
   sparql-body)
