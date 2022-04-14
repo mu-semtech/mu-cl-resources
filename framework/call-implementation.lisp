@@ -901,7 +901,6 @@
                                                                (jsown:to-json b)))))
            (triples (append effective-inserts effective-deletes)))
       (with-cache-store
-        (handle-uri-class-changes effective-inserts effective-deletes)
         (loop for triple in triples
               for subject = (jsown:filter triple "subject" "value")
               for predicate = (jsown:filter triple "predicate" "value")
@@ -949,7 +948,8 @@
                       do
                          (cache-clear-relation subject-item-spec relation)))
               (dolist (resource subject-resources)
-                (cache-clear-class resource))))
+                (cache-clear-class resource)))
+        (handle-uri-class-changes effective-inserts effective-deletes))
       (let ((out-headers (cdr (assoc :clear-keys (hunchentoot:headers-out*)))))
         (when (and *cache-clear-path* out-headers)
           (when *log-delta-clear-keys*
