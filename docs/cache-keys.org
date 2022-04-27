@@ -1,4 +1,4 @@
-Cache keys
+#+TITLE: Cache keys
 
 Which cache keys are used, and what do they mean?
 
