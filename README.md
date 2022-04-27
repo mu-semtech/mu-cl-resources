@@ -540,6 +540,7 @@ A wide set of types is supported.  Extensions are necessary in order to implemen
   - *boolean* A boolean, true or false
   - *date* A date as understood by your triplestore
   - *datetime* A date and time combination, as understood by your triplestore
+  - *time* A time without a date, as understood by your triplestore
   - *url* A URL to another resource
   - *uri-set* An array of URIs
   - *string-set* An array of strings
@@ -707,6 +708,7 @@ A wide set of types is supported.  Extensions are necessary in order to implemen
   - *boolean* A boolean, true or false
   - *date* A date as understood by your triplestore
   - *datetime* A date and time combination, as understood by your triplestore
+  - *time* A time without a date, as understood by your triplestore
   - *url* A URL to another resource
   - *uri-set* An array of URIs
   - *string-set* An array of strings

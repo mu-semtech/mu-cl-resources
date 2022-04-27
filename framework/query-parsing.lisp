@@ -90,6 +90,11 @@
   (declare (ignore object))
   value)
 
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#time"
+    (value object)
+  (declare (ignore object))
+  value)
+
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#date"
     (value object)
   (declare (ignore object))

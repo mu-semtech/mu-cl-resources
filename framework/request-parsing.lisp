@@ -23,6 +23,8 @@
     (s-url value))
   (:method ((slot resource-slot) (type (eql :datetime)) value)
     (s-typed value (s-prefix "xsd:dateTime")))
+  (:method ((slot resource-slot) (type (eql :time)) value)
+    (s-typed value (s-prefix "xsd:time")))
   (:method ((slot resource-slot) (type (eql :date)) value)
     (s-typed value (s-prefix "xsd:date")))
   (:method ((slot resource-slot) (type (eql :g-year)) value)
