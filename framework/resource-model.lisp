@@ -70,12 +70,13 @@
   ;; properties cannot override certain properties due to subclasses
   ;; now existing, and thus incorrectly setting the property list.
   (dolist (link (all-links resource))
-    (alexandria:when-let ((linked-resource (find-resource-by-name (resource-name link)))
+    (alexandria:when-let ((linked-resource
+                           (handler-case (find-resource-by-name (resource-name link))
+                             (no-such-resource () nil)))
                           (inverse-property-list (reverse
                                                   (mapcar (lambda (prop)
                                                             (format nil "~A" (s-inv prop)))
                                                           (ld-property-list link)))))
-      inverse-property-list
       ;; find inverse relationship
       (dolist (inverse-link (all-links linked-resource))
         (when (equalp inverse-property-list
@@ -303,18 +304,22 @@
 
 (defun find-resource-by-name (symbol)
   "retrieves the resource with name symbol."
-  (gethash symbol *resources*))
+  (alexandria:if-let
+      ((resource (gethash symbol *resources*)))
+    resource
+    (error 'no-such-resource
+           :description (format nil "Resource symbol: ~A" symbol))))
 
 (defgeneric referred-resource (link)
   (:documentation "retrieves the resource which is referred to by a link")
   (:method ((link has-link))
-    (let ((resource (find-resource-by-name (resource-name link))))
-      (unless resource
+    (handler-case
+        (find-resource-by-name (resource-name link))
+      (no-such-resource ()
         (error 'configuration-error
                :description (format nil "Could not find resource for link on path \"~A\".  Searched resource is ~A.  Common possibilities are that there's a (define-resource ~A ...) block missing or that the first argument of a :has-one or :has-many specification has a typo."
                                     (request-path link)
-                                    (resource-name link) (resource-name link))))
-      resource)))
+                                    (resource-name link) (resource-name link)))))))
 
 (defgeneric expanded-ld-link (link)
   (:documentation "Expanded version of the ld-link of the has-link")
