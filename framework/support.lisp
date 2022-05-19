@@ -163,12 +163,21 @@
       ;; Subresources are ordered most broad to most specific.  As
       ;; such, we need to find the last subresource for which we have
       ;; the class in our set of specified-ld-classes.
-      (loop for resource in (reverse subresources)
-            for resource-class = (s-url (full-uri (ld-class resource)))
-            if (find resource-class specified-ld-classes
-                        :test (lambda (a b)
-                                (string= (princ-to-string a) (princ-to-string b))))
-            return resource))))
+      (or
+       (loop for resource in (reverse subresources)
+             for resource-class = (s-url (full-uri (ld-class resource)))
+             if (find resource-class specified-ld-classes
+                      :test (lambda (a b)
+                              (string= (princ-to-string a) (princ-to-string b))))
+               return resource)
+       (error 'resource-type-not-found-for-item-spec
+              :item-spec spec
+              :url (and (slot-boundp spec 'node-url)
+                        (slot-value spec 'node-url))
+              :type (and (slot-boundp spec 'type)
+                         (slot-value spec 'type))
+              :uuid (and (slot-boundp spec 'uuid)
+                         (slot-value spec 'uuid)))))))
 
 (defgeneric related-items (item-spec relation)
   (:documentation "Returns the related items for the given relation")

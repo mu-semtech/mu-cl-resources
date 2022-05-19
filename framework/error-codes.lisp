@@ -15,6 +15,12 @@
    (uri :initarg :uri :reader uri))
   (:documentation "Indicates the resource could not be found"))
 
+(define-condition resource-type-not-found-for-item-spec (error)
+  ((item-spec :initarg :item-spec :reader item-spec)
+   (url :initarg :url :reader url)
+   (type :initarg :type :reader resource-type)
+   (uuid :initarg :uuid :reader uuid)))
+
 (define-condition no-such-link (error)
   ((resource :initarg :resource :reader resource)
    (path :initarg :path :reader path))
