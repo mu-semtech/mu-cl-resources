@@ -53,7 +53,7 @@
                             "A cache for faster calculation of a
                             resource's children")))
 
-(defparameter *resources* (make-hash-table)
+(defparameter *resources* (make-hash-table :synchronized t)
   "contains all currently known resources")
 
 (defmethod initialize-instance :after ((resource resource) &key &allow-other-keys)
