@@ -16,4 +16,6 @@
 
 (defpackage :mu-cl-resources
   (:use :cl :mu-support)
+  (:import-from #:alexandria
+                #:flatten)
   (:export #:boot))

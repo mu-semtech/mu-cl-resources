@@ -20,6 +20,7 @@
                (:file "framework/domain-parsing")
                (:file "framework/request-parsing")
                (:file "framework/response-generation")
+               (:file "framework/included-items")
                (:file "framework/call-implementation")
                (:file "framework/call-specification")
                (:file "framework/resource-validations")
