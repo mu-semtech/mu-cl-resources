@@ -95,10 +95,9 @@ which the CAR is the key and the CDR is the list of items matching KEY."
     (format stream "")))
 
 (defun print-union-query (union stream)
-  (cl-fuseki::query-update-prefixes
-   (format nil "CONSTRUCT {~%~A~%} WHERE {~%~A~%}"
-           (print-for-construct-template union stream)
-           (print-for-construct-where union stream))))
+  (format nil "CONSTRUCT {~%~A~%} WHERE {~%~A~%}"
+          (print-for-construct-template union stream)
+          (print-for-construct-where union stream)))
 
 (defmethod print-object ((statement sparql-values-statement) stream)
   (format stream "~&VALUES ~A {~{~A~,^ ~}}."
@@ -116,7 +115,6 @@ which the CAR is the key and the CDR is the list of items matching KEY."
           (sparql-object match)))
 
 (defun construct-set-of-trees-for-included ()
-  (break "making tree")
   (make-tree (extract-included-from-request) :test #'string=))
 (defun group-item-specs-by-resource (item-specs)
   (group-by item-specs
@@ -199,6 +197,7 @@ results as a list of '(relationship-constraint . resources)."
      (make-instance 'sparql-statements
                     :statements (list (make-sparql-triple-match variable
                                                                 (format nil "~{~A~,^/~}"
+                                                                        ;; TODO: should this be ld-link instead?
                                                                         (mapcar #'s-url (expanded-ld-relation relationship)))
                                                                 target-var)
                                       ;; make values statement for the classes
@@ -206,12 +205,42 @@ results as a list of '(relationship-constraint . resources)."
                                       ;; use values statement for the type
                                       (make-sparql-triple-match target-var
                                                                 (s-url "http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
-                                                                type-var)))
+                                                                type-var)
+                                      ;; ensure we have the uuid
+                                      (make-sparql-triple-match target-var
+                                                                (s-url "http://mu.semte.ch/vocabularies/core/uuid")
+                                                                (s-genvar "uuid"))))
      target-var)))
 
 (defmacro with-resource-and-subtype-resources ((resources-var) source-resource-var &body body)
   `(let ((,resources-var (subclass-resources ,source-resource-var)))
      ,@body))
+
+(defun make-triple-db (json-triples)
+  "Constructs a triple database from the set of json triples.
+
+Assumes all objects are resources."
+  (let ((db (make-hash-table :test 'equal)))
+    (loop for triple in json-triples
+          for subject = (jsown:filter triple "s" "value")
+          for predicate = (jsown:filter triple "p" "value")
+          for object = (jsown:filter triple "o" "value")
+          unless (gethash predicate db)
+            do (setf (gethash predicate db) (make-hash-table :test 'equal))
+          do
+             (push object (gethash subject (gethash predicate db))))
+    db))
+(defun subject-db-for-predicate (triple-db predicate)
+  "Returns the subject-db for TRIPLE-DB on PREDICATE."
+  (gethash predicate triple-db (make-hash-table :test 'equal)))
+(defun objects-for-subject (subject-db subject)
+  "Returns a list of all objects which match SUBJECT in SUBJECT-DB."
+  (gethash subject subject-db))
+(defun subjects-for-object (subject-db object)
+  "Returns a list of all subjects which match OBJECT in SUBJECT-DB."
+  (loop for k being the hash-keys of subject-db
+        when (find object (gethash k subject-db) :test #'equal)
+          collect k))
 
 (defun augment-data-with-attached-info (item-specs)
   "Augments the current item-specs with extra information on which
@@ -220,55 +249,81 @@ results as a list of '(relationship-constraint . resources)."
    data-item-specs: the current items of the main data portion.
    included-item-specs: items in the included portion of the
    response."
-  (break "Augmenting data")
-  ;; 1. get the core information
-  (let (;; 1.1 construct a set of trees for the included key
-        (included-tree (construct-set-of-trees-for-included))
-        ;; ;; 1.2 group item-specs by their most specific type
-        ;; (grouped-item-specs (group-item-specs-by-resource item-specs))
-        )
-    ;; 2. we walk over each of the plausible type definitions so we can
-    ;; filter the relationships.  each differing result needs to be
-    ;; split and follow a separate path.  note that the type definitions
-    ;; for the first level are exactly known and are therefore a list of
-    ;; 1 element.
+  (let* ((included-tree (construct-set-of-trees-for-included))
+         (logical-query (construct-logical-union-query-for-included-items item-specs included-tree))
+         (triples (query *repository* (print-union-query logical-query nil)))
+         (included-items-store (make-included-items-store-from-list item-specs)))
+    (construct-included-items-for-included-tree-and-triples item-specs included-tree (make-triple-db triples) included-items-store)
+    (let* ((all-item-specs (included-items-store-list-items included-items-store))
+           (originating-item-specs (loop for item in all-item-specs
+                                         if (find item item-specs)
+                                           collect item))
+           (extra-item-specs (loop for item in all-item-specs
+                                   unless (find item item-specs)
+                                     collect item)))
+      (values originating-item-specs extra-item-specs))))
 
-    ;; Let's assume each sub-tree has its own property constraints
-    (let ((output
-            (append-subtrees-into-union (relation-json-key subtrees) included-tree
-              (with-all-resources-of-item-specs (source-resources) item-specs
-                (do-resources-grouped-by-relationship-constraint (relationship originating-resources target-resource) (relation-json-key source-resources)
-                  (break "executing with resources grouped by relationship constraint")
-                  (with-item-specs-for-resources (item-specs) (item-specs originating-resources)
-                    (break "with item specs")
-                    (let* ((originating-variable (s-var "source"))
-                           (values-statement (make-values-statement-for-item-specs item-specs originating-variable))
-                           (target-variable (s-genvar))
-                           (results-statement (make-relationship-constraints-statement originating-variable relationship target-variable)))
-                      (push values-statement (sparql-statements results-statement))
-                      (expand-subtrees results-statement subtrees target-variable target-resource)
-                      (break "Expanded subtree")
-                      results-statement)))))))
-      (format t "~&~%%== TREE OUTPUT ==~%~%~A~&" (print-union-query output nil))
-      ;; In order to execute this, we need to convert it into only the
-      ;; triple statements (no values clauses or unions) and a where
-      ;; clause with everything.
+(defun construct-included-items-for-included-tree-and-triples (item-specs included-tree triple-db included-items-store)
+  "Creates a set of item-spec instances to be included based on
+INCLUDED-TREE and TRIPLES."
+  (let ((type-db (subject-db-for-predicate triple-db "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"))
+        (uuid-db (subject-db-for-predicate triple-db "http://mu.semte.ch/vocabularies/core/uuid")))
+    (do-subtrees (relation-json-key included-tree) included-tree
+      (with-all-resources-of-item-specs (source-resources) item-specs
+        (do-resources-grouped-by-relationship-constraint (relationship originating-resources target-resource) (relation-json-key source-resources)
+          (dolist (item-spec item-specs) (cache-relation item-spec relationship)) ; 0. cache clear the relationship
+          (let* ((ld-relation (expanded-ld-link relationship))
+                 (subject-db (subject-db-for-predicate triple-db ld-relation)))
+            (with-item-specs-for-resources (item-specs) (item-specs originating-resources)
+              (let ((all-plausible-subclasses (mapcar #'full-uri
+                                                      (ld-subclasses (find-resource-by-name (resource-name relationship))))))
+                (dolist (item-spec item-specs)
+                  ;; 1. construct the new-item-spec
+                  (dolist (target (if (inverse-p relationship)
+                                      (subjects-for-object subject-db (node-url item-spec))
+                                      (objects-for-subject subject-db (node-url item-spec))))
+                    (let* ((target-types (objects-for-subject type-db target))
+                           (target-uuid (first (objects-for-subject uuid-db target)))
+                           (matches-target-type-p (some (lambda (x) (find x all-plausible-subclasses :test #'string=)) target-types)))
+                      ;; 1.1 filter relation-targets for those with (one of) the right types
+                      (when matches-target-type-p
+                        ;; the item-spec class seems to calculate the most
+                        ;; specific resource by itself based on what we
+                        ;; set as a type.
+                        (setf (classes-for-uri target) target-types)
+                        ;; 1.2 construct included-item and ensure this item is in the included-items-store
+                        (let ((new-item-spec (included-items-store-ensure included-items-store
+                                                                          (make-item-spec :uuid target-uuid
+                                                                                          :type (resource-name relationship)
+                                                                                          :node-url target))))
+                          ;; 2. set up the included relation for each of these item-specs
+                          (push new-item-spec (gethash relationship (related-items-table item-spec)))
+                          ;; 3. set up the the clear-key for each of these item-specs
+                          (cache-object new-item-spec)
+                          ;; 4. traverse into the nested included-tree
+                          ;; TODO: collect these item-specs and process at once
+                          (construct-included-items-for-included-tree-and-triples (list new-item-spec)
+                                                                                  included-tree
+                                                                                  triple-db
+                                                                                  included-items-store))))))))))))))
 
-      ;; Once we have that and we have the resulting data, we can start
-      ;; constructing the included matches as was done before by
-      ;; creating item-spec things with a wide range of properties.
-
-      ;; A substantial improvement may be to fetch the UUID too so we
-      ;; can construct a full item-spec.
-      output)))
+(defun construct-logical-union-query-for-included-items (item-specs &optional (included-tree (construct-set-of-trees-for-included)))
+  (append-subtrees-into-union (relation-json-key subtrees) included-tree
+    (with-all-resources-of-item-specs (source-resources) item-specs
+      (do-resources-grouped-by-relationship-constraint (relationship originating-resources target-resource) (relation-json-key source-resources)
+        (with-item-specs-for-resources (item-specs) (item-specs originating-resources)
+          (let* ((originating-variable (s-var "source"))
+                 (values-statement (make-values-statement-for-item-specs item-specs originating-variable))
+                 (target-variable (s-genvar))
+                 (results-statement (make-relationship-constraints-statement originating-variable relationship target-variable)))
+            (push values-statement (sparql-statements results-statement))
+            (expand-subtrees results-statement subtrees target-variable target-resource)
+            results-statement))))))
 
 (defun expand-subtrees (results-statement subtrees variable target-resource)
   "Expands the subtrees into the given results-statement."
-
-                      (break "Expanded subtree")
   (let ((new-union
           (append-subtrees-into-union (relation-json-key current-subtrees) subtrees
-            (break "Processing key ~A for tree ~A => ~A" relation-json-key subtrees current-subtrees)
             (with-resource-and-subtype-resources (resources) target-resource
               (do-resources-grouped-by-relationship-constraint (relationship originating-resources target-resource) (relation-json-key resources)
                 (let* ((target-variable (s-genvar))
