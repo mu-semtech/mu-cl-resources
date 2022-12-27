@@ -95,9 +95,9 @@ which the CAR is the key and the CDR is the list of items matching KEY."
     (format stream "")))
 
 (defun print-union-query (union stream)
-  (format nil "CONSTRUCT {~%~A~%} WHERE {~%~A~%}"
-          (print-for-construct-template union stream)
-          (print-for-construct-where union stream)))
+  (format stream "CONSTRUCT {~%~A~%} WHERE {~%~A~%}"
+          (print-for-construct-template union nil)
+          (print-for-construct-where union nil)))
 
 (defmethod print-object ((statement sparql-values-statement) stream)
   (format stream "~&VALUES ~A {~{~A~,^ ~}}."
@@ -147,10 +147,14 @@ results as a list of '(relationship-constraint . resources)."
   "Loops over each of the subtrees."
   `(loop for (,json-key-var . ,subtrees-var) in ,trees-var
          collect (progn ,@body)))
-(defmacro append-subtrees-into-union ((json-key-var subtrees-var) trees-var &body body)
+(defmacro append-subtrees-into-union ((json-key-var subtrees-var) (trees-var &key add-empty-statement) &body body)
   "Like DO-SUBTREES but collects the results into a UNION."
-  `(make-instance 'sparql-union
-                  :options (flatten (do-subtrees (,json-key-var ,subtrees-var) ,trees-var ,@body))))
+  (let ((explicit-options-statement `(flatten (do-subtrees (,json-key-var ,subtrees-var) ,trees-var ,@body))))
+    `(make-instance 'sparql-union
+                    :options ,(if add-empty-statement
+                                  `(cons (make-instance 'sparql-statements :statements nil)
+                                         ,explicit-options-statement)
+                                  explicit-options-statement))))
 (defmacro with-all-resources-of-item-specs ((resources-var) item-specs-var &body body)
   "Executes BODY for each unique resource for ITEM-SPECS-VAR binding RESOURCES-VAR to the resource."
   `(let ((,resources-var (all-resources-of-itemspecs ,item-specs-var)))
@@ -308,7 +312,7 @@ INCLUDED-TREE and TRIPLES."
                                                                                   included-items-store))))))))))))))
 
 (defun construct-logical-union-query-for-included-items (item-specs &optional (included-tree (construct-set-of-trees-for-included)))
-  (append-subtrees-into-union (relation-json-key subtrees) included-tree
+  (append-subtrees-into-union (relation-json-key subtrees) (included-tree)
     (with-all-resources-of-item-specs (source-resources) item-specs
       (do-resources-grouped-by-relationship-constraint (relationship originating-resources target-resource) (relation-json-key source-resources)
         (with-item-specs-for-resources (item-specs) (item-specs originating-resources)
@@ -323,7 +327,7 @@ INCLUDED-TREE and TRIPLES."
 (defun expand-subtrees (results-statement subtrees variable target-resource)
   "Expands the subtrees into the given results-statement."
   (let ((new-union
-          (append-subtrees-into-union (relation-json-key current-subtrees) subtrees
+          (append-subtrees-into-union (relation-json-key current-subtrees) (subtrees :add-empty-statement t)
             (with-resource-and-subtype-resources (resources) target-resource
               (do-resources-grouped-by-relationship-constraint (relationship originating-resources target-resource) (relation-json-key resources)
                 (let* ((target-variable (s-genvar))
