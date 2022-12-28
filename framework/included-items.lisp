@@ -301,7 +301,7 @@ INCLUDED-TREE and TRIPLES."
                                                                                           :type (resource-name relationship)
                                                                                           :node-url target))))
                           ;; 2. set up the included relation for each of these item-specs
-                          (push new-item-spec (gethash relationship (related-items-table item-spec)))
+                          (push new-item-spec (lhash:gethash relationship (related-items-table item-spec)))
                           ;; 3. set up the the clear-key for each of these item-specs
                           (cache-object new-item-spec)
                           ;; 4. traverse into the nested included-tree

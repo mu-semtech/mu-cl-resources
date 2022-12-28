@@ -340,7 +340,7 @@
             (and spec t))))
 
 (defclass solution ()
-  ((fields :initform (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
+  ((fields :initform (lhash:make-castable :test 'equal)
            :reader solution-fields))
   (:documentation "Represents a generic solution object, coming
    from various backends."))
@@ -349,11 +349,11 @@
   "Returns the value for <property> of <solution>, in which <property>
    is the json type.  The second value is truethy iff the solution was
    retrieved from the triplestore at some point."
-  (gethash property (solution-fields solution)))
+  (lhash:gethash property (solution-fields solution)))
 
 (defun (setf solution-value) (value solution property)
   "Sets a found solution for the given property"
-  (setf (gethash property (solution-fields solution)) value))
+  (setf (lhash:gethash property (solution-fields solution)) value))
 
 (defun solution-field-p (solution property)
   "returns non-nil if <property> has been fetched for <solution>."

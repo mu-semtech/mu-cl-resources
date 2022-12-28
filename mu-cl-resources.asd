@@ -6,7 +6,7 @@
   :licence "MIT"
   :description "Configurable microservice for managing the creation and retrieval of generic resources with a backed triplestore."
   :serial t
-  :depends-on (mu-support split-sequence lparallel trivial-backtrace)
+  :depends-on (mu-support split-sequence lparallel trivial-backtrace trivial-package-local-nicknames luckless)
   :components ((:file "packages")
                (:file "configuration/repository")
                (:file "configuration/settings")

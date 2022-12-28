@@ -53,12 +53,12 @@
                             "A cache for faster calculation of a
                             resource's children")))
 
-(defparameter *resources* (make-hash-table :synchronized t)
+(defparameter *resources* (lhash:make-castable)
   "contains all currently known resources")
 
 (defmethod initialize-instance :after ((resource resource) &key &allow-other-keys)
   (let ((name (resource-name resource)))
-    (setf (gethash name *resources*) resource))
+    (setf (lhash:gethash name *resources*) resource))
   ;; When links and inverse links are specified, we don't need to
   ;; cater for extra specific cases.  Reason is that inverse links
   ;; should be specified on the parent classes.  As we follow the
@@ -246,10 +246,14 @@
         (setf (slot-value resource 'resource-subclass-cache)
               (mapcar #'cdr
                       (sort
-                       (loop for maybe-subresource being the hash-values of *resources*
-                             for distance = (resource-distance resource maybe-subresource)
-                             when distance
-                             collect (cons distance maybe-subresource))
+                       (remove-if-not
+                        #'identity
+                        (map-castable (lambda (k maybe-subresource)
+                                        (declare (ignore k))
+                                        (let ((distance (resource-distance resource maybe-subresource)))
+                                          (cons distance maybe-subresource)))
+                                      *resources*)
+                        :key #'car)
                        #'< :key #'car))))))
 
 (defgeneric ld-subclasses (resource)
@@ -305,7 +309,7 @@
 (defun find-resource-by-name (symbol)
   "retrieves the resource with name symbol."
   (alexandria:if-let
-      ((resource (gethash symbol *resources*)))
+      ((resource (lhash:gethash symbol *resources*)))
     resource
     (error 'no-such-resource
            :description (format nil "Resource symbol: ~A" symbol))))
@@ -328,21 +332,21 @@
 
 (defun find-resource-by-path (path)
   "finds a resource based on the supplied request path"
-  (maphash (lambda (name resource)
-             (declare (ignore name))
-             (when (string= (request-path resource) path)
-               (return-from find-resource-by-path resource)))
-           *resources*)
+  (map-castable (lambda (name resource)
+                  (declare (ignore name))
+                  (when (string= (request-path resource) path)
+                    (return-from find-resource-by-path resource)))
+                *resources*)
   (error 'no-such-resource
          :description (format nil "Path: ~A" path)))
 
 (defun find-resource-by-class-uri (uri)
   "finds a resource based on the supplied class uri"
-  (maphash (lambda (name resource)
-             (declare (ignore name))
-             (when (string= (expanded-ld-class resource) uri)
-               (return-from find-resource-by-class-uri resource)))
-           *resources*)
+  (map-castable (lambda (name resource)
+                  (declare (ignore name))
+                  (when (string= (expanded-ld-class resource) uri)
+                    (return-from find-resource-by-class-uri resource)))
+                *resources*)
   (error 'no-such-instance
          :description (format nil "Uri: ~A" uri)))
 

@@ -18,4 +18,5 @@
   (:use :cl :mu-support)
   (:import-from #:alexandria
                 #:flatten)
-  (:export #:boot))
+  (:export #:boot)
+  (:local-nicknames (#:lhash #:org.shirakumo.luckless.hashtable)))
