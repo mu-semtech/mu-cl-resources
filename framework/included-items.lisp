@@ -220,7 +220,7 @@ results as a list of '(relationship-constraint . resources)."
   `(let ((,resources-var (subclass-resources ,source-resource-var)))
      ,@body))
 
-(defun make-triple-db (json-triples)
+(defun make-triple-db (json-triples &optional (unpack-object-p t))
   "Constructs a triple database from the set of json triples.
 
 Assumes all objects are resources."
@@ -228,7 +228,9 @@ Assumes all objects are resources."
     (loop for triple in json-triples
           for subject = (jsown:filter triple "s" "value")
           for predicate = (jsown:filter triple "p" "value")
-          for object = (jsown:filter triple "o" "value")
+          for object = (if unpack-object-p
+                           (jsown:filter triple "o" "value")
+                           (jsown:filter triple "o"))
           unless (gethash predicate db)
             do (setf (gethash predicate db) (make-hash-table :test 'equal))
           do

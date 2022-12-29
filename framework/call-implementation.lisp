@@ -377,75 +377,69 @@
                                     (lambda (slot)
                                       (and (field-requested-p slot)
                                            (not (solution-field-p solution (json-property-name slot)))))
-                                    (ld-properties resource)))
-               (missing-single-value-properties
-                 (remove-if-not #'single-value-slot-p missing-properties))
-               (missing-multi-value-properties
-                 (remove-if-not #'multi-value-slot-p missing-properties))
-               (query-solution
-                 ;; fetching of simple attributes
-                 (query-partial-properties item-spec missing-single-value-properties)))
-          ;; read simple attributes from sparql query
-          (loop for slot in missing-single-value-properties
-                for sparql-var = (sparql-variable-name slot)
-                for json-var = (json-property-name slot)
-                do
-                   (setf (solution-value solution json-var)
-                         (and (jsown:keyp query-solution sparql-var)
-                              (from-sparql (jsown:val query-solution sparql-var)
-                                           (resource-type slot)))))
-          ;; read extended variables through separate sparql query
-          (loop for slot in missing-multi-value-properties
-                for variable-name = (sparql-variable-name slot)
-                for json-var = (json-property-name slot)
-                do
-                   (let ((value (mapcar (lambda (query-solution)
-                                          (jsown:val query-solution variable-name))
-                                        (sparql:select "DISTINCT *"
-                                                       (format nil "~A ~{~A~,^/~} ~A."
-                                                               (s-url resource-url)
-                                                               (ld-property-list slot)
-                                                               (s-var variable-name))))))
-                     (setf (solution-value solution json-var)
-                           (from-sparql value (resource-type slot)))))
-          solution)))))
-
-(defun query-partial-properties (item-spec slots)
-  "Executes a sparql query to fetch the properties of the requested slots."
-  (let ((resource-url (node-url item-spec))
-        (slot-groups (if *max-optionals-per-query*
-                         (loop for i
-                               from 0 below (length slots)
-                               by *max-optionals-per-query*
-                               collect (subseq slots
-                                               i
-                                               (min (+ i *max-optionals-per-query*)
-                                                    (length slots))))
-                         (list slots))))
-    (apply
-     #'merge-jsown-objects
-     (loop for slots in slot-groups
-           for all-optional = (notany #'required-p slots)
-           collect
-           (first
-            (sparql:select
-             "*"
-             (format nil
-                     "~@[~{~A ~A ~A.~}~]~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
-                                        ; add at least one required output
-                     (and all-optional
-                          *include-at-least-one-non-optional*
-                          (list
-                           (s-url resource-url)
-                           (s-prefix "mu:uuid")
-                           (s-str (uuid item-spec))))
-                                        ; all missing properties
-                     (loop for slot in slots
-                           append (list (required-p slot)
-                                        (s-url resource-url)
-                                        (ld-property-list slot)
-                                        (s-var (sparql-variable-name slot)))))
-             :limit 1))))))
+                                    (ld-properties resource))))
+          ;; We construct something like:
+          ;;
+          ;; CONSTRUCT {
+          ;;   <http://example.com/people/24> ext:1 ?ext1.
+          ;;   <http://example.com/people/24> ext:2 ?ext2.
+          ;;   <http://example.com/people/24> ext:3 ?ext3.
+          ;; } WHERE {
+          ;;   <http://example.com/people/24> foaf:firstName ?ext1.
+          ;;   <http://example.com/people/24> foaf:lastName ?ext2.
+          ;;   <http://example.com/people/24> foaf:hasAccount ?ext3.
+          ;; }
+          ;;
+          ;; This could yield triples:
+          ;;
+          ;; <http://example.com/people/24> ext:1 <http://mastodon.social/@madnificent>.
+          ;; <http://example.com/people/24> ext:1 <http://mastodon.social/@aadversteden>.
+          ;; <http://example.com/people/24> ext:2 "Aad"
+          ;; <http://example.com/people/24> ext:3 "madnificent"
+          ;; <http://example.com/people/24> ext:3 "Versteden"
+          ;;
+          ;; If we then discover single-value properties containing
+          ;; multiple values, we might add this to the meta, or we could
+          ;; render an error in the terminal whilst still accepting some
+          ;; response.
+          (let (query-where
+                slot-predicate-combinations
+                query-construct)
+            (loop for slot in missing-properties
+                  for index from 0
+                  for var = (s-var (format nil "var~A" index))
+                  for pred-string = (format nil "http://mu.semte.ch/ext/pred~A" index)
+                  do
+                     (push (cons slot pred-string) slot-predicate-combinations)
+                     (push (format nil "~&~A ~{~A~,^/~} ~A.~%"
+                                   (s-url resource-url)
+                                   (ld-property-list slot)
+                                   var)
+                           query-where)
+                     (push (format nil "~&~A ~A ~A.~%"
+                                   (s-url resource-url)
+                                   (s-url pred-string)
+                                   var)
+                           query-construct))
+            (let* ((triples (query *repository* (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~{~&{  ~A}~,^~%UNION~}~%}"
+                                                       query-construct query-where)))
+                   (triple-db (make-triple-db triples nil)))
+              (loop for (slot . pred-string) in slot-predicate-combinations
+                    for json-var = (json-property-name slot)
+                    for subject-db = (subject-db-for-predicate triple-db pred-string)
+                    for objects = (objects-for-subject subject-db resource-url)
+                    do (if (and (single-value-slot-p slot)
+                                (> (length objects) 1))
+                           (format t "~&[WARNING] ~A has single-valued property ~A which contains more than one value in the triplestore: ~{~A ~}.~%"
+                                   resource-url json-var objects))
+                       (if (single-value-slot-p slot)
+                           (setf (solution-value solution json-var)
+                                 (when (first objects)
+                                   (from-sparql (first objects) (resource-type slot))))
+                           (setf (solution-value solution json-var)
+                                 (when (first objects)
+                                   (from-sparql objects (resource-type slot)))))))
+            solution))))))
 
 (defun item-spec-to-jsown (item-spec)
   "Returns the jsown representation of the attributes and
