@@ -42,6 +42,25 @@
                                     char)
                               (setf cap-next nil))))))
 
+(defun zip (&rest lists)
+  "Zips LISTS together element by element."
+  (loop for lists* = lists then (mapcar #'rest lists*)
+        while (some #'identity lists*)
+        collect (mapcar #'car lists*)))
+
+(defun split-list-when (items &key test)
+  "Splits ITEMS list when TEST yields truethy.
+
+TEST is a function which receives the current sub-list, possibly out of order."
+  (loop while items
+        collect (let ((resulting-list (list (pop items)))) ; minimum one element
+                  (loop for item in items
+                        for next-list = (cons item resulting-list)
+                        until (funcall test next-list)
+                        do
+                           (push (pop items) resulting-list))
+                  (reverse resulting-list))))
+
 (defun merge-jsown-objects (a &rest bs)
   "Merges n jsown objects.  Returns a new object which contains
    the merged contents."

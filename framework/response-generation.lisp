@@ -147,7 +147,7 @@
              (loop for uuid in uuids
                    collect (make-item-spec :uuid uuid :type resource-type)))
           (let ((response
-                 (jsown:new-js ("data" (mapcar #'item-spec-to-jsown data-item-specs))
+                 (jsown:new-js ("data" (item-specs-to-jsown data-item-specs))
                                ("links" (merge-jsown-objects
                                          (build-pagination-links (webserver:script-name*)
                                                                  :total-count uuid-count
@@ -161,7 +161,7 @@
                     (jsown:new-js ("count" uuid-count))))
             (when included-item-specs
               (setf (jsown:val response "included")
-                    (mapcar #'item-spec-to-jsown included-item-specs)))
+                    (item-specs-to-jsown included-item-specs)))
             (values response data-item-specs included-item-specs)))))))
 
 (defun sparql-pattern-filter-string (resource source-variable &key components search)

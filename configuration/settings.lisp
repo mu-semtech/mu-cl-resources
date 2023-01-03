@@ -73,3 +73,9 @@
 (defparameter sparql:*experimental-no-application-graph-for-sudo-select-queries* nil
   "when non-nil no application graph will be set when sending out sudo
   queries, thus resulting in queries across the full database.")
+
+(defparameter *soft-max-triples-in-property-construct* 250
+  "Soft maximum on the amount of triples returned by construct for properties.")
+
+(defparameter *soft-max-sources-in-property-construct* 50
+  "Soft maximum on the amount of source items used in construct for properties.")
