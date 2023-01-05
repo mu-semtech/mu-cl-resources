@@ -155,8 +155,9 @@
 (defun add-cached-class-for-uri (uri class)
   "Adds a cached class for a the given uri.  Handy for delta
   messages."
-  (when (classes-for-uri-p uri)
-    (pushnew class (lhash:gethash uri *uri-classes-cache*) :test #'string=)))
+  (if (classes-for-uri-p uri)
+      (pushnew class (lhash:gethash uri *uri-classes-cache*) :test #'string=)
+      (setf (classes-for-uri uri) (list class))))
 
 (defun remove-cached-class-for-uri (uri class)
   "Removes a cached class for the given URI.  Handy for delta

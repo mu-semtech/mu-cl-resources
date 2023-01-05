@@ -101,6 +101,7 @@
                                         :type (resource-name resource)
                                         :node-url resource-uri))
              (s-resource-uri (s-url resource-uri)))
+        (setf (classes-for-uri resource-uri) (ld-superclasses resource))
         (with-surrounding-hook (:create (resource-name resource))
             (json-input item-spec)
           (sparql:insert-triples
@@ -758,6 +759,7 @@ split up resources in order to make the fetching less bulky per query."
   (:method ((resource-symbol symbol) uuid)
     (delete-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
+    ;; TODO: eagerly remove cached classes
     (let ((item-spec (make-item-spec :type (resource-name resource)
                                      :uuid uuid)))
       (check-access-rights-for-item-spec item-spec :delete)

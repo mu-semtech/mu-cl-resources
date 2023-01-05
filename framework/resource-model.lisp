@@ -263,6 +263,18 @@
     (remove-if-not #'identity
                    (mapcar #'ld-class (subclass-resources resource)))))
 
+(defgeneric ld-superclasses (resource)
+  (:documentation "Yields a list of ld-classes for the current class and all of its
+superclasses.")
+  (:method ((resource resource))
+    (remove-duplicates
+     (append
+      (list (full-uri (ld-class resource)))
+      (loop for class-name in (superclass-names resource)
+            for super-resource = (find-resource-by-name class-name)
+            append (ld-superclasses super-resource)))
+     :test #'eq)))
+
 (defmethod json-key ((link has-link))
   (request-path link))
 
