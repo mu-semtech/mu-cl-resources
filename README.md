@@ -858,6 +858,10 @@ Sorting by relationships allows us to sort accounts by the name of their owner
 
     GET /accounts?sort=owner.name
 
+Assuming your result set consists of strings, you can sort ignoring case by using the `:no-case:` modifier.  Application in result sets containing a multitude of properties is undefined and implementation may change.
+
+    GET /accounts?sort=-:no-case:name
+
 #### Filtering on exact relationships
 
 Objects in JSONAPI are identified by their type and their identifier.  To find all objects that link to another object through some relationship, we can use this feature.
