@@ -199,11 +199,13 @@ results as a list of '(relationship-constraint . resources)."
         (ld-subclasses (ld-subclasses (find-resource-by-name (resource-name relationship)))))
     (values
      (make-instance 'sparql-statements
-                    :statements (list (make-sparql-triple-match variable
-                                                                (format nil "~{~A~,^/~}"
-                                                                        ;; TODO: should this be ld-link instead?
-                                                                        (mapcar #'s-url (expanded-ld-relation relationship)))
-                                                                target-var)
+                    :statements (list (if (inverse-p relationship)
+                                          (make-sparql-triple-match target-var
+                                                                    (s-url (full-uri (ld-link relationship)))
+                                                                    variable)
+                                          (make-sparql-triple-match variable
+                                                                    (s-url (full-uri (ld-link relationship)))
+                                                                    target-var))
                                       ;; make values statement for the classes
                                       (make-values-statement-for-uris ld-subclasses type-var)
                                       ;; use values statement for the type
