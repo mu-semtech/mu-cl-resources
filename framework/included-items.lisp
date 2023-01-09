@@ -261,9 +261,7 @@ Assumes all objects are resources."
          (included-items-store (make-included-items-store-from-list item-specs)))
     (construct-included-items-for-included-tree-and-triples item-specs included-tree (make-triple-db triples) included-items-store)
     (let* ((all-item-specs (included-items-store-list-items included-items-store))
-           (originating-item-specs (loop for item in all-item-specs
-                                         if (find item item-specs)
-                                           collect item))
+           (originating-item-specs item-specs)
            (extra-item-specs (loop for item in all-item-specs
                                    unless (find item item-specs)
                                      collect item)))
