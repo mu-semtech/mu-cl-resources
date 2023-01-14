@@ -618,6 +618,9 @@ split up resources in order to make the fetching less bulky per query."
                    when (solution-value solution json-var)
                      do (setf (jsown:val attributes json-var)
                               (solution-value solution json-var)))
+             ;; attach uri if feature is enabled (after variables were parsed)
+             (when (find 'include-uri (features resource))
+               (setf (jsown:val attributes "uri") (node-url item-spec)))
              ;; fill in relationships object
              (loop for link in requested-links
                    for json-var = (json-key link)
