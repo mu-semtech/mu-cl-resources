@@ -187,7 +187,7 @@ The domain.json contains resource definitions for each resource type in the appl
 
 Each resource definition is a combination of these three views.  Let us assume an example using [foaf](http://xmlns.com/foaf/0.1/).  In our example, we will model a Person, having one or more online accounts.  This model can be vizualised using [WebVOWL](http://visualdataweb.de/webvowl/#).
 
-```javascript
+```json
 {
   "version": "0.1",
   "resources": {
@@ -216,7 +216,7 @@ A simple definition of a person uses the foaf vocabulary to write the person and
 
 Assuming the `foaf` prefix is defined, we can make this example slightly easier to read.
 
-```javascript
+```json
 {
   "version": "0.1",
   "prefixes": {
@@ -242,7 +242,7 @@ This code sample implements the same functionality as the example above, yet it 
 
 We can insert multiple attributes if desired. We can update our example to also contain the age of the person, expressed as a number.
 
-```javascript
+```json
 {
   "version": "0.1",
   "prefixes": {
@@ -272,7 +272,7 @@ With this minor change, our person supports the name and age attributes.
 
 Most resources link to other resources.  Let's first define a second resouce, an [OnlineAccount](http://xmlns.com/foaf/0.1/OnlineAccount).
 
-```javascript
+```json
 {
   "version": "0.1",
   "prefixes": {
@@ -298,7 +298,7 @@ Most resources link to other resources.  Let's first define a second resouce, an
 The definition of this `account` resource is very similar to that of the `person` resource.  How do we link a person to an account?  Assuming the person has many accounts, we link by defining a `relationships` block on the `person` resource.
 
 
-```javascript
+```json
 {
   ...
   "resources": {
@@ -343,7 +343,7 @@ The `relationships` object specifies that a `person` may link to many resources 
 
 How about getting the person which links to this account.  There is only a single person connected to an account.  Hence we can specify a relationship with cardinality `one` on the `account` resource.  In the semantic model of the triplestore, the relationship uses the [foaf:account](http://xmlns.com/foaf/0.1/account) property going from the person to the account.  Finding the person for an account therefore means we have to follow the same relationship in the other direction.  We can add the property `"inverse": true` to any relationship to make the semantic model follow the inverse arrow.  Here, the key in the json body will be `owner` rather than person.
 
-```javascript
+```json
 {
   ...
   "resources": {
@@ -374,7 +374,7 @@ How about getting the person which links to this account.  There is only a singl
 
 The complete setup of our user and account looks as follows:
 
-```javascript
+```json
 {
   "version": "0.1",
   "prefixes": {
@@ -615,7 +615,7 @@ Used types may change over time as the SPARQL endpoint evolves.  The following i
 As the integration with the frontend data-store is handled automatically, most of your time with mu-cl-resources will be spent configuring resources. This overview provides a non-exhaustive list of the most common features of mu-cl-resources in JSON format.
 
 The base structure of the JSON configuration file looks like this:
-```javascript
+```json
 {
   "version": "0.1",
   "prefixes": {
@@ -636,7 +636,7 @@ The following keys are valid at the root level of the JSON configuration:
 The `prefixes` key contains an object mapping RDF prefixes to a namespace URI.
 
 E.g.
-```javascript
+```json
   "prefixes": {
     "schema": "http://schema.org/",
     "foaf": "http://xmlns.com/foaf/0.1/"
@@ -648,7 +648,7 @@ The prefixes can be used to shorten URIs in the resource definitions as explaine
 #### Resource definitions
 A example resource definition looks as follows:
 
-```javascript
+```json
 {
   ...
   "resources": {
@@ -708,7 +708,7 @@ The attributes section in the resource definition corresponds to the attributes 
 
 The attributes section in our example looks like:
 
-```javascript
+```json
       "attributes": {
         "name": {
           "type": "string",
@@ -748,7 +748,7 @@ The relationships section in the resource definition corresponds to the relation
 
 The relationships section in our example looks like:
 
-```javascript
+```json
       "relationships": {
         "location": {
           "predicate": "foaf:based_near",
@@ -778,7 +778,7 @@ Each relationship is a key/object pair in the relationships object. The key refl
 
 Superclasses may be specified as a list after the resource name.  If a person is both an animal as well as an agent, we would write it as such:
 
-```javascript
+```json
 {
   ...
   "resources": {
