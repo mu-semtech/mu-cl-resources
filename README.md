@@ -479,6 +479,32 @@ Add your settings in `domain.lisp`.
 
 Restart the service. The newly configured settings will be picked up by mu-cl-resources.
 
+## How-To's
+
+### Mounting the config files
+#### Option 1: In a docker-compose
+```yaml
+# docker-compose.yml
+services:
+  resource:
+    image: semtech/mu-cl-resources:1.15.0
+    links:
+      - db:database
+    volumes:
+      - /path/to/your/config:/config
+```
+
+#### Option 2: In a Docker image
+```dockerfile
+FROM semtech/mu-cl-resources:1.15.0
+
+COPY domain.lisp /config/domain.lisp
+COPY repository.lisp /config/repository.lisp
+
+# ...
+```
+
+
 ## Reference
 ### Defining resources in Lisp
 As the integration with the frontend data-store is handled automatically, most of your time with mu-cl-resources will be spent configuring resources.  This overview provides a non-exhaustive list of the most common features of mu-cl-resources.
