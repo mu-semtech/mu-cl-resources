@@ -480,7 +480,7 @@ Add your settings in `domain.lisp`.
 
 Restart the service. The newly configured settings will be picked up by mu-cl-resources.
 
-### Building a model creator for mu-cl-resources
+### Building a 'model creator' for mu-cl-resources
 #### creating models can be tedious
 
 Since creating models is generally writing a lot of text it can be tedious and time consuming. Therefor we are writing a little helper ember.js application that helps facilitating the creation of models for mu-cl-resources.
