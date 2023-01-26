@@ -9,7 +9,7 @@ The documentation offered here is not exhaustive.  This component handles a wide
 The domain.json format is still growing, some configuration parameters can only be set in the lisp variant.  You can combine both formats, see Tutorial: Combining domain.lisp and domain.json.
 
 ## Tutorials
-(Also check out the [JSONAPI tutorial of mu-project](https://github.com#creating-a-json-api), as it is also based on mu-cl-resources)
+(Also check out the [JSONAPI tutorial of mu-project](https://github.com/mu-semtech/mu-project#creating-a-json-api), as it is also based on mu-cl-resources)
 
 ### Add mu-cl-resources to a stack
 Add the following snippet to the services block of your `docker-compose.yml`:
