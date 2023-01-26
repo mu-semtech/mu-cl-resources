@@ -480,6 +480,47 @@ Add your settings in `domain.lisp`.
 
 Restart the service. The newly configured settings will be picked up by mu-cl-resources.
 
+### Building a model creator for mu-cl-resources
+#### creating models can be tedious
+
+Since creating models is generally writing a lot of text it can be tedious and time consuming. Therefor we are writing a little helper ember.js application that helps facilitating the creation of models for mu-cl-resources.
+
+The ‘model creator’ (for lack of a better name) will produce sources for the repository.lisp file and for the domain.lisp file.
+
+#### repository.lisp
+As you can see in the screen shots getting repositories is rather easy. There is a small optimization that was inspired by Aad Versteden’s currently soon to be published emacs plug-in for automatically obtaining prefix expansions from prefix.cc.
+
+![](http://mu.semte.ch/wp-content/uploads/2017/09/dc1.png)
+
+#### domain.lisp
+Generating resources isn’t that much harder, it all boils down to a list of resource elements, each of which has a name, a class a resourceBase and a path.
+
+There are of course also properties and one-on-one relations as shown in the next screenshot
+
+![](http://mu.semte.ch/wp-content/uploads/2017/09/dc2.png)
+
+#### the generated  code
+This eventually produces the source code for the repository.lisp and the domain.lisp files. For now the formatting in the ember handlebars is ignoring the newlines, that is something that should be fixed.
+
+![](http://mu.semte.ch/wp-content/uploads/2017/09/dc3.png)
+
+#### conclusion
+
+Obviously this is not a finished application but it is slowly showing already the potential for a repository.lisp and domain.lisp generator.
+
+The next steps include:
+
+- adding one-on-many relations
+- being more smart about when to add a prefixed url and when a regular url
+- displaying the new lines properly so the code can really be copy pasted to the respective files
+- loading existing domain.lisp files
+- adding semantic (and contextual) hints
+- a drop down to hint possible types
+- a standard base url for the application
+- adding automatic pluralization
+
+*This part has been adapted from Jonathan Langens' mu.semte.ch article. You can view it [here](https://mu.semte.ch/2017/09/28/building-a-model-creator-for-mu-cl-resources-part-1/)*
+
 ## How-To's
 
 ### Mounting the config files
