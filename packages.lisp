@@ -16,4 +16,7 @@
 
 (defpackage :mu-cl-resources
   (:use :cl :mu-support)
-  (:export #:boot))
+  (:import-from #:alexandria
+                #:flatten)
+  (:export #:boot)
+  (:local-nicknames (#:lhash #:org.shirakumo.luckless.hashtable)))

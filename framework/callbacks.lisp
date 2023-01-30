@@ -1,18 +1,18 @@
 (in-package :mu-cl-resources)
 
-(defparameter *hooks* (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
+(defparameter *hooks* (lhash:make-castable :test 'equal)
   "Contains all implemented hooks")
 
 (defun run-hook (specification arguments)
   "Runs the hook specified by <specification> and <arguments>,
    both of which are expected to be lists."
-  (alexandria:when-let ((method (gethash specification *hooks*)))
+  (alexandria:when-let ((method (lhash:gethash specification *hooks*)))
     (values (apply method arguments) t)))
 
 (defun define-hook* (specification method)
   "Specifies that the hook for <specification> is defined by
    <method>."
-  (setf (gethash specification *hooks*) method))
+  (setf (lhash:gethash specification *hooks*) method))
 
 (defmacro define-hook ((&rest specification) (&rest arguments) &body body)
   "Defines a hook for <specification>.  The method accepts the
@@ -35,7 +35,7 @@
    the arguments before running the hook.  <body> is ran when
    the hook calls the (yield) method."
   (let ((hook-sym (gensym "around-hook")))
-    `(let ((,hook-sym (gethash (,@specification) *hooks*)))
+    `(let ((,hook-sym (lhash:gethash (,@specification) *hooks*)))
        (if ,hook-sym
            (let ((*yield* (lambda () ,@body)))
              (apply ,hook-sym (,@arguments)))

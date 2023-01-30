@@ -23,6 +23,8 @@
     (s-url value))
   (:method ((slot resource-slot) (type (eql :datetime)) value)
     (s-typed value (s-prefix "xsd:dateTime")))
+  (:method ((slot resource-slot) (type (eql :time)) value)
+    (s-typed value (s-prefix "xsd:time")))
   (:method ((slot resource-slot) (type (eql :date)) value)
     (s-typed value (s-prefix "xsd:date")))
   (:method ((slot resource-slot) (type (eql :g-year)) value)
@@ -151,6 +153,13 @@
                                      ("status" "Server Error")
                                      ("code" "500"))))
                        (or jsown-object (jsown:empty-object))))
+
+(defun respond-general-server-error ()
+  "Returns a general 500 server error without any extra information."
+  (respond-server-error
+   (jsown:new-js
+     ("errors" (jsown:new-js
+                 ("title" "Something went wrong while processing the request"))))))
 
 (defun respond-access-denied (&optional jsown-object)
   "Returns a 403 Access Denied response.  The supplied

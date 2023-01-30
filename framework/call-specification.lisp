@@ -41,7 +41,9 @@
     (incorrect-accept-header (condition)
       (respond-not-acceptable (jsown:new-js
                                 ("errors" (jsown:new-js
-                                            ("title" (description condition)))))))))
+                                           ("title" (description condition)))))))
+    (error (condition)
+      (respond-general-server-error))))
 
 (defcall :get (base-path id)
   (handler-case
@@ -75,7 +77,9 @@
                      (path condition) (json-type (resource condition)))))
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
-                                              ("title" message)))))))))
+                                              ("title" message)))))))
+    (error (condition)
+      (respond-general-server-error))))
 
 (defcall :post (base-path)
   (let ((body (jsown:parse (post-body))))
@@ -144,7 +148,14 @@
                        (path condition) (json-type (resource condition)))))
           (respond-not-acceptable (jsown:new-js
                                     ("errors" (jsown:new-js
-                                                ("title" message))))))))))
+                                                ("title" message)))))))
+      (error (condition)
+        (format t "~&~%Error occurred (~A), error stack trace:~%" condition)
+        (trivial-backtrace:print-backtrace condition :verbose nil)
+        (format t "~&~%Error occurred (~A), error meta:~%" condition)
+        (describe condition)
+        (print-object condition *standard-output*)
+        (respond-general-server-error)))))
 
 (defcall :patch (base-path id)
   (let ((body (jsown:parse (post-body))))
@@ -215,7 +226,9 @@
                        (path condition) (json-type (resource condition)))))
           (respond-not-acceptable (jsown:new-js
                                     ("errors" (jsown:new-js
-                                                ("title" message))))))))))
+                                                ("title" message)))))))
+      (error (condition)
+        (respond-general-server-error)))))
 
 (defcall :delete (base-path id)
   (handler-case
@@ -238,7 +251,9 @@
                            ("errors" (jsown:new-js
                                        ("title" (format nil
                                                         "Resource for path (~A) not found"
-                                                        base-path)))))))))
+                                                        base-path)))))))
+    (error (condition)
+      (respond-general-server-error))))
 
 ;;;;;;;;;;;;;;;
 ;;;; link calls
@@ -280,7 +295,9 @@
                      (path condition) (json-type (resource condition)))))
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
-                                              ("title" message)))))))))
+                                              ("title" message)))))))
+    (error (condition)
+      (respond-general-server-error))))
 
 (defcall :get (base-path id relation)
   (handle-relation-get-call base-path id relation))

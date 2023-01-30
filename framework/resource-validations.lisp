@@ -18,10 +18,11 @@
    Yields a non-nil value if the validation succeeded"
   (not
    (find-if #'identity
-            (loop
-               for resource being the hash-values of *resources*
-               for found-slash = (find #\/ (request-path resource) :test #'char=)
-               if found-slash
-               do (format t "~&Resource ~A has a / in its :on-path ~A~%"
-                          (resource-name resource) (request-path resource))
-               collect found-slash))))
+            (map-castable (lambda (key resource)
+                            (declare (ignore key))
+                            (let ((found-slash (find #\/ (request-path resource) :test #'char=)))
+                              (when found-slash
+                                (format t "~&Resource ~A has a / in its :on-path ~A~%"
+                                        (resource-name resource) (request-path resource)))
+                              found-slash))
+                          *resources*))))

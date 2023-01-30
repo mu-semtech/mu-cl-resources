@@ -37,19 +37,24 @@
             (list (and (webserver:get-parameter "page[size]") t)
                   (and (webserver:get-parameter "page[number]") t)))))
 
-(defun extract-order-info-from-request (resource)
-  "Extracts the order info from the current request object."
-  (alexandria:when-let ((sort (webserver:get-parameter "sort")))
-    (loop for sort-string in (cl-ppcre:split "," sort)
-       collect
-         (let* ((descending-p (char= (aref sort-string 0) #\-))
-                (attribute-name (if descending-p
-                                    (subseq sort-string 1)
-                                    sort-string))
-                (components (split-sequence:split-sequence #\. attribute-name)))
-           (list :order (if descending-p :descending :ascending)
-                 :name attribute-name
-                 :property-path (property-path-for-filter-components resource components))))))
+(let ((destructuring-search-term-scanner (cl-ppcre:create-scanner "(-)?(:.*:)?([^:]+)")))
+  (defun extract-order-info-from-request (resource)
+    "Extracts the order info from the current request object."
+    (alexandria:when-let ((sort (webserver:get-parameter "sort")))
+      (loop for sort-string in (cl-ppcre:split "," sort)
+            for term-portions = (multiple-value-bind (match portions)
+                                    (cl-ppcre:scan-to-strings destructuring-search-term-scanner sort-string)
+                                  (declare (ignore match))
+                                  portions)
+            for descending-p = (not (null (aref term-portions 0)))
+            for modifiers = (when (and (aref term-portions 1) (string= (aref term-portions 1) ":no-case:"))
+                              (list :no-case))
+            for attribute-name = (aref term-portions 2)
+            for components = (split-sequence:split-sequence #\. attribute-name)
+            collect (list :order (if descending-p :descending :ascending)
+                          :name attribute-name
+                          :property-path (property-path-for-filter-components resource components)
+                          :modifiers modifiers)))))
 
 (defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number order-info source-variable)
   "Returns the paginated uuids for the supplied sparql body and
@@ -64,7 +69,7 @@
     (let ((sparql-variables (cond
                               ((and order-info *max-group-sorted-properties*)
                                (format nil "DISTINCT ~A~{ ~{(MAX(~A) AS ~A)~}~}"
-                                       (s-var "uuid") (mapcar (lambda (a) (list a a)) order-variables)))
+                                       (s-var "uuid") (mapcar (lambda (a) (list a (s-genvar "tmp"))) order-variables)))
                               ((and order-info (not *max-group-sorted-properties*))
                                (format nil "DISTINCT ~A~{ ~A~}"
                                        (s-var "uuid") order-variables))
@@ -81,12 +86,17 @@
           (order-by (if order-info
                         (format nil "~{~A(~A) ~}"
                                 (loop for info in order-info
-                                   for variable in order-variables
-                                   append
-                                     (list (if (eql (getf info :order)
-                                                    :ascending)
-                                               "ASC" "DESC")
-                                           variable)))))
+                                      for variable in order-variables
+                                      append (list
+                                              (if (eq (getf info :order)
+                                                      :ascending)
+                                                  "ASC" "DESC")
+                                              (let ((var (if (find :no-case (getf info :modifiers) :test #'eq)
+                                                             (format nil "LCASE(STR(~A))" variable)
+                                                             variable)))
+                                                (if *max-group-sorted-properties*
+                                                    (format nil "MAX(~A)" var)
+                                                    var)))))))
           (group-by (s-var "uuid"))
           (limit page-size)
           (offset (if (and page-size page-number) (* page-size page-number) 0)))
@@ -147,7 +157,7 @@
              (loop for uuid in uuids
                    collect (make-item-spec :uuid uuid :type resource-type)))
           (let ((response
-                 (jsown:new-js ("data" (mapcar #'item-spec-to-jsown data-item-specs))
+                 (jsown:new-js ("data" (item-specs-to-jsown data-item-specs))
                                ("links" (merge-jsown-objects
                                          (build-pagination-links (webserver:script-name*)
                                                                  :total-count uuid-count
@@ -161,7 +171,7 @@
                     (jsown:new-js ("count" uuid-count))))
             (when included-item-specs
               (setf (jsown:val response "included")
-                    (mapcar #'item-spec-to-jsown included-item-specs)))
+                    (item-specs-to-jsown included-item-specs)))
             (values response data-item-specs included-item-specs)))))))
 
 (defun sparql-pattern-filter-string (resource source-variable &key components search)
