@@ -162,7 +162,10 @@
 (defgeneric expanded-ld-relation (relation)
   (:documentation "Expanded version of the ld-property-list of the relationship.")
   (:method ((relation has-link))
-    (full-uri (ld-property-list relation))))
+    (format nil "~:[~;^~]~{~A~,^/~}"
+            (inverse-p relation)
+            (mapcar (alexandria:compose #'s-url #'full-uri)
+                    (ld-property-list relation)))))
 
 (defgeneric flattened-class-tree (resource)
   (:documentation "Yields an ordered list of all types which apply to
