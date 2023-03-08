@@ -816,7 +816,7 @@
                   collect
                     `(,(s-url (node-url item-spec))
                        ,@(ld-property-list link)
-                       ,resource)))))
+                       ,(s-url resource))))))
           (respond-no-content))))))
 
 (defgeneric add-relation-call (resource id link)
