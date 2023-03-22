@@ -104,8 +104,10 @@ which the CAR is the key and the CDR is the list of items matching KEY."
           (values-statement-variable statement)
           (values-statement-values statement)))
 (defmethod print-object ((union sparql-union) stream)
-  (format stream "~{~&{ ~A }~,^~& UNION ~}"
-          (sparql-union-options union)))
+  (let ((options (sparql-union-options union)))
+    (if (> (length options) 1)
+        (format stream "~{~&{ ~A }~,^~& UNION ~}" options)
+        (format stream "~{ ~A ~}" options))))
 (defmethod print-object ((statements sparql-statements) stream)
   (format stream "~{~A~,^ ~}" (sparql-statements statements)))
 (defmethod print-object ((match sparql-triple-match) stream)
