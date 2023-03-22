@@ -18,6 +18,9 @@
 (defparameter sparql:*query-log-types* '(:default :update-group :update :query :ask)
   "If truethy, queries will be logged to *error-output*")
 
+(defparameter dex:*default-read-timeout* 120
+  "How long to wait for database response in seconds.")
+
 (defparameter *default-page-size*
   (handler-case
       (parse-integer (uiop:getenv "MU_DEFAULT_PAGE_SIZE"))
