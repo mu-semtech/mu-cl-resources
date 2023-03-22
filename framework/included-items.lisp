@@ -261,7 +261,7 @@ Assumes all objects are resources."
    response."
   (let* ((included-tree (construct-set-of-trees-for-included))
          (logical-query (construct-logical-union-query-for-included-items item-specs included-tree))
-         (triples (query *repository* (print-union-query logical-query nil)))
+         (triples (sparql:query (print-union-query logical-query nil)))
          (included-items-store (make-included-items-store-from-list item-specs)))
     (construct-included-items-for-included-tree-and-triples item-specs included-tree (make-triple-db triples) included-items-store)
     (let* ((all-item-specs (included-items-store-list-items included-items-store))
