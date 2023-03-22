@@ -15,6 +15,8 @@
              "http://mu.semte.ch/application"))
   "standard graph for all sparql queries.")
 
+(defparameter cl-fuseki::*query-log-stream* *standard-output*)
+
 (defparameter sparql:*query-log-types* '(:default :update-group :update :query :ask)
   "If truethy, queries will be logged to *error-output*")
 
