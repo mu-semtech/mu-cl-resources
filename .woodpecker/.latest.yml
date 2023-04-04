@@ -1,0 +1,10 @@
+pipeline:
+  build-and-push:
+    image: plugins/docker
+    settings:
+      repo: "${CI_REPO_OWNER##mu-}/${CI_REPO_NAME%%-service}"
+      tags: latest
+    secrets: [docker_username, docker_password]
+    when:
+      event: push
+      branch: master

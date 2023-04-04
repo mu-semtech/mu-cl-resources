@@ -858,6 +858,10 @@ Sorting by relationships allows us to sort accounts by the name of their owner
 
     GET /accounts?sort=owner.name
 
+Assuming your result set consists of strings, you can sort ignoring case by using the `:no-case:` modifier.  Application in result sets containing a multitude of properties is undefined and implementation may change.
+
+    GET /accounts?sort=-:no-case:name
+
 #### Filtering on exact relationships
 
 Objects in JSONAPI are identified by their type and their identifier.  To find all objects that link to another object through some relationship, we can use this feature.
@@ -1208,7 +1212,7 @@ Queries can become complex.  You can request a known triple to be added to queri
 
     (setf *include-at-least-one-non-optional* t)
 
-The maximum amount of OPTIONAL clauses used in queries select queries used to fill in partial properties of an item, can be limited using `*max-optionals-per-query*`.  If this is non-nil, it must be a whole number greater than 0.
+DEPRECATED The maximum amount of OPTIONAL clauses used in queries select queries used to fill in partial properties of an item, can be limited using `*max-optionals-per-query*`.  If this is non-nil, it must be a whole number greater than 0.
 
     (setf *max-optionals-per-query* 8)
 

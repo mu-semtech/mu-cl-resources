@@ -53,12 +53,12 @@
                             "A cache for faster calculation of a
                             resource's children")))
 
-(defparameter *resources* (make-hash-table)
+(defparameter *resources* (lhash:make-castable)
   "contains all currently known resources")
 
 (defmethod initialize-instance :after ((resource resource) &key &allow-other-keys)
   (let ((name (resource-name resource)))
-    (setf (gethash name *resources*) resource))
+    (setf (lhash:gethash name *resources*) resource))
   ;; When links and inverse links are specified, we don't need to
   ;; cater for extra specific cases.  Reason is that inverse links
   ;; should be specified on the parent classes.  As we follow the
@@ -70,12 +70,13 @@
   ;; properties cannot override certain properties due to subclasses
   ;; now existing, and thus incorrectly setting the property list.
   (dolist (link (all-links resource))
-    (alexandria:when-let ((linked-resource (find-resource-by-name (resource-name link)))
+    (alexandria:when-let ((linked-resource
+                           (handler-case (find-resource-by-name (resource-name link))
+                             (no-such-resource () nil)))
                           (inverse-property-list (reverse
                                                   (mapcar (lambda (prop)
                                                             (format nil "~A" (s-inv prop)))
                                                           (ld-property-list link)))))
-      inverse-property-list
       ;; find inverse relationship
       (dolist (inverse-link (all-links linked-resource))
         (when (equalp inverse-property-list
@@ -161,7 +162,10 @@
 (defgeneric expanded-ld-relation (relation)
   (:documentation "Expanded version of the ld-property-list of the relationship.")
   (:method ((relation has-link))
-    (full-uri (ld-property-list relation))))
+    (format nil "~:[~;^~]~{~A~,^/~}"
+            (inverse-p relation)
+            (mapcar (alexandria:compose #'s-url #'full-uri)
+                    (ld-property-list relation)))))
 
 (defgeneric flattened-class-tree (resource)
   (:documentation "Yields an ordered list of all types which apply to
@@ -245,10 +249,14 @@
         (setf (slot-value resource 'resource-subclass-cache)
               (mapcar #'cdr
                       (sort
-                       (loop for maybe-subresource being the hash-values of *resources*
-                             for distance = (resource-distance resource maybe-subresource)
-                             when distance
-                             collect (cons distance maybe-subresource))
+                       (remove-if-not
+                        #'identity
+                        (map-castable (lambda (k maybe-subresource)
+                                        (declare (ignore k))
+                                        (let ((distance (resource-distance resource maybe-subresource)))
+                                          (cons distance maybe-subresource)))
+                                      *resources*)
+                        :key #'car)
                        #'< :key #'car))))))
 
 (defgeneric ld-subclasses (resource)
@@ -257,6 +265,18 @@
   (:method ((resource resource))
     (remove-if-not #'identity
                    (mapcar #'ld-class (subclass-resources resource)))))
+
+(defgeneric ld-superclasses (resource)
+  (:documentation "Yields a list of ld-classes for the current class and all of its
+superclasses.")
+  (:method ((resource resource))
+    (remove-duplicates
+     (append
+      (list (full-uri (ld-class resource)))
+      (loop for class-name in (superclass-names resource)
+            for super-resource = (find-resource-by-name class-name)
+            append (ld-superclasses super-resource)))
+     :test #'eq)))
 
 (defmethod json-key ((link has-link))
   (request-path link))
@@ -303,18 +323,22 @@
 
 (defun find-resource-by-name (symbol)
   "retrieves the resource with name symbol."
-  (gethash symbol *resources*))
+  (alexandria:if-let
+      ((resource (lhash:gethash symbol *resources*)))
+    resource
+    (error 'no-such-resource
+           :description (format nil "Resource symbol: ~A" symbol))))
 
 (defgeneric referred-resource (link)
   (:documentation "retrieves the resource which is referred to by a link")
   (:method ((link has-link))
-    (let ((resource (find-resource-by-name (resource-name link))))
-      (unless resource
+    (handler-case
+        (find-resource-by-name (resource-name link))
+      (no-such-resource ()
         (error 'configuration-error
                :description (format nil "Could not find resource for link on path \"~A\".  Searched resource is ~A.  Common possibilities are that there's a (define-resource ~A ...) block missing or that the first argument of a :has-one or :has-many specification has a typo."
                                     (request-path link)
-                                    (resource-name link) (resource-name link))))
-      resource)))
+                                    (resource-name link) (resource-name link)))))))
 
 (defgeneric expanded-ld-link (link)
   (:documentation "Expanded version of the ld-link of the has-link")
@@ -323,21 +347,21 @@
 
 (defun find-resource-by-path (path)
   "finds a resource based on the supplied request path"
-  (maphash (lambda (name resource)
-             (declare (ignore name))
-             (when (string= (request-path resource) path)
-               (return-from find-resource-by-path resource)))
-           *resources*)
+  (map-castable (lambda (name resource)
+                  (declare (ignore name))
+                  (when (string= (request-path resource) path)
+                    (return-from find-resource-by-path resource)))
+                *resources*)
   (error 'no-such-resource
          :description (format nil "Path: ~A" path)))
 
 (defun find-resource-by-class-uri (uri)
   "finds a resource based on the supplied class uri"
-  (maphash (lambda (name resource)
-             (declare (ignore name))
-             (when (string= (expanded-ld-class resource) uri)
-               (return-from find-resource-by-class-uri resource)))
-           *resources*)
+  (map-castable (lambda (name resource)
+                  (declare (ignore name))
+                  (when (string= (expanded-ld-class resource) uri)
+                    (return-from find-resource-by-class-uri resource)))
+                *resources*)
   (error 'no-such-instance
          :description (format nil "Uri: ~A" uri)))
 
@@ -391,7 +415,7 @@
                  (setf current-resource (referred-resource link)) ; set resource of last link
                  link))))))
 
-(defun property-path-for-filter-components (resource components)
+(defun property-path-for-filter-components (resource components &optional (wildcardp t))
   "Constructs the SPARQL property path for a set of filter
    components.  Assumes the components end with an attribute
    specification if specific attributes are targeted.
@@ -420,12 +444,16 @@
                (if (eq components nil)
                    resource
                    (referred-resource last-slot)))))
-    (values (if ends-in-link-p
-                `(,@path-components
-                  ,(format nil "(~{(~{~A~^/~})~^|~})"
-                           (mapcar #'ld-property-list
-                                   (ld-properties last-resource))))
-                path-components)
+    (values (cond ((and ends-in-link-p wildcardp)
+                   `(,@path-components
+                     ,(format nil "(~{(~{~A~^/~})~^|~})"
+                              (mapcar #'ld-property-list
+                                      (ld-properties last-resource)))))
+                  ((and ends-in-link-p (not wildcardp))
+                   ;; sort by uuid?
+                   `(,@path-components ,(s-prefix "mu:uuid")))
+                  (t ; neither ends-in-link-p nor wildcardp
+                   path-components))
             last-slot
             slots)))
 

@@ -40,19 +40,19 @@
      value
      object)))
 
-(defparameter *typed-literal-importers* (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
+(defparameter *typed-literal-importers* (lhash:make-castable :test 'equal)
   "contains all converters for typed-literal values coming from the database.")
 
 (defmacro define-typed-literal-importer (type (&rest variables) &body body)
   "defines a new typed literal importer.  should receive value, object
    as variables."
-  `(setf (gethash ,type *typed-literal-importers*)
+  `(setf (lhash:gethash ,type *typed-literal-importers*)
          (lambda (,@variables)
            ,@body)))
 
 (defun import-typed-literal-value-from-sparql-result (type value object)
   "imports a typed-literal-value from a sparql result."
-  (funcall (gethash type *typed-literal-importers*)
+  (funcall (lhash:gethash type *typed-literal-importers*)
            value object))
 
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#decimal"

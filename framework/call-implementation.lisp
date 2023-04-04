@@ -101,6 +101,7 @@
                                         :type (resource-name resource)
                                         :node-url resource-uri))
              (s-resource-uri (s-url resource-uri)))
+        (setf (classes-for-uri resource-uri) (ld-superclasses resource))
         (with-surrounding-hook (:create (resource-name resource))
             (json-input item-spec)
           (sparql:insert-triples
@@ -327,6 +328,8 @@
    Returns two values, the first being the attributes to return,
    the second being non-nil iff the fields for this item-spec
    were returned."
+  ;; TODO: cope with fields requested on superclasses of the resource's
+  ;; type
   (let ((spec (webserver:get-parameter
                (format nil "fields[~A]"
                        (json-type (resource item-spec))))))
@@ -340,7 +343,7 @@
             (and spec t))))
 
 (defclass solution ()
-  ((fields :initform (make-hash-table :test 'equal #-abcl :synchronized #-abcl t)
+  ((fields :initform (lhash:make-castable :test 'equal)
            :reader solution-fields))
   (:documentation "Represents a generic solution object, coming
    from various backends."))
@@ -349,11 +352,11 @@
   "Returns the value for <property> of <solution>, in which <property>
    is the json type.  The second value is truethy iff the solution was
    retrieved from the triplestore at some point."
-  (gethash property (solution-fields solution)))
+  (lhash:gethash property (solution-fields solution)))
 
 (defun (setf solution-value) (value solution property)
   "Sets a found solution for the given property"
-  (setf (gethash property (solution-fields solution)) value))
+  (setf (lhash:gethash property (solution-fields solution)) value))
 
 (defun solution-field-p (solution property)
   "returns non-nil if <property> has been fetched for <solution>."
@@ -377,75 +380,258 @@
                                     (lambda (slot)
                                       (and (field-requested-p slot)
                                            (not (solution-field-p solution (json-property-name slot)))))
-                                    (ld-properties resource)))
-               (missing-single-value-properties
-                 (remove-if-not #'single-value-slot-p missing-properties))
-               (missing-multi-value-properties
-                 (remove-if-not #'multi-value-slot-p missing-properties))
-               (query-solution
-                 ;; fetching of simple attributes
-                 (query-partial-properties item-spec missing-single-value-properties)))
-          ;; read simple attributes from sparql query
-          (loop for slot in missing-single-value-properties
-                for sparql-var = (sparql-variable-name slot)
-                for json-var = (json-property-name slot)
-                do
-                   (setf (solution-value solution json-var)
-                         (and (jsown:keyp query-solution sparql-var)
-                              (from-sparql (jsown:val query-solution sparql-var)
-                                           (resource-type slot)))))
-          ;; read extended variables through separate sparql query
-          (loop for slot in missing-multi-value-properties
-                for variable-name = (sparql-variable-name slot)
-                for json-var = (json-property-name slot)
-                do
-                   (let ((value (mapcar (lambda (query-solution)
-                                          (jsown:val query-solution variable-name))
-                                        (sparql:select "DISTINCT *"
-                                                       (format nil "~A ~{~A~,^/~} ~A."
-                                                               (s-url resource-url)
-                                                               (ld-property-list slot)
-                                                               (s-var variable-name))))))
-                     (setf (solution-value solution json-var)
-                           (from-sparql value (resource-type slot)))))
-          solution)))))
+                                    (ld-properties resource))))
+          ;; We construct something like:
+          ;;
+          ;; CONSTRUCT {
+          ;;   <http://example.com/people/24> ext:1 ?ext1.
+          ;;   <http://example.com/people/24> ext:2 ?ext2.
+          ;;   <http://example.com/people/24> ext:3 ?ext3.
+          ;; } WHERE {
+          ;;   <http://example.com/people/24> foaf:firstName ?ext1.
+          ;;   <http://example.com/people/24> foaf:lastName ?ext2.
+          ;;   <http://example.com/people/24> foaf:hasAccount ?ext3.
+          ;; }
+          ;;
+          ;; This could yield triples:
+          ;;
+          ;; <http://example.com/people/24> ext:1 <http://mastodon.social/@madnificent>.
+          ;; <http://example.com/people/24> ext:1 <http://mastodon.social/@aadversteden>.
+          ;; <http://example.com/people/24> ext:2 "Aad"
+          ;; <http://example.com/people/24> ext:3 "madnificent"
+          ;; <http://example.com/people/24> ext:3 "Versteden"
+          ;;
+          ;; If we then discover single-value properties containing
+          ;; multiple values, we might add this to the meta, or we could
+          ;; render an error in the terminal whilst still accepting some
+          ;; response.
+          (let (query-where
+                slot-predicate-combinations
+                query-construct)
+            (loop for slot in missing-properties
+                  for index from 0
+                  for var = (s-var (format nil "var~A" index))
+                  for pred-string = (format nil "http://mu.semte.ch/ext/pred~A" index)
+                  do
+                     (push (cons slot pred-string) slot-predicate-combinations)
+                     (push (format nil "~&~A ~{~A~,^/~} ~A.~%"
+                                   (s-url resource-url)
+                                   (ld-property-list slot)
+                                   var)
+                           query-where)
+                     (push (format nil "~&~A ~A ~A.~%"
+                                   (s-url resource-url)
+                                   (s-url pred-string)
+                                   var)
+                           query-construct))
+            (let* ((triples (sparql:query (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~{~&{  ~A}~,^~%UNION~}~%}"
+                                                  query-construct query-where)))
+                   (triple-db (make-triple-db triples nil)))
+              (loop for (slot . pred-string) in slot-predicate-combinations
+                    for json-var = (json-property-name slot)
+                    for subject-db = (subject-db-for-predicate triple-db pred-string)
+                    for objects = (objects-for-subject subject-db resource-url)
+                    do (if (and (single-value-slot-p slot)
+                                (> (length objects) 1))
+                           (format t "~&[WARNING] ~A has single-valued property ~A which contains more than one value in the triplestore: ~{~A ~}.~%"
+                                   resource-url json-var objects))
+                       (if (single-value-slot-p slot)
+                           (setf (solution-value solution json-var)
+                                 (when (first objects)
+                                   (from-sparql (first objects) (resource-type slot))))
+                           (setf (solution-value solution json-var)
+                                 (when (first objects)
+                                   (from-sparql objects (resource-type slot)))))))
+            solution))))))
 
-(defun query-partial-properties (item-spec slots)
-  "Executes a sparql query to fetch the properties of the requested slots."
-  (let ((resource-url (node-url item-spec))
-        (slot-groups (if *max-optionals-per-query*
-                         (loop for i
-                               from 0 below (length slots)
-                               by *max-optionals-per-query*
-                               collect (subseq slots
-                                               i
-                                               (min (+ i *max-optionals-per-query*)
-                                                    (length slots))))
-                         (list slots))))
-    (apply
-     #'merge-jsown-objects
-     (loop for slots in slot-groups
-           for all-optional = (notany #'required-p slots)
-           collect
-           (first
-            (sparql:select
-             "*"
-             (format nil
-                     "~@[~{~A ~A ~A.~}~]~{~&~:[OPTIONAL {~A ~{~A~,^/~} ~A.}~;~A ~{~A~,^/~} ~A.~]~}"
-                                        ; add at least one required output
-                     (and all-optional
-                          *include-at-least-one-non-optional*
-                          (list
-                           (s-url resource-url)
-                           (s-prefix "mu:uuid")
-                           (s-str (uuid item-spec))))
-                                        ; all missing properties
-                     (loop for slot in slots
-                           append (list (required-p slot)
-                                        (s-url resource-url)
-                                        (ld-property-list slot)
-                                        (s-var (sparql-variable-name slot)))))
-             :limit 1))))))
+(defun ensure-out-allowed-groups ()
+  "Ensures out allowed groups are set, possibly copying them over from the input headers."
+  (unless (or (hunchentoot:header-out :mu-auth-allowed-groups)
+              (not (hunchentoot:header-in* :mu-auth-allowed-groups)))
+    (setf (hunchentoot:header-out :mu-auth-allowed-groups)
+          (hunchentoot:header-in* :mu-auth-allowed-groups))))
+
+(defun field-requested-p (item-spec field &optional (requested-fields nil requested-fields-p) (sparse-fields-p nil sparse-fields-p-supplied-p))
+  "Checks if the supplied field was requested.
+
+The requested fields and whether there are sparse fields at all may be
+supplied through optional values, limiting computations."
+  (destructuring-bind (requested-fields sparse-fields-p)
+      (if (and requested-fields-p sparse-fields-p-supplied-p)
+          (list requested-fields sparse-fields-p)
+          (multiple-value-list (sparse-fields-for-resource item-spec)))
+    (or (not sparse-fields-p)
+        (find field requested-fields))))
+
+(defun group-solutions-to-complete (item-specs solutions resources missing-slots)
+  "Groups these arguments, with the same definition as COMPLETE-SOLUTIONS,
+in a way through which they can be fetched.
+
+This means we group these item-specs in such a way that they're all of
+the same resource, and that the same slots are missing.  We may further
+split up resources in order to make the fetching less bulky per query."
+  (let* ((combinations (zip item-specs solutions resources missing-slots))
+         (grouped (group-by combinations :key (lambda (combination) (cons (third combination)
+                                                                          (fourth combination)))
+                                         :test #'equal))
+         (split-groups (loop for ((resource . slots) . combinations)
+                               in grouped
+                             append (split-list-when
+                                     combinations
+                                     ;; TODO: support a maximum amount of properties to be fetched in one go
+                                     :test (lambda (items)
+                                             (or (or (not *soft-max-sources-in-property-construct*)
+                                                     (> (length items) *soft-max-sources-in-property-construct*))
+                                                 (or (not *soft-max-triples-in-property-construct*)
+                                                     (let ((property-count (length (fourth (first items)))))
+                                                       (> (* (length items) property-count)
+                                                          *soft-max-triples-in-property-construct*))))))))
+         (top-groups
+           (loop for combinations in split-groups
+                 for item-specs = (mapcar #'first combinations)
+                 for solutions = (mapcar #'second combinations)
+                 for resource = (third (first combinations))
+                 for slots = (fourth (first combinations))
+                 collect (list item-specs solutions resource slots))))
+    top-groups))
+
+(defun complete-solutions (item-specs solutions resources requested-slots)
+  "Completes the solutions for the set of zippable lists.
+
+- ITEM-SPECS is a list of ITEM-SPEC instances to complete
+- SOLUTIONS is a corresponding list of partial solutions which should be
+  used to complete the results.
+- RESOURCES is a corresponding list of resources for each item-spec
+- REQUESTED-SLOTS is a corresponding list in which each item is the list
+  of slots that should be made available. Note that some of these
+  properties may already be available in the solution or that this list
+  may be empty."
+  (loop for (item-specs solutions resource missing-slots)
+          in (group-solutions-to-complete item-specs solutions resources requested-slots)
+        for resource-urls = (mapcar #'node-url item-specs)
+        for subject-var = (s-var "source")
+        when missing-slots
+        do
+           ;; We construct something like:
+           ;;
+           ;; CONSTRUCT {
+           ;;   ?sourceUri ext:1 ?ext1.
+           ;;   ?sourceUri ext:2 ?ext2.
+           ;;   ?sourceUri ext:3 ?ext3.
+           ;; } WHERE {
+           ;;   VALUES ?sourceUri { <http://example.com/people/1337> <http://example.com/people/42> }
+           ;;   ?sourceUri foaf:firstName ?ext1.
+           ;;   ?sourceUri foaf:lastName ?ext2.
+           ;;   ?sourceUri foaf:hasAccount ?ext3.
+           ;; }
+           ;;
+           ;; This could yield triples:
+           ;;
+           ;; <http://example.com/people/24> ext:1 <http://mastodon.social/@madnificent>.
+           ;; <http://example.com/people/24> ext:1 <http://mastodon.social/@aadversteden>.
+           ;; <http://example.com/people/24> ext:2 "Aad"
+           ;; <http://example.com/people/24> ext:3 "madnificent"
+           ;; <http://example.com/people/24> ext:3 "Versteden"
+           ;;
+           ;; If we then discover single-value properties containing
+           ;; multiple values, we might add this to the meta, or we could
+           ;; render an error in the terminal whilst still accepting some
+           ;; response.
+           (let (query-where
+                 slot-predicate-combinations
+                 query-construct
+                 (subject-values (format nil "~&VALUES ~A { ~{~A ~}}~%" subject-var (mapcar #'s-url resource-urls))))
+             (loop for slot in missing-slots
+                   for index from 0
+                   for var = (s-var (format nil "var~A" index))
+                   for pred-string = (format nil "http://mu.semte.ch/ext/pred~A" index)
+                   do
+                      (push (cons slot pred-string) slot-predicate-combinations)
+                      (push (format nil "~&~A ~{~A~,^/~} ~A.~%"
+                                    subject-var
+                                    (ld-property-list slot)
+                                    var)
+                            query-where)
+                      (push (format nil "~&~A ~A ~A.~%"
+                                    subject-var
+                                    (s-url pred-string)
+                                    var)
+                            query-construct))
+             (let* ((triples (sparql:query (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~A ~{~&{  ~A}~,^~%UNION~}~%}"
+                                                   query-construct subject-values query-where)))
+                    (triple-db (make-triple-db triples nil)))
+               (loop for (slot . pred-string) in slot-predicate-combinations
+                     for json-var = (json-property-name slot)
+                     for subject-db = (subject-db-for-predicate triple-db pred-string)
+                     do
+                        (loop for item-spec in item-specs
+                              for solution in solutions
+                              for resource-url in resource-urls
+                              for objects = (objects-for-subject subject-db resource-url)
+                              do (if (and (single-value-slot-p slot)
+                                          (> (length objects) 1))
+                                     (format t "~&[WARNING] ~A has single-valued property ~A which contains more than one value in the triplestore: ~{~A ~}.~%"
+                                             resource-url json-var objects))
+                                 (if (single-value-slot-p slot)
+                                     (setf (solution-value solution json-var)
+                                           (when (first objects)
+                                             (from-sparql (first objects) (resource-type slot))))
+                                     (setf (solution-value solution json-var)
+                                           (when (first objects)
+                                             (from-sparql objects (resource-type slot)))))))))))
+
+(defun item-specs-to-jsown (item-specs)
+  "Converts a set of item-specs to jsown objects, fetching all missing data."
+  (let* ((solutions (mapcar #'ensure-solution item-specs))
+         (resources (mapcar #'resource item-specs))
+         (requested-slots (loop for item-spec in item-specs
+                                for resource in resources
+                                for resource-slots = (ld-properties resource)
+                                for (requested-fields sparse-fields-p)
+                                  = (multiple-value-list (sparse-fields-for-resource item-spec))
+                                collect (loop for field in resource-slots
+                                              when (field-requested-p item-spec field
+                                                                      requested-fields sparse-fields-p)
+                                                collect field)))
+         (requested-links (loop for item-spec in item-specs
+                                for resource in resources
+                                for resource-links = (all-links resource)
+                                for (requested-fields sparse-fields-p)
+                                  = (multiple-value-list (sparse-fields-for-resource item-spec))
+                                collect (loop for resource-link in resource-links
+                                              when (field-requested-p item-spec resource-link
+                                                                      requested-fields sparse-fields-p)
+                                                collect resource-link))))
+    (complete-solutions item-specs solutions resources requested-slots)
+    (ensure-out-allowed-groups)
+    (loop for item-spec in item-specs
+          for resource in resources
+          for solution in solutions
+          for requested-slots in requested-slots
+          for requested-links in requested-links
+          for attributes = (jsown:empty-object)
+          for relationships-object = (jsown:empty-object)
+          do
+             ;; fill in attributes object
+             (loop for requested-slot in requested-slots
+                   for json-var = (json-property-name requested-slot)
+                   when (solution-value solution json-var)
+                     do (setf (jsown:val attributes json-var)
+                              (solution-value solution json-var)))
+             ;; attach uri if feature is enabled (after variables were parsed)
+             (when (find 'include-uri (features resource))
+               (setf (jsown:val attributes "uri") (node-url item-spec)))
+             ;; fill in relationships object
+             (loop for link in requested-links
+                   for json-var = (json-key link)
+                   do (setf (jsown:val relationships-object json-var)
+                            (build-relationships-object item-spec link)))
+             ;; collect the result
+          collect (jsown:new-js
+                    ("id" (uuid item-spec))
+                    ("type" (json-type resource))
+                    ("attributes" attributes)
+                    ("relationships" relationships-object)))))
 
 (defun item-spec-to-jsown (item-spec)
   "Returns the jsown representation of the attributes and
@@ -491,10 +677,7 @@
                            (build-relationships-object item-spec link)))
           ;; ensure we have a mu-auth-allowed-groups in case the full
           ;; response could be answered by a cache
-          (unless (or (hunchentoot:header-out :mu-auth-allowed-groups)
-                      (not (hunchentoot:header-in* :mu-auth-allowed-groups)))
-            (setf (hunchentoot:header-out :mu-auth-allowed-groups)
-                  (hunchentoot:header-in* :mu-auth-allowed-groups)))
+          (ensure-out-allowed-groups)
           ;; construct response structure
           (jsown:new-js
             ("attributes" attributes)
@@ -507,12 +690,12 @@
    item-json contains the description of the specified item with
      necessary links from <included>."
   (handler-bind
-      ((no-such-instance (lambda () :null)))
+      ((no-such-instance (lambda (err) (declare (ignore err)) :null)))
     (multiple-value-bind (data-item-specs included-item-specs)
         (augment-data-with-attached-info
          (list item-spec))
       (values (item-spec-to-jsown (first data-item-specs))
-              (mapcar #'item-spec-to-jsown included-item-specs)))))
+              (item-specs-to-jsown included-item-specs)))))
 
 (defgeneric build-relationships-object (item-spec link)
   (:documentation "Returns the content of one of the relationships based
@@ -579,6 +762,7 @@
   (:method ((resource-symbol symbol) uuid)
     (delete-call (find-resource-by-name resource-symbol) uuid))
   (:method ((resource resource) (uuid string))
+    ;; TODO: eagerly remove cached classes
     (let ((item-spec (make-item-spec :type (resource-name resource)
                                      :uuid uuid)))
       (check-access-rights-for-item-spec item-spec :delete)
@@ -969,91 +1153,3 @@
 ;; - relation-spec follows the following structure (books.author):
 ;;   > (list "books" "author")
 
-(defun augment-data-with-attached-info (item-specs)
-  "Augments the current item-specs with extra information on which
-   attached items to include in the relationships.
-   Returns (values data-item-specs included-item-specs).
-   data-item-specs: the current items of the main data portion.
-   included-item-specs: items in the included portion of the
-   response."
-  (let ((included-items-store (make-included-items-store-from-list item-specs)))
-    (dolist (included-spec (extract-included-from-request))
-      (include-items-for-included included-items-store item-specs included-spec))
-    (let ((items (included-items-store-list-items included-items-store)))
-      (values (loop for item in items
-                 if (find item item-specs)
-                 collect item)
-              (loop for item in items
-                 unless (find item item-specs)
-                 collect item)))))
-
-(defun include-items-for-included (included-items-store item-specs included-spec)
-  "Traverses the included-spec with the items in item-specs and ensures
-   they're recursively included.  The item-specs also get to know which
-   items have to be added."
-  (declare (special *cache-store*))
-  (let ((lparallel:*kernel* (lparallel:make-kernel
-                             8 :bindings `((*standard-output* . ,*standard-output*)
-                                           (*error-output* . ,*error-output*)
-                                           (*resources* . ,*resources*)
-                                           (*cache-store* . ,*cache-store*)
-                                           (*included-items-store* . ,included-items-store)
-                                           (hunchentoot:*catch-errors-p* . ,hunchentoot:*catch-errors-p*)
-                                           (hunchentoot:*request* . ,hunchentoot:*request*)
-                                           (hunchentoot:*reply* . ,hunchentoot:*reply*))))
-        (lparallel:*debug-tasks-p* nil))
-    (unwind-protect
-         (lparallel:pmap 'list
-                         (lambda (item)
-                           (let (linked-items)
-                             ;; fill in current path
-                             (setf linked-items
-                                   (union linked-items
-                                          (include-items-for-single-included item (first included-spec))))
-                             ;; traverse included-spec path
-                             (when (rest included-spec)
-                               (include-items-for-included included-items-store linked-items
-                                                           (rest included-spec)))))
-                         item-specs)
-      (lparallel:end-kernel))))
-
-(defun include-items-for-single-included (item-spec relation-string)
-  (declare (special *included-items-store*))
-  (let* ((included-items-store *included-items-store*)
-         (resource (resource item-spec))
-         (uuid (uuid item-spec))
-         (relation (find-resource-link-by-json-key resource relation-string))
-         (target-type (resource-name relation))
-         (related-objects
-          (loop for new-uuid
-             in (jsown:filter
-                 (sparql:select (s-distinct (s-var "target"))
-                                (format nil (s+ "?s mu:uuid ~A. "
-                                                "?s ~{~A/~}mu:uuid ?target. "
-                                                "~@[~A~] ")
-                                        (s-str uuid)
-                                        (ld-property-list relation)
-                                        (authorization-query resource :show (s-var "s"))))
-                 map "target" "value")
-             collect (included-items-store-ensure included-items-store
-                                                  (make-item-spec :uuid new-uuid
-                                                                  :type target-type)))))
-    (setf (gethash relation (related-items-table item-spec))
-          related-objects)
-    (cache-relation item-spec relation)
-    (dolist (item-spec related-objects)
-      (cache-object item-spec))
-    related-objects))
-
-
-(defun extract-included-from-request ()
-  "Extracts the filters from the request.  The result is a list
-   containing the :components and :search key.  The :components
-   key includes a left-to-right specification of the strings
-   between brackets.  The :search contains the content for that
-   specification."
-  (let ((include-parameter
-         (assoc "include" (webserver:get-parameters*) :test #'string=)))
-    (and include-parameter
-         (mapcar (alexandria:curry #'split-sequence:split-sequence #\.)
-                 (split-sequence:split-sequence #\, (cdr include-parameter))))))

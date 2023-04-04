@@ -128,20 +128,20 @@
     (rem-ua-hash uuid *cached-resources*)
     (clear-uri-cache-for-uuid uuid)))
 
-(defvar *uri-classes-cache* (make-hash-table :test 'equal :synchronized t)
+(defvar *uri-classes-cache* (lhash:make-castable :test 'equal)
   "Contains a mapping from URI strings to the URI classes belonging to the URI.")
 
 (defun classes-for-uri-p (uri)
   "Yields truethy iff there are classes for the given URI"
-  (second (multiple-value-list (gethash uri *uri-classes-cache*))))
+  (second (multiple-value-list (lhash:gethash uri *uri-classes-cache*))))
 
 (defun classes-for-uri (uri)
   "Finds all classes for a given uri"
   (multiple-value-bind (uris present-p)
-      (gethash uri *uri-classes-cache*)
+      (lhash:gethash uri *uri-classes-cache*)
     (if present-p
         uris
-        (setf (gethash uri *uri-classes-cache*)
+        (setf (lhash:gethash uri *uri-classes-cache*)
               (jsown:filter
                (sparql:select (s-distinct (s-var "target"))
                               (format nil "~A a ?target."
@@ -150,20 +150,21 @@
                map "target" "value")))))
 
 (defun (setf classes-for-uri) (value uri)
-  (setf (gethash uri *uri-classes-cache*) value))
+  (setf (lhash:gethash uri *uri-classes-cache*) value))
 
 (defun add-cached-class-for-uri (uri class)
   "Adds a cached class for a the given uri.  Handy for delta
   messages."
-  (when (classes-for-uri-p uri)
-    (pushnew class (gethash uri *uri-classes-cache*) :test #'string=)))
+  (if (classes-for-uri-p uri)
+      (pushnew class (lhash:gethash uri *uri-classes-cache*) :test #'string=)
+      (setf (classes-for-uri uri) (list class))))
 
 (defun remove-cached-class-for-uri (uri class)
   "Removes a cached class for the given URI.  Handy for delta
   messages."
-  (setf (gethash uri *uri-classes-cache*)
-        (delete class (gethash uri *uri-classes-cache*) :test #'string=)))
+  (setf (lhash:gethash uri *uri-classes-cache*)
+        (delete class (lhash:gethash uri *uri-classes-cache*) :test #'string=)))
 
 (defun clear-cached-classes-for-uri (uri)
   "Removes all cached clasess for a given uri"
-  (remhash uri *uri-classes-cache*))
+  (lhash:remhash uri *uri-classes-cache*))

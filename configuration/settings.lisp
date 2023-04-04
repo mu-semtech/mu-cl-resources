@@ -15,8 +15,13 @@
              "http://mu.semte.ch/application"))
   "standard graph for all sparql queries.")
 
+(defparameter cl-fuseki::*query-log-stream* *standard-output*)
+
 (defparameter sparql:*query-log-types* '(:default :update-group :update :query :ask)
   "If truethy, queries will be logged to *error-output*")
+
+(defparameter dex:*default-read-timeout* 120
+  "How long to wait for database response in seconds.")
 
 (defparameter *default-page-size*
   (handler-case
@@ -73,3 +78,9 @@
 (defparameter sparql:*experimental-no-application-graph-for-sudo-select-queries* nil
   "when non-nil no application graph will be set when sending out sudo
   queries, thus resulting in queries across the full database.")
+
+(defparameter *soft-max-triples-in-property-construct* 250
+  "Soft maximum on the amount of triples returned by construct for properties.")
+
+(defparameter *soft-max-sources-in-property-construct* 50
+  "Soft maximum on the amount of source items used in construct for properties.")

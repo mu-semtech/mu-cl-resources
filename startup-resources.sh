@@ -1,4 +1,4 @@
 #! /bin/bash
 
 /load-config.sh
-/usr/src/startup.sh
+exec /usr/src/startup.sh

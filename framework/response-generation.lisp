@@ -37,19 +37,24 @@
             (list (and (webserver:get-parameter "page[size]") t)
                   (and (webserver:get-parameter "page[number]") t)))))
 
-(defun extract-order-info-from-request (resource)
-  "Extracts the order info from the current request object."
-  (alexandria:when-let ((sort (webserver:get-parameter "sort")))
-    (loop for sort-string in (cl-ppcre:split "," sort)
-       collect
-         (let* ((descending-p (char= (aref sort-string 0) #\-))
-                (attribute-name (if descending-p
-                                    (subseq sort-string 1)
-                                    sort-string))
-                (components (split-sequence:split-sequence #\. attribute-name)))
-           (list :order (if descending-p :descending :ascending)
-                 :name attribute-name
-                 :property-path (property-path-for-filter-components resource components))))))
+(let ((destructuring-search-term-scanner (cl-ppcre:create-scanner "(-)?(:.*:)?([^:]+)")))
+  (defun extract-order-info-from-request (resource)
+    "Extracts the order info from the current request object."
+    (alexandria:when-let ((sort (webserver:get-parameter "sort")))
+      (loop for sort-string in (cl-ppcre:split "," sort)
+            for term-portions = (multiple-value-bind (match portions)
+                                    (cl-ppcre:scan-to-strings destructuring-search-term-scanner sort-string)
+                                  (declare (ignore match))
+                                  portions)
+            for descending-p = (not (null (aref term-portions 0)))
+            for modifiers = (when (and (aref term-portions 1) (string= (aref term-portions 1) ":no-case:"))
+                              (list :no-case))
+            for attribute-name = (aref term-portions 2)
+            for components = (split-sequence:split-sequence #\. attribute-name)
+            collect (list :order (if descending-p :descending :ascending)
+                          :name attribute-name
+                          :property-path (property-path-for-filter-components resource components nil)
+                          :modifiers modifiers)))))
 
 (defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number order-info source-variable)
   "Returns the paginated uuids for the supplied sparql body and
@@ -64,7 +69,7 @@
     (let ((sparql-variables (cond
                               ((and order-info *max-group-sorted-properties*)
                                (format nil "DISTINCT ~A~{ ~{(MAX(~A) AS ~A)~}~}"
-                                       (s-var "uuid") (mapcar (lambda (a) (list a a)) order-variables)))
+                                       (s-var "uuid") (mapcar (lambda (a) (list a (s-genvar "tmp"))) order-variables)))
                               ((and order-info (not *max-group-sorted-properties*))
                                (format nil "DISTINCT ~A~{ ~A~}"
                                        (s-var "uuid") order-variables))
@@ -81,12 +86,17 @@
           (order-by (if order-info
                         (format nil "~{~A(~A) ~}"
                                 (loop for info in order-info
-                                   for variable in order-variables
-                                   append
-                                     (list (if (eql (getf info :order)
-                                                    :ascending)
-                                               "ASC" "DESC")
-                                           variable)))))
+                                      for variable in order-variables
+                                      append (list
+                                              (if (eq (getf info :order)
+                                                      :ascending)
+                                                  "ASC" "DESC")
+                                              (let ((var (if (find :no-case (getf info :modifiers) :test #'eq)
+                                                             (format nil "LCASE(STR(~A))" variable)
+                                                             variable)))
+                                                (if *max-group-sorted-properties*
+                                                    (format nil "MAX(~A)" var)
+                                                    var)))))))
           (group-by (s-var "uuid"))
           (limit page-size)
           (offset (if (and page-size page-number) (* page-size page-number) 0)))
@@ -147,7 +157,7 @@
              (loop for uuid in uuids
                    collect (make-item-spec :uuid uuid :type resource-type)))
           (let ((response
-                 (jsown:new-js ("data" (mapcar #'item-spec-to-jsown data-item-specs))
+                 (jsown:new-js ("data" (item-specs-to-jsown data-item-specs))
                                ("links" (merge-jsown-objects
                                          (build-pagination-links (webserver:script-name*)
                                                                  :total-count uuid-count
@@ -161,7 +171,7 @@
                     (jsown:new-js ("count" uuid-count))))
             (when included-item-specs
               (setf (jsown:val response "included")
-                    (mapcar #'item-spec-to-jsown included-item-specs)))
+                    (item-specs-to-jsown included-item-specs)))
             (values response data-item-specs included-item-specs)))))))
 
 (defun sparql-pattern-filter-string (resource source-variable &key components search)
@@ -271,12 +281,40 @@
                    :search
                    value)))
 
+(let ((or-scanner (cl-ppcre:create-scanner "^:or:" :single-line-mode t)))
+  (defun group-filters (filters)
+    "Groups filters as added to the search to make sure AND and OR is
+  understood correctly."
+    (let ((map (make-hash-table :test 'equal)))
+      (loop for filter-spec in filters
+            for components = (getf filter-spec :components)
+            for search = (getf filter-spec :search)
+            if (cl-ppcre:scan or-scanner (first components))
+              do (push (list :components (rest components) :search search) (gethash (first components) map))
+            else
+              do (push (list :components components :search search) (gethash ":and:" map)))
+      (loop for group being the hash-keys of map
+            for settings = (gethash group map)
+            if (cl-ppcre:scan or-scanner group)
+              collect (cons :or settings)
+            else
+              collect (cons :and settings)))))
+
 (defun filter-body-for-search (&key resource source-variable sparql-body)
   "Adds constraints to sparql-body so that it abides the filters
    which were posed by the user."
-  (dolist (filter (extract-filters-from-request))
-    (setf sparql-body
-          (format nil "~A~&~t~A" sparql-body
-                  (apply #'sparql-pattern-filter-string
-                         resource source-variable filter))))
+  (flet ((expand-filter-string (options)
+           (apply #'sparql-pattern-filter-string
+                  resource source-variable
+                  options)))
+   (loop for (type . group-filters) in (group-filters (extract-filters-from-request))
+         if (eq type :or)
+           do (setf sparql-body         ; append this to the sparql body
+                    (format nil "~A~%~{{~% ~A~%} ~,^ UNION ~%~}" sparql-body
+                            (mapcar #'expand-filter-string group-filters)))
+         else
+           do
+              (setf sparql-body
+                    (format nil "~A~{~%~A~}" sparql-body
+                            (mapcar #'expand-filter-string group-filters)))))
   sparql-body)

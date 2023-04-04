@@ -150,6 +150,11 @@
                                     ("errors" (jsown:new-js
                                                 ("title" message)))))))
       (error (condition)
+        (format t "~&~%Error occurred (~A), error stack trace:~%" condition)
+        (trivial-backtrace:print-backtrace condition :verbose nil)
+        (format t "~&~%Error occurred (~A), error meta:~%" condition)
+        (describe condition)
+        (print-object condition *standard-output*)
         (respond-general-server-error)))))
 
 (defcall :patch (base-path id)
