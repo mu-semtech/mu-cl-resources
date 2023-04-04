@@ -690,7 +690,7 @@ split up resources in order to make the fetching less bulky per query."
    item-json contains the description of the specified item with
      necessary links from <included>."
   (handler-bind
-      ((no-such-instance (lambda () :null)))
+      ((no-such-instance (lambda (err) (declare (ignore err)) :null)))
     (multiple-value-bind (data-item-specs included-item-specs)
         (augment-data-with-attached-info
          (list item-spec))
