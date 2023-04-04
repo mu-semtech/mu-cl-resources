@@ -902,6 +902,10 @@ Aside from regular text searches, a set of custom filters have been added.  Thes
 
 - *:has:* The inverse of `:has-no:` forces the relationship to exist.  Syntax may be subject to change.
 
+- *:or:* Filters are normally combined using AND, this allows a set of filters to be defined as OR instead.
+
+    GET /people?filter[:or:][name]=John&[:or:][owner][name]=Jack
+
 #### Including results
 
 There exists an optional part of [the JSONAPI spec](http://jsonapi.org/format/#fetching-includes) which handles the inclusion of related resources.  It specifies how you can request resources related to your response so you don't have to make too many calls to the server.
