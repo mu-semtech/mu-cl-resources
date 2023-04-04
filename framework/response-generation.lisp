@@ -53,7 +53,7 @@
             for components = (split-sequence:split-sequence #\. attribute-name)
             collect (list :order (if descending-p :descending :ascending)
                           :name attribute-name
-                          :property-path (property-path-for-filter-components resource components)
+                          :property-path (property-path-for-filter-components resource components nil)
                           :modifiers modifiers)))))
 
 (defun paginate-uuids-for-sparql-body (&key sparql-body page-size page-number order-info source-variable)

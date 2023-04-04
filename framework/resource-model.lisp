@@ -415,7 +415,7 @@ superclasses.")
                  (setf current-resource (referred-resource link)) ; set resource of last link
                  link))))))
 
-(defun property-path-for-filter-components (resource components)
+(defun property-path-for-filter-components (resource components &optional (wildcardp t))
   "Constructs the SPARQL property path for a set of filter
    components.  Assumes the components end with an attribute
    specification if specific attributes are targeted.
@@ -444,12 +444,16 @@ superclasses.")
                (if (eq components nil)
                    resource
                    (referred-resource last-slot)))))
-    (values (if ends-in-link-p
-                `(,@path-components
-                  ,(format nil "(~{(~{~A~^/~})~^|~})"
-                           (mapcar #'ld-property-list
-                                   (ld-properties last-resource))))
-                path-components)
+    (values (cond ((and ends-in-link-p wildcardp)
+                   `(,@path-components
+                     ,(format nil "(~{(~{~A~^/~})~^|~})"
+                              (mapcar #'ld-property-list
+                                      (ld-properties last-resource)))))
+                  ((and ends-in-link-p (not wildcardp))
+                   ;; sort by uuid?
+                   `(,@path-components ,(s-prefix "mu:uuid")))
+                  (t ; neither ends-in-link-p nor wildcardp
+                   path-components))
             last-slot
             slots)))
 

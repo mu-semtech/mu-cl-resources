@@ -424,8 +424,8 @@
                                    (s-url pred-string)
                                    var)
                            query-construct))
-            (let* ((triples (query *repository* (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~{~&{  ~A}~,^~%UNION~}~%}"
-                                                       query-construct query-where)))
+            (let* ((triples (sparql:query (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~{~&{  ~A}~,^~%UNION~}~%}"
+                                                  query-construct query-where)))
                    (triple-db (make-triple-db triples nil)))
               (loop for (slot . pred-string) in slot-predicate-combinations
                     for json-var = (json-property-name slot)
@@ -557,8 +557,8 @@ split up resources in order to make the fetching less bulky per query."
                                     (s-url pred-string)
                                     var)
                             query-construct))
-             (let* ((triples (query *repository* (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~A ~{~&{  ~A}~,^~%UNION~}~%}"
-                                                         query-construct subject-values query-where)))
+             (let* ((triples (sparql:query (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~A ~{~&{  ~A}~,^~%UNION~}~%}"
+                                                   query-construct subject-values query-where)))
                     (triple-db (make-triple-db triples nil)))
                (loop for (slot . pred-string) in slot-predicate-combinations
                      for json-var = (json-property-name slot)
@@ -690,7 +690,7 @@ split up resources in order to make the fetching less bulky per query."
    item-json contains the description of the specified item with
      necessary links from <included>."
   (handler-bind
-      ((no-such-instance (lambda () :null)))
+      ((no-such-instance (lambda (err) (declare (ignore err)) :null)))
     (multiple-value-bind (data-item-specs included-item-specs)
         (augment-data-with-attached-info
          (list item-spec))
