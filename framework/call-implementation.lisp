@@ -424,8 +424,8 @@
                                    (s-url pred-string)
                                    var)
                            query-construct))
-            (let* ((triples (query *repository* (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~{~&{  ~A}~,^~%UNION~}~%}"
-                                                       query-construct query-where)))
+            (let* ((triples (sparql:query (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~{~&{  ~A}~,^~%UNION~}~%}"
+                                                  query-construct query-where)))
                    (triple-db (make-triple-db triples nil)))
               (loop for (slot . pred-string) in slot-predicate-combinations
                     for json-var = (json-property-name slot)
@@ -557,8 +557,8 @@ split up resources in order to make the fetching less bulky per query."
                                     (s-url pred-string)
                                     var)
                             query-construct))
-             (let* ((triples (query *repository* (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~A ~{~&{  ~A}~,^~%UNION~}~%}"
-                                                         query-construct subject-values query-where)))
+             (let* ((triples (sparql:query (format nil "CONSTRUCT { ~{~&  ~A~}~%} WHERE {~A ~{~&{  ~A}~,^~%UNION~}~%}"
+                                                   query-construct subject-values query-where)))
                     (triple-db (make-triple-db triples nil)))
                (loop for (slot . pred-string) in slot-predicate-combinations
                      for json-var = (json-property-name slot)
