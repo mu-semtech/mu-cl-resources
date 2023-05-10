@@ -13,8 +13,13 @@
     (loop for value in values
        collect (from-sparql value :string)))
   (:method (object resource-type)
-    (let ((type (intern (string-upcase (jsown:val object "type"))
-                        :keyword))
+    (let ((type
+            ;; in case keyword is a literal but we also have a datatype, we
+            ;; want this to be a typed literal
+            (if (jsown:keyp object "datatype")
+                :typed-literal
+                (intern (string-upcase (jsown:val object "type"))
+                        :keyword)))
           (value (jsown:val object "value")))
       (import-value-from-sparql-result type resource-type value object))))
 
