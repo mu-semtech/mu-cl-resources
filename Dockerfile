@@ -5,7 +5,7 @@ COPY load-config.sh /load-config.sh
 COPY startup-resources.sh /startup-resources.sh
 
 ENV BOOT=mu-cl-resources
-RUN mkdir /config
+RUN mkdir -p /config
 RUN sbcl --load /usr/src/load.lisp
 
 CMD ["/startup-resources.sh"]
