@@ -32,6 +32,8 @@
   (:method ((type (eql :literal)) (resource-type (eql :language-string)) value object)
     (let ((language (or (and (jsown:keyp object "xml:lang")
                              (jsown:val object "xml:lang"))
+                        (and (jsown:keyp object "lang")
+                             (jsown:val object "lang"))
                         *default-language-import-fallback*)))
       (jsown:new-js
         ("content" value)
@@ -63,7 +65,9 @@
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#decimal"
     (value object)
   (declare (ignore object))
-  (read-from-string value))
+  (if (stringp value)
+      (read-from-string value)
+      value))
 
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#string"
     (value object)
@@ -73,22 +77,30 @@
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#float"
     (value object)
   (declare (ignore object))
-  (read-from-string value))
+  (if (stringp value)
+      (read-from-string value)
+      value))
 
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#double"
     (value object)
   (declare (ignore object))
-  (read-from-string value))
+  (if (stringp value)
+      (read-from-string value)
+      value))
 
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#integer"
     (value object)
   (declare (ignore object))
-  (parse-integer value))
+  (if (stringp value)
+      (read-from-string value)
+      value))
 
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#int"
     (value object)
   (declare (ignore object))
-  (parse-integer value))
+  (if (stringp value)
+      (read-from-string value)
+      value))
 
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#dateTime"
     (value object)
@@ -118,9 +130,11 @@
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#boolean"
     (value object)
   (declare (ignore object))
-  (if (or (string= value "1")
-          (string= value "true"))
-      :true :false))
+  (if (stringp value)
+      (if (or (string= value "1")
+              (string= value "true"))
+          :true :false)
+      value))
 
 (define-typed-literal-importer "http://mu.semte.ch/vocabularies/typed-literals/boolean"
     (value object)
