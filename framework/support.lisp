@@ -507,8 +507,8 @@ TEST is a function which receives the current sub-list, possibly out of order."
     (add-clear-key :ld-resource (expanded-ld-class super-resource))))
 
 (defun cache-clear-object (item-spec)
-  (clear-solution item-spec)
-  (add-clear-key :uri (node-url item-spec)))
+  (add-clear-key :uri (node-url item-spec))
+  (clear-solution item-spec))
 
 (defun cache-clear-relation (item-spec relation)
   (add-clear-key :uri (node-url item-spec)
