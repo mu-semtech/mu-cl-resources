@@ -279,36 +279,40 @@ INCLUDED-TREE and TRIPLES."
     (do-subtrees (relation-json-key included-tree) included-tree
       (with-all-resources-of-item-specs (source-resources) item-specs
         (do-resources-grouped-by-relationship-constraint (relationship originating-resources target-resource) (relation-json-key source-resources)
-          (dolist (item-spec item-specs) (cache-relation item-spec relationship)) ; 0. cache clear the relationship
+          (dolist (item-spec item-specs) (cache-relation item-spec relationship)) ; 0. cache clear the relationship in the response
           (let* ((ld-relation (expanded-ld-link relationship))
                  (subject-db (subject-db-for-predicate triple-db ld-relation)))
             (with-item-specs-for-resources (item-specs) (item-specs originating-resources)
               (let ((all-plausible-subclasses (mapcar #'full-uri
                                                       (ld-subclasses (find-resource-by-name (resource-name relationship))))))
                 (dolist (item-spec item-specs)
-                  ;; 1. construct the new-item-spec
+                  ;; 1. initialize the related-items-table for the originating resource if it does not exist yet to allow for empty results in the response.
+                  (setf (lhash:gethash relationship (related-items-table item-spec))
+                        (lhash:gethash relationship (related-items-table item-spec) nil))
+
+                  ;; 2. construct the new-item-spec
                   (dolist (target (if (inverse-p relationship)
                                       (subjects-for-object subject-db (node-url item-spec))
                                       (objects-for-subject subject-db (node-url item-spec))))
                     (let* ((target-types (objects-for-subject type-db target))
                            (target-uuid (first (objects-for-subject uuid-db target)))
                            (matches-target-type-p (some (lambda (x) (find x all-plausible-subclasses :test #'string=)) target-types)))
-                      ;; 1.1 filter relation-targets for those with (one of) the right types
+                      ;; 2.1 filter relation-targets for those with (one of) the right types
                       (when matches-target-type-p
                         ;; the item-spec class seems to calculate the most
                         ;; specific resource by itself based on what we
                         ;; set as a type.
                         (setf (classes-for-uri target) target-types)
-                        ;; 1.2 construct included-item and ensure this item is in the included-items-store
+                        ;; 2.2 construct included-item and ensure this item is in the included-items-store
                         (let ((new-item-spec (included-items-store-ensure included-items-store
                                                                           (make-item-spec :uuid target-uuid
                                                                                           :type (resource-name relationship)
                                                                                           :node-url target))))
-                          ;; 2. set up the included relation for each of these item-specs
+                          ;; 3. set up the included relation for each of these item-specs
                           (push new-item-spec (lhash:gethash relationship (related-items-table item-spec)))
-                          ;; 3. set up the the clear-key for each of these item-specs
+                          ;; 4. set up the the clear-key for each of these item-specs
                           (cache-object new-item-spec)
-                          ;; 4. traverse into the nested included-tree
+                          ;; 5. traverse into the nested included-tree
                           ;; TODO: collect these item-specs and process at once
                           (construct-included-items-for-included-tree-and-triples (list new-item-spec)
                                                                                   included-tree
@@ -431,4 +435,3 @@ INCLUDED-TREE and TRIPLES."
   (and include-parameter
        (mapcar (alexandria:curry #'split-sequence:split-sequence #\.)
                (split-sequence:split-sequence #\, include-parameter))))
-
