@@ -1236,6 +1236,12 @@ See the separate section on caching.  Following properties can be configured:
 - *`*cache-count-queries-p*` * _[default: nil]_ Cache result of count queries internally if set to t.
 - *`*cache-clear-path*`* _[default: nil]_ If set and deltas are received, cache clear keys will be sent to this endpoint.
 
+##### Data types
+
+Data types are generally controlled by the attribute.  For booleans a global variable can be set to use native booleans instead of the custom type mu-cl-resources uses.  The custom type works around issues with booleans in some older versions of Virtuoso.
+
+- *`mu-support:*use-custom-boolean-type-p*`* _[default: t]_ Write mu-cl-resource's custom boolean type if non-nil, set to nil to write xsd:boolean instead.
+
 #### Separate domain.lisp files
 
 The domain.lisp file exists in multiple formats.  As such, experimental drafts in json also exist.  It is also possible to split your domain.lisp file in multiple files and ensure they're all loaded.  In order to load a second file, you could use `read-domain-file` in your domain.lisp.  It understands lisp files and json files.
