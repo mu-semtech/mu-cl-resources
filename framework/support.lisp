@@ -490,8 +490,9 @@ TEST is a function which receives the current sub-list, possibly out of order."
   (add-cache-key :uri (node-url item-spec)
                  :ld-relation (expanded-ld-relation relation))
   ;; for clearing of inverse relationships
-  (add-cache-key :ld-resource (expanded-ld-class (resource item-spec))
-                 :ld-relation (expanded-ld-relation relation)))
+  (dolist (super-resource (flattened-class-tree (resource item-spec)))
+    (add-cache-key :ld-resource (expanded-ld-class super-resource)
+                   :ld-relation (expanded-ld-relation relation))))
 
 (defun cache-clear-class (resource)
   "Clears the current class.
