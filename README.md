@@ -898,7 +898,7 @@ Aside from regular text searches, a set of custom filters have been added.  Thes
 
 - *:has-no:* Ensures the supplied relationship does not exist.  An example could list all people without an account.  The supplied value is not used.  Syntax may be subject to change.
 
-    GET /people?filter[:has-no:account]=yes
+    GET /people?filter[:has-no:account]=true
 
 - *:has:* The inverse of `:has-no:` forces the relationship to exist.  Syntax may be subject to change.
 
