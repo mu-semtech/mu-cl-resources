@@ -8,85 +8,146 @@ Which cache keys are used, and what do they mean?
 * Why cache keys
   The cache keys ensure that the mu-cache can cache resources, and that the mu-cache can clear the resources when they are altered.  The meaning of each of the cache keys needs to be well-defined, and the combination of all keys needs to allow us to correctly reset the cache.
 
-* TODO Which cache keys
+* Which cache keys
   An overview of each of the cache keys, and when you should use them.
 
-  - { uri } :: Clear whenever this specific resource changes
-  - { resource } :: Clear whenever a listing of this resource could have changed
-  - { uri, relationship } :: Clear whenever the relationship for this
-       specific resource gets updated. Note that including this likely
-       means including { resource, id } of the target of the
-       relationship also.
+  - ={ uri }= :: Clear whenever this specific resource changes
+  - ={ ld-resource }= :: Clear whenever a listing of this resource type
+    could have changed.
+  - ={ uri, ld-relation }= :: Clear whenever the relationship for this
+    specific resource gets updated. Note that including this likely
+    means including ={ uri }= of the target of the relationship also.
+  - ={ ld-resource, ld-relation }= :: Clear whenever the relation of a
+    class instance is changed.
+
+* Relationships and inheritance
+  With respect to relationships minimal keys should be cached.  For a
+  relationship we send clear keys in both directions of the relationship
+  (=s-p-o= and =o-^p-s=) such that a relationship does not need the
+  global =ld-resource= or ={ ld-resource, ld-relation }= cache keys.
+  These agressive cache keys are still needed for =include= and
+  =filter=.
+
+  For inheritance this means the clear keys contain all relevant classes
+  from the tree and the cache keys can depend on their specific type
+  being cleared.
 
 * What should happen on each call
 
-** DONE list-call
-   - { resource } :: for simple list calls
+** list-call                                                          :cache:
+   - ={ ld-resource }= :: for simple list calls
 
-** TODO show-call
-   - { uri } :: for the specific resource
+   note: clearing of inheritance trees is handled by clearing for all
+   superclasses.
+** show-call                                                          :cache:
+   - ={ uri }= :: for the specific resource
 
-** TODO show-relation-call
-   - { uri , relationship } :: cache only invalidates when
-        relationships are altered, or resources themselves.
-   - { resource, relationship } :: used for clearing inverse
-        relationships.  in this case we will not know which links to
-        clear exactly.
-   - { uri } :: for each returned resource
+** show-relation-call                                                 :cache:
+   :LOGBOOK:
+   - State "DONE"       from "TODO"       [2023-12-08 Fri 15:12]
+   :END:
 
-*** DONE What about pagination?
-    Check if the type of resource shouldn't be paginated.  If it
-    should be, then cache on { returnedResource }, otherwise cache on
-    the specific returned resources.
+*** With incomplete update information available
+    - ={ ld-resource, ld-relation }= :: cache from the _source_ type
+      with the followed relation in the followed direction.
+    - ={ ld-resource }= for the specific _target_ type because each update
+      _might_ impact the pages due to ordering of results.
 
-** DONE create-call
-   - { resource } :: b/c lists can be altered
+*** TODO When you have knowledge insert/delete triples and no pagination
+    - ={ uri, ld-relation }= :: cache from the source object with the
+      followed relation in the followed direction.
+    - ={ uri }= for each returned resource
 
-*** TODO relationships
-    When inverse relationships can be checked, this should also output
-    the relationships.
+    This is a future scenario!  We currently don't know which triples
+    have been removed (except maybe through delta messages) and hence
+    can not guarantee the ={ uri, ld-relation }= to be known.
 
-** TODO update-call
-   - { resource } :: for each touched class
-   - { uri } :: for attributes
-   - { uri, relationship } :: for altered relationships
-   - { resource, relationship } :: for known inverse relationships
+** included resources                                                 :cache:
+   We tackle this recursively.
 
-** TODO delete-call
-   - { resource } :: b/c lists can be altered
-   - { uri } :: for the deleted object
-   - --{ resource, relationship }-- :: not needed, either our
-        identifier is specified in the other direction, or we do not
-        exist anymore.
+   Starting from a resource and following a relationship our content may
+   change when:
 
-** TODO patch-relation-call
-   - { resource } :: may have an effect on listings (filters, for instance)
-   - { uri, relationship } :: invalidate cached relationship
-   - { resource, relationship } :: for known inverse relationships
+   - ={ ld-resource, ld-relation }= from our type to the target, and for
+     each of our subtypes that overwrites the same json relation key,
+     through their ld-relation.  recurse over types and properties for
+     following steps.
 
-** TODO add-relation-coll
-   - { resource } :: see patch-relation-call
-   - { uri, relationship } :: see patch-relation-call
-   - { resource, relationship } :: see patch-relation-call
+** filters                                                            :cache:
+   See included resources _plus_ for the last types, include the ={ ld-resource }=.
 
-** TODO delete-relation-call
-   - { resource } :: see patch-relation-call
-   - { uri, relationship } ::  see patch-relation-call
-   - { resource, relationship } :: see patch-relation-call
+   Some filters allow for smart optimizations.
 
-** DONE included resources
-   Included resources can be specified by their relationship.  In
-   unconstrained lists, we specify the connected resource, in
-   constrained lists, we specify the resource itself.
+** create-call                                                        :clear:
+   - ={ ld-resource }= :: for our type and our supertypes, because lists
+     can be altered
+   - ={ ld-resource, ld-relation }= :: for all created relationships
+     _from the target_ to the newly created resource.
 
-*** TODO constrained lists
-    - { targetUri, id } :: Pick included destination elements
-    - { uri, relationship } :: Pick the relationship of the item which
-         has the inclusion.
-    - { resource, relationship } :: Specify the relationship itself,
-         for clearing known inverse relationships
+*** Relationships and inheritance
+    If a relation is made to a target type then this can only be because
+    the target (or one if its superclasses) defines a relationship on
+    that type.  All of the subclasses of that supertype must clear the
+    ld-relation.  Hence we have a ={ ld-resource, ld-relation }=
+    clear-key for each of them.
 
-*** unconstrained lists
-    - { targetResource } :: If there's no specific set of items to
-         start from, the whole targetResource can invalidate the
-         cache.
+*** Inheritance
+    The created resource may appear in any list of its supertypes but in
+    no list of its subtype.  Thus emit ={ ld-resource }= for each of the
+    supertypes (and self) of the created resource.
+
+*** TODO Future with knowledge on insert/delete triples
+    If we know inserted and deleted triples then show-relation-call can
+    have a more specific implementation which means we should yield:
+
+    - ={ ld-resource }= :: because lists can be altered
+    - ={ uri, ld-relation }= :: for each inserted _and_ deleted
+      relationship in both directions.
+    - ={ ld-resource, ld-relation }= :: must still be sent for more
+      complex relations that can't define ={uri, ld-relation}=
+
+** update-call                                                        :clear:
+   - ={ uri }= :: this resource was updated
+   - ={ ld-resource }= :: for our type and our supertypes, because lists
+     can be altered.
+   - ={ ld-resource, ld-relation }= :: same as create-call _plus_
+     clearing from our side to the target.
+
+*** Relationships and inheritance
+    For target to source, see the reasoning on create-call.
+
+    For source to target this is the same reasoning.  Pick the highest
+    superclass that defines the relationship and take all of its
+    subclasses and itself.
+
+*** Inheritance
+    See inheritance of create-call
+
+*** TODO Future with knowledge on insert/delete triples
+    If we know inserted and deleted triples then show-relation-call can
+    have a more specific implementation which means we should yield:
+
+    - ={ ld-resource }= :: as specified in update-call
+    - ={ uri, ld-relation }= :: for each inserted _and_ deleted
+      relationship in both directions.
+    - ={ ld-resource, ld-relation }= :: must still be sent for more
+      complex relations that can't define ={uri, ld-relation}=
+
+** delete-call                                                        :clear:
+   Same as update-call for all properties and relations.
+
+*** TODO Future with knowledge on insert/delete triples
+    See update-call.
+
+** patch-relation-call                                                :clear:
+   Same as update-call, but without ={ uri }=.
+
+   ={ uri }= is not needed because the individual properties cannot be
+   edited this way.
+
+** add-relation-call                                                  :clear:
+   Same as patch-relation-call.
+
+** delete-relation-call                                               :clear:
+   Same as patch-relation-call.
+
