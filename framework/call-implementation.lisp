@@ -90,7 +90,6 @@
     (check-access-rights-for-resource resource :create)
     (check-resource-base-existence resource)
     (with-cache-store
-      (cache-clear-class resource)
       (let* ((jsown:*parsed-null-value* :null)
              (json-input (jsown:parse (post-body)))
              (uuid (mu-support:make-uuid)) 
@@ -101,9 +100,10 @@
                                         :type (resource-name resource)
                                         :node-url resource-uri))
              (s-resource-uri (s-url resource-uri)))
-        (setf (classes-for-uri resource-uri) (ld-superclasses resource))
         (with-surrounding-hook (:create (resource-name resource))
             (json-input item-spec)
+          (setf (classes-for-uri resource-uri) (ld-superclasses resource))
+          (cache-clear-class resource)
           (sparql:insert-triples
            `((,s-resource-uri ,(s-prefix "mu:uuid") ,(s-str uuid))
              ;; types
@@ -123,13 +123,12 @@
                if (jsown:keyp (jsown:filter json-input "data" "relationships" relation)
                               "data")
                do
-                 (update-resource-relation (make-item-spec :type (resource-name resource)
-                                                           :uuid uuid
-                                                           :node-url resource-uri)
-                                           relation
-                                           (jsown:filter json-input
-                                                         "data" "relationships" relation "data"))))
-          (jsown:new-js ("data" (retrieve-item item-spec))))))))
+                  (update-resource-relation item-spec
+                                            resource
+                                            relation
+                                            (jsown:filter json-input
+                                                          "data" "relationships" relation "data"))))
+          (jsown:new-js ("data" (retrieve-item item-spec resource))))))))
 
 
 (defgeneric update-call (resource uuid)
@@ -174,22 +173,25 @@
                if (jsown:keyp (jsown:filter json-input "data" "relationships" relation)
                               "data")
                do
-                 (cache-clear-relation item-spec (find-link-by-json-name resource relation))
-                 (update-resource-relation item-spec relation
+                 (update-resource-relation item-spec
+                                           (resource item-spec)
+                                           relation
                                            (jsown:filter json-input
                                                          "data" "relationships" relation "data"))))
           ;; clear caches after updating the database
+          ;; relations have been cleared in update-resource-relation
           (cache-clear-class (resource item-spec))
           (cache-clear-object item-spec)
           (respond-no-content))))))
 
-(defgeneric update-resource-relation (item-spec relation resource-specification)
+(defgeneric update-resource-relation (item-spec source-resource relation resource-specification)
   (:documentation "updates the specified relation with the given specification.")
-  (:method ((item-spec item-spec) (relation string) resource-specification)
+  (:method ((item-spec item-spec) source-resource (relation string) resource-specification)
     (update-resource-relation item-spec
+                              source-resource
                               (find-link-by-json-name (resource item-spec) relation)
                               resource-specification))
-  (:method ((item-spec item-spec) (link has-one-link) resource-specification)
+  (:method ((item-spec item-spec) (source-resource resource) (link has-one-link) resource-specification)
     (check-access-rights-for-item-spec item-spec :update)
     (flet ((delete-query (resource-uri link-uri)
              (sparql:delete-triples
@@ -216,8 +218,8 @@
             (delete-query (s-url resource-uri)
                           (ld-property-list link)))))
     ;; reset the cache after updating the triplestore
-    (reset-cache-for-resource-relation item-spec link))
-  (:method ((item-spec item-spec) (link has-many-link) resource-specification)
+    (cache-clear-relation source-resource link))
+  (:method ((item-spec item-spec) (source-resource resource) (link has-many-link) resource-specification)
     (check-access-rights-for-item-spec item-spec :update)
     (flet ((delete-query (resource-uri link-uri)
              (sparql:delete-triples
@@ -247,7 +249,7 @@
             (delete-query (s-url resource-uri)
                           (ld-property-list link)))))
     ;; reset the cache after updating the triplestore
-    (reset-cache-for-resource-relation item-spec link)))
+    (cache-clear-relation source-resource link)))
 
 (defun cache-list-call (resource)
   "Performs the caching of a list call.
@@ -308,7 +310,7 @@
         (with-cache-store
           (cache-object item-spec)
           (multiple-value-bind (data included-items)
-              (retrieve-item item-spec)
+              (retrieve-item item-spec resource)
             (if (eq data :null)
                 (error 'no-such-instance
                        :resource resource
@@ -685,7 +687,7 @@ split up resources in order to make the fetching less bulky per query."
             ("type" (json-type resource))
             ("relationships" relationships-object)))))))
 
-(defun retrieve-item (item-spec)
+(defun retrieve-item (item-spec resource)
   "Returns (values item-json included-items)
    item-json contains the description of the specified item with
      necessary links from <included>."
@@ -693,7 +695,8 @@ split up resources in order to make the fetching less bulky per query."
       ((no-such-instance (lambda (err) (declare (ignore err)) :null)))
     (multiple-value-bind (data-item-specs included-item-specs)
         (augment-data-with-attached-info
-         (list item-spec))
+         (list item-spec)
+         resource)
       (values (item-spec-to-jsown (first data-item-specs))
               (item-specs-to-jsown included-item-specs)))))
 
@@ -769,46 +772,60 @@ split up resources in order to make the fetching less bulky per query."
       (with-surrounding-hook (:delete (resource-name resource))
           (item-spec)
         (with-cache-store
-          (let (relation-content)
-            (loop for slot in (ld-properties resource)
-                  do (push (list (ld-property-list slot)
-                                 (s-var (sparql-variable-name slot)))
-                           relation-content))
-            (loop for link in (all-links resource)
-                  do (push (list (ld-property-list link)
-                                 (s-var (sparql-variable-name link)))
-                           relation-content))
-            (setf relation-content (reverse relation-content))
-            (sparql:delete
-                (apply #'concatenate 'string
-                       (loop for triple-clause
-                             in
-                             `(;; uuid
-                               (,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))
-                               ;; types
-                               ,@(loop for ld-class
-                                       in (flattened-ld-class-tree (resource item-spec))
-                                       collect `(,(s-var "s") ,(s-prefix "a") ,ld-class))
-                               ;; properties
-                               ,@(loop for (property-list value) in relation-content
-                                       collect `(,(s-var "s") ,@property-list ,value)))
-                             for (subject predicate object) = triple-clause
-                             collect (if (s-inv-p predicate)
-                                         (format nil "~4t~A ~A ~A.~%"
-                                                 object (s-inv predicate) subject)
-                                         (format nil "~4t~A ~A ~A.~%"
-                                                 subject predicate object))))
-                (concatenate 'string
-                             (format nil "~{~&~4t~{~A ~A ~A~}.~%~}"
-                                     `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))))
-                             (format nil "~{~&~4tOPTIONAL {~{~A ~A ~A~}.}~%~}"
-                                     (loop for (property-list value) in relation-content
-                                           if (s-inv-p (first property-list))
-                                           collect `(,value ,(s-inv (first property-list)) ,(s-var "s"))
-                                           else
-                                           collect `(,(s-var "s") ,(first property-list) ,value))))))
-          (cache-clear-class resource)
-          (cache-clear-object item-spec))
+          (flet ((cache-clear-for-delete-call ()
+                   (cache-clear-class (resource item-spec))
+                   (cache-clear-object item-spec)
+                   ;; in our inheritance tree, find all defined relations
+                   (let ((super-resources (flattened-class-tree (resource item-spec))))
+                     ;; TODO: optimize this scenario, these can be precalculated.
+                     (dolist (super-resource super-resources)
+                       ;; we pick direct links because cache-clear-relation clears for all relevant subclasses
+                       (dolist (link (all-direct-links super-resource))
+                         (cache-clear-relation resource link :include-inverse-p nil)))
+                     ;; from all resources, find all relations filter those who point to us or any of our superclasses
+                     (loop for (source-resource . link)
+                             in (all-defined-links-with-resource)
+                           when (find (referred-resource link) super-resources)
+                             do (cache-clear-relation source-resource link :include-inverse-p nil)))))
+            (let (relation-content)
+              (loop for slot in (ld-properties resource)
+                    do (push (list (ld-property-list slot)
+                                   (s-var (sparql-variable-name slot)))
+                             relation-content))
+              (loop for link in (all-links resource)
+                    do (push (list (ld-property-list link)
+                                   (s-var (sparql-variable-name link)))
+                             relation-content))
+              (setf relation-content (reverse relation-content))
+              (cache-clear-for-delete-call)
+              (sparql:delete
+                  (apply #'concatenate 'string
+                         (loop for triple-clause
+                                 in
+                               `(;; uuid
+                                 (,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))
+                                 ;; types
+                                 ,@(loop for ld-class
+                                           in (flattened-ld-class-tree (resource item-spec))
+                                         collect `(,(s-var "s") ,(s-prefix "a") ,ld-class))
+                                 ;; properties
+                                 ,@(loop for (property-list value) in relation-content
+                                         collect `(,(s-var "s") ,@property-list ,value)))
+                               for (subject predicate object) = triple-clause
+                               collect (if (s-inv-p predicate)
+                                           (format nil "~4t~A ~A ~A.~%"
+                                                   object (s-inv predicate) subject)
+                                           (format nil "~4t~A ~A ~A.~%"
+                                                   subject predicate object))))
+                  (concatenate 'string
+                   (format nil "~{~&~4t~{~A ~A ~A~}.~%~}"
+                           `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))))
+                   (format nil "~{~&~4tOPTIONAL {~{~A ~A ~A~}.}~%~}"
+                           (loop for (property-list value) in relation-content
+                                 if (s-inv-p (first property-list))
+                                   collect `(,value ,(s-inv (first property-list)) ,(s-var "s"))
+                                 else
+                                   collect `(,(s-var "s") ,(first property-list) ,value))))))))
         (respond-no-content)))))
 
 (defgeneric show-relation-call (resource id link)
@@ -822,13 +839,13 @@ split up resources in order to make the fetching less bulky per query."
       (with-surrounding-hook (:show-relation (resource-name resource))
           (item-spec link)
         (with-cache-store
-          (cache-relation item-spec link)
+          (cache-relation (resource item-spec) link)
           (let ((relation-item-spec (first (retrieve-relation-items item-spec link))))
             (when relation-item-spec
               (cache-object relation-item-spec))
             (jsown:new-js
               ("data" (if relation-item-spec
-                          (retrieve-item relation-item-spec)
+                          (retrieve-item relation-item-spec (referred-resource link))
                           :null))
               ("links" (build-links-object item-spec link))))))))
   (:method ((resource resource) id (link has-many-link))
@@ -837,7 +854,8 @@ split up resources in order to make the fetching less bulky per query."
       (with-surrounding-hook (:show-relation (resource-name resource))
           (item-spec link)
         (with-cache-store
-          (cache-relation item-spec link)
+          (cache-relation (resource item-spec) link)
+          (cache-class (referred-resource link))
           (let ((link-spec (make-item-spec :type (resource-name resource) :uuid id)))
             (multiple-value-bind (response data-item-specs)
                 (paginated-collection-response
@@ -918,8 +936,7 @@ split up resources in order to make the fetching less bulky per query."
                                        :uuid id)))
         (check-access-rights-for-item-spec item-spec :update)
         (with-cache-store
-          (cache-clear-class resource)
-          (cache-clear-relation item-spec link)
+          (cache-clear-relation (resource item-spec) link)
           (let ((body (jsown:parse (post-body)))
                 (linked-resource (referred-resource link))
                 (resource-uri (node-url item-spec))
@@ -943,8 +960,7 @@ split up resources in order to make the fetching less bulky per query."
     (let ((item-spec (make-item-spec :type (resource-name resource) :uuid id)))
       (check-access-rights-for-item-spec item-spec :update)
       (with-cache-store
-        (cache-clear-class resource)
-        (cache-clear-relation item-spec link)
+        (cache-clear-relation (resource item-spec) link)
         (flet ((delete-query (resource-uri link-uri)
                  (sparql:delete-triples
                   `((,resource-uri ,@link-uri ,(s-var "s")))))
@@ -984,8 +1000,7 @@ split up resources in order to make the fetching less bulky per query."
           (body (jsown:parse (post-body))))
       (check-access-rights-for-item-spec item-spec :update)
       (with-cache-store
-        (cache-clear-class resource)
-        (cache-clear-relation item-spec link)
+        (cache-clear-relation (resource item-spec) link)
         (with-surrounding-hook (:delete-relation (resource-name resource))
             (item-spec body)
           (let* ((linked-resource (referred-resource link))
@@ -1012,8 +1027,7 @@ split up resources in order to make the fetching less bulky per query."
           (body (jsown:parse (post-body))))
       (check-access-rights-for-item-spec item-spec :update)
       (with-cache-store
-        (cache-clear-class resource)
-        (cache-clear-relation item-spec link)
+        (cache-clear-relation (resource item-spec) link)
         (with-surrounding-hook (:add-relation (resource-name resource))
             (resource item-spec body)
           (let* ((linked-resource (referred-resource link))
@@ -1083,57 +1097,90 @@ split up resources in order to make the fetching less bulky per query."
                                               :test (lambda (a b)
                                                       (string= (jsown:to-json a)
                                                                (jsown:to-json b)))))
-           (triples (append effective-inserts effective-deletes)))
-      (with-cache-store
-        (loop for triple in triples
-              for subject = (jsown:filter triple "subject" "value")
-              for predicate = (jsown:filter triple "predicate" "value")
-              for object = (jsown:filter triple "object" "value")
-              for subject-classes = (classes-for-uri subject)
-              for subject-resources =
-              (remove-if-not
-               #'identity
-               (mapcar (lambda (subject-class)
-                         (handler-case
-                             (find-resource-by-class-uri subject-class)
-                           (no-such-instance (err)
-                             (declare (ignore err))
-                             nil)))
-                       subject-classes))
-              for subject-item-specs =
-              (mapcar (lambda (resource)
-                        (make-item-spec :node-url subject
-                                        :type (resource-name resource)))
-                      subject-resources)
-              for object-is-uri = (string= (jsown:filter triple "object" "type") "uri")
-              do
-              (dolist (subject-item-spec subject-item-specs)
-                (handler-case
-                    (cache-clear-object subject-item-spec)
-                  (no-such-instance (e)
-                    (declare (ignore e))
-                    ;; this is a feasible case, skip it
-                    )
-                  (error (e)
-                    (format t "AN ERROR OCCURRED PROCSSING A DELTA MESSAGE ~A" e))))
-              (when object-is-uri
-                (loop
-                      for subject-item-spec in subject-item-specs
-                      for resource in subject-resources
-                      for relation = (handler-case (find-resource-link-by-ld-link resource predicate)
-                                       (no-such-link (err)
-                                         (declare (ignore err))
-                                         nil)
-                                       (no-such-instance (err)
-                                         (declare (ignore err))
-                                         (format t "PLEASE INFORM AT madnificent@gmail.com THAT \"CASE E11 HAS OCCURRED\"")
-                                         nil))
-                      if relation
-                      do
-                         (cache-clear-relation subject-item-spec relation)))
-              (dolist (resource subject-resources)
-                (cache-clear-class resource)))
-        (handle-uri-class-changes effective-inserts effective-deletes))
+           (triples (append effective-inserts effective-deletes))
+           (types-per-uri (let ((uri-type-hash (lhash:make-castable :test 'equal)))
+                            (dolist (triple triples)
+                              (when (string= (jsown:filter triple "predicate" "value")
+                                             "http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+                                (let ((subject (jsown:filter triple "subject" "value"))
+                                      (object (jsown:filter triple "object" "value")))
+                                  (pushnew object (lhash:gethash subject uri-type-hash)
+                                           :test #'string=))))
+                            uri-type-hash)))
+      (labels ((classes-for-uri-in-delta (uri)
+                 (lhash:gethash uri types-per-uri))
+               (resources-and-item-specs (jsown-term)
+                 (if (string= (jsown:val jsown-term "type") "uri")
+                     ;; it's a URI
+                     (let* ((uri (jsown:val jsown-term "value"))
+                            (resource-classes
+                              ;; we determine the resource classes also
+                              ;; based on the triples that are in the
+                              ;; delta but might not be in the
+                              ;; triplestore.  code that uses the
+                              ;; item-specs to find the classes will not
+                              ;; discover those based on the
+                              ;; triplestore.  care should be taken to
+                              ;; ensure cache clearing code has the
+                              ;; right constraints.
+                              (union (classes-for-uri-in-delta uri)
+                                     (classes-for-uri uri)
+                                     :test #'string=))
+                            (resources (remove-if-not
+                                        #'identity
+                                        (mapcar (lambda (resource-class)
+                                                  (handler-case
+                                                      (find-resource-by-class-uri resource-class)
+                                                    (no-such-instance (err)
+                                                      (declare (ignore err))
+                                                      nil)))
+                                                resource-classes)))
+                            (item-specs (mapcar (lambda (resource)
+                                                  (make-item-spec :node-url uri
+                                                                  :type (resource-name resource)))
+                                                resources)))
+                       (values resources item-specs))
+                     (values nil nil)))
+               (handle-object-clear (item-specs)
+                 (dolist (item-spec item-specs)
+                   (handler-case
+                       (cache-clear-object item-spec)
+                     (no-such-instance (e)
+                       (declare (ignore e))
+                       ;; this is a feasible case, skip it
+                       )
+                     (error (e)
+                       (format t "AN ERROR OCCURRED PROCESSING A DELTA MESSAGE ~A" e)))))
+               (handle-class-clear (resources)
+                 (dolist (resource resources)
+                   (cache-clear-class resource)))
+               (handle-relation-clear (resources predicate inverse-p)
+                 (loop for resource in resources
+                       do (loop for relation in (all-links resource)
+                                when (and (eq (inverse-p relation) inverse-p)
+                                          (string= (full-uri (ld-link relation))
+                                                   predicate))
+                                  do
+                                     (cache-clear-relation resource relation)))))
+        (with-cache-store
+          (loop for triple in triples
+                for predicate = (jsown:filter triple "predicate" "value")
+                do
+                   (multiple-value-bind (subject-resources subject-item-specs)
+                       (resources-and-item-specs (jsown:val triple "subject"))
+                     (handle-object-clear subject-item-specs)
+                     (handle-class-clear subject-resources)
+                     (handle-relation-clear subject-resources predicate nil))
+                   (multiple-value-bind (object-resources object-item-specs)
+                       (resources-and-item-specs (jsown:val triple "object"))
+                     (handle-object-clear object-item-specs)
+                     (handle-class-clear object-resources)
+                     (handle-relation-clear object-resources predicate t)))
+          ;; it used to be that these had to be executed at the end
+          ;; because we depended on cached URIs to clear what we knew of
+          ;; the world, that is not fully the case anymore but it makes
+          ;; most sense down here.
+          (handle-uri-class-changes effective-inserts effective-deletes)))
       (let ((out-headers (cdr (assoc :clear-keys (hunchentoot:headers-out*)))))
         (when (and *cache-clear-path* out-headers)
           (when *log-delta-clear-keys*
@@ -1143,13 +1190,3 @@ split up resources in order to make the fetching less bulky per query."
                                :additional-headers `(("clear-keys" . ,out-headers)))))
       (setf (hunchentoot:header-out :clear-keys) "null")
       (jsown:new-js ("message" "processed delta")))))
-
-
-;;;;
-;; support for 'included'
-;;
-;; - Objects which are to be included follow the following structure:
-;;   > (list :type 'catalog :id 56E6925A193F022772000001)
-;; - relation-spec follows the following structure (books.author):
-;;   > (list "books" "author")
-

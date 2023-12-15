@@ -2,7 +2,7 @@
 
 (defun run-validations ()
   "Runs validations on the currently defined resources.  Emits
-  warningsn about inconsistent state.
+  warnings about inconsistent state.
 
   Current validations:
   - no-slash-in-on-path"
