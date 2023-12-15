@@ -446,8 +446,9 @@ TEST is a function which receives the current sub-list, possibly out of order."
   ;; TODO: this approach is overly aggressive.  If we understand the
   ;; cache keys, we could keep the cache around for calls which could
   ;; not be affected by the groups from which these calls appeared.
-  (setf (query-count-cache resource)
-        (make-user-aware-hash-table :test 'equal)))
+  (dolist (specific-resource (flattened-class-tree resource))
+    (setf (query-count-cache specific-resource)
+          (make-user-aware-hash-table :test 'equal))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; relevant relations store
@@ -486,13 +487,9 @@ TEST is a function which receives the current sub-list, possibly out of order."
 (defun cache-object (item-spec)
   (add-cache-key :uri (node-url item-spec)))
 
-(defun cache-relation (item-spec relation)
-  (add-cache-key :uri (node-url item-spec)
-                 :ld-relation (expanded-ld-relation relation))
-  ;; for clearing of inverse relationships
-  (dolist (super-resource (flattened-class-tree (resource item-spec)))
-    (add-cache-key :ld-resource (expanded-ld-class super-resource)
-                   :ld-relation (expanded-ld-relation relation))))
+(defun cache-relation (resource relation)
+  (add-cache-key :ld-resource (expanded-ld-class resource)
+                 :ld-relation (expanded-ld-relation relation)))
 
 (defun cache-clear-class (resource)
   "Clears the current class.
@@ -501,7 +498,6 @@ TEST is a function which receives the current sub-list, possibly out of order."
    superclasses as they may contain elements of this subclass.
    Subclasses don't need to be considered as their views cannot be
    updated by a change which only affects a parent."
-  ;; TODO: clear for all parent instances
   (dolist (super-resource (flattened-class-tree resource))
     ;; note: super-resource includes current resource
     (clear-cached-count-queries super-resource)
@@ -511,15 +507,34 @@ TEST is a function which receives the current sub-list, possibly out of order."
   (add-clear-key :uri (node-url item-spec))
   (clear-solution item-spec))
 
-(defun cache-clear-relation (item-spec relation)
-  (add-clear-key :uri (node-url item-spec)
-                 :ld-relation (expanded-ld-relation relation))
-  ;; for clearing of inverse relationships
-  (dolist (inverse-relation (inverse-links relation))
-    (add-clear-key :ld-resource (expanded-ld-class (getf inverse-relation :resource))
-                   :ld-relation (expanded-ld-relation (getf inverse-relation :link)))))
+(defun resource-subtypes-of-supertype (resource &key test)
+  "Uses TEST on each supertype of RESOURCE.  Returns the highest superclass
+which matches test and all of its subtypes."
+  (let ((super-resource (find-if test (reverse (flattened-class-tree resource)))))
+    (subclass-resources super-resource)))
 
-
+(defun cache-clear-relation (resource relation)
+  ;; find which (super-)type defines the relationship, then clear any
+  ;; subtype of that (parent) type.
+  (flet ((direct-json-relation-p (super-resource)
+           "truthy iff the resource directly defines a relationship with json key of
+RELATION."
+           (find (json-property-name relation)
+                 (all-direct-links super-resource)
+                 :key #'json-property-name
+                 :test #'string=)))
+    (dolist (resource-to-clear (resource-subtypes-of-supertype
+                                resource
+                                :test #'direct-json-relation-p))
+      (add-clear-key :ld-resource (expanded-ld-class resource-to-clear)
+                     :ld-relation (expanded-ld-relation relation)))
+    ;; process inverse links
+    (dolist (inverse-relation-spec (inverse-links relation))
+      (let ((inverse-resource (getf inverse-relation-spec :resource))
+            (inverse-relation (getf inverse-relation-spec :link)))
+        (dolist (resource-to-clear (subclass-resources inverse-resource))
+          (add-clear-key :ld-resource (expanded-ld-class resource-to-clear)
+                         :ld-relation (expanded-ld-relation inverse-relation)))))))
 
 (defgeneric cache-on-class-list (resource)
   (:documentation "Adds the cache class to the current cache-store")
@@ -536,12 +551,6 @@ TEST is a function which receives the current sub-list, possibly out of order."
   "Caches on the specified resource and its accompanying relationship."
   (cache-relation item-spec link)
   (cache-on-class-list (find-resource-by-name (resource-name link))))
-
-(defun reset-cache-for-resource-relation (item-spec link)
-  "Resets the cache for the specified resource and its
-   accompanying relationship."
-  (cache-clear-relation item-spec link)
-  (cache-clear-class (find-resource-by-name (resource-name link))))
 
 (defun cancel-cache ()
   "Cancel the cache.  Use this for resources which have access

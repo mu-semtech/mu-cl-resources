@@ -79,7 +79,6 @@
     (jsown:filter (first result) "uuid" "value")))
 
 
-
 ;; item specs
 (defgeneric node-url (item-spec)
   (:documentation "yields the node url for the supplied item-spec")
@@ -121,12 +120,12 @@
 (defgeneric clear-solution (spec)
   (:documentation "Clears the solution from the given specification
    accepts both an item-spec as well as a uuid")
+  (:method ((uuid string))
+    (clear-solution (make-item-spec :uuid uuid)))
   (:method ((item-spec item-spec))
     (rem-ua-hash (uuid item-spec) *cached-resources*)
     (clear-uri-cache-for-uuid (uuid item-spec)))
-  (:method ((uuid string))
-    (rem-ua-hash uuid *cached-resources*)
-    (clear-uri-cache-for-uuid uuid)))
+    (clear-cached-count-queries (resource item-spec)))
 
 (defvar *uri-classes-cache* (lhash:make-castable :test 'equal)
   "Contains a mapping from URI strings to the URI classes belonging to the URI.")

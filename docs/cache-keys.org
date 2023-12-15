@@ -34,12 +34,18 @@ Which cache keys are used, and what do they mean?
 
 * What should happen on each call
 
-** list-call                                                          :cache:
+** DONE list-call                                                     :cache:
+   :LOGBOOK:
+   - State "DONE"       from              [2023-12-13 Wed 17:38]
+   :END:
    - ={ ld-resource }= :: for simple list calls
 
    note: clearing of inheritance trees is handled by clearing for all
    superclasses.
-** show-call                                                          :cache:
+** DONE show-call                                                     :cache:
+   :LOGBOOK:
+   - State "DONE"       from              [2023-12-13 Wed 17:39]
+   :END:
    - ={ uri }= :: for the specific resource
 
 ** show-relation-call                                                 :cache:
@@ -47,51 +53,96 @@ Which cache keys are used, and what do they mean?
    - State "DONE"       from "TODO"       [2023-12-08 Fri 15:12]
    :END:
 
-*** With incomplete update information available
-    - ={ ld-resource, ld-relation }= :: cache from the _source_ type
-      with the followed relation in the followed direction.
-    - ={ ld-resource }= for the specific _target_ type because each update
-      _might_ impact the pages due to ordering of results.
+*** DONE With incomplete update information available
+    :PROPERTIES:
+    :ID:       0f58f805-7dd4-452b-9730-573175d2b5aa
+    :END:
+    :LOGBOOK:
+    - State "DONE"       from              [2023-12-13 Wed 21:27]
+    :END:
 
-*** TODO When you have knowledge insert/delete triples and no pagination
+**** many relations
+     - ={ ld-resource, ld-relation }= :: cache from the _source_ type
+       with the followed relation in the followed direction.
+     - ={ ld-resource }= :: for the specific _target_ type because each update
+       _might_ impact the pages due to ordering of results.
+
+**** one relations
+    If there is only one element in the relationship.
+
+    - ={ ld-resource, ld-relation }= :: same as many relation, we don't
+      know when an item is removed at this point, hence we must clear it
+      whenever the relation itself is set.
+    - ={ uri }= :: of the target resource
+
+*** TODO When you have knowledge insert/delete triples and no pagination (relation-call)
+    :PROPERTIES:
+    :ID:       2ae12331-4c49-45fc-a9e8-ac92cd9382d2
+    :END:
     - ={ uri, ld-relation }= :: cache from the source object with the
       followed relation in the followed direction.
-    - ={ uri }= for each returned resource
+    - ={ uri }= for each returned resources
 
     This is a future scenario!  We currently don't know which triples
     have been removed (except maybe through delta messages) and hence
     can not guarantee the ={ uri, ld-relation }= to be known.
 
 ** included resources                                                 :cache:
-   We tackle this recursively.
+    We tackle these cases recursively.  With included we have some
+    knowledge on the models available.
 
-   Starting from a resource and following a relationship our content may
-   change when:
+*** DONE With incomplete update information available
+    :LOGBOOK:
+    - State "DONE"       from              [2023-12-14 Thu 11:04]
+    :END:
+    Analogous to this case in [[*With incomplete update information available][show-relation-call]].
 
-   - ={ ld-resource, ld-relation }= from our type to the target, and for
-     each of our subtypes that overwrites the same json relation key,
-     through their ld-relation.  recurse over types and properties for
-     following steps.
+    Starting from a resource and following a relationship our content may
+    change when:
 
+    - ={ ld-resource, ld-relation }= from our type to the target, and for
+      each of our subtypes that overwrites the same json relation key,
+      through their ld-relation.  recurse over types and properties for
+      following steps.
+    - ={ uri }= for each included resource.  This is because included
+      can't have pagination.
+
+    Note: we currently don't index on the relevant subtypes.
+   
+*** When you have knowledge of insert
+    Analogous to its case in [[*When you have knowledge insert/delete triples and no pagination (relation-call)][show-relation-call]], but recursed over each
+    relationship.
+
+    This becomes large for large responses, but that makes sense.
+    
 ** filters                                                            :cache:
    See included resources _plus_ for the last types, include the ={ ld-resource }=.
 
    Some filters allow for smart optimizations.
 
 ** create-call                                                        :clear:
+   :PROPERTIES:
+   :ID:       506704a1-4c12-48d1-94c8-8adb5e007337
+   :END:
    - ={ ld-resource }= :: for our type and our supertypes, because lists
      can be altered
    - ={ ld-resource, ld-relation }= :: for all created relationships
      _from the target_ to the newly created resource.
 
-*** Relationships and inheritance
+*** DONE Relationships and inheritance
+    :LOGBOOK:
+    - State "DONE"       from              [2023-12-15 Fri 14:53]
+    :END:
     If a relation is made to a target type then this can only be because
     the target (or one if its superclasses) defines a relationship on
     that type.  All of the subclasses of that supertype must clear the
     ld-relation.  Hence we have a ={ ld-resource, ld-relation }=
     clear-key for each of them.
 
-*** Inheritance
+*** DONE Inheritance
+    :LOGBOOK:
+    - State "DONE"       from              [2023-12-15 Fri 14:53]
+    :END:
     The created resource may appear in any list of its supertypes but in
     no list of its subtype.  Thus emit ={ ld-resource }= for each of the
     supertypes (and self) of the created resource.
@@ -107,21 +158,35 @@ Which cache keys are used, and what do they mean?
       complex relations that can't define ={uri, ld-relation}=
 
 ** update-call                                                        :clear:
+   :PROPERTIES:
+   :ID:       930e2b8c-4272-4185-82dd-89796ba910d7
+   :END:
    - ={ uri }= :: this resource was updated
    - ={ ld-resource }= :: for our type and our supertypes, because lists
      can be altered.
    - ={ ld-resource, ld-relation }= :: same as create-call _plus_
      clearing from our side to the target.
 
-*** Relationships and inheritance
+     Like [[*create-call][create-call]] with some extras because the resource may already
+     be in use or may have been referred to.
+
+     - ={ uri }= :: This specific resource was updated.
+
+*** DONE Relationships and inheritance
+    :LOGBOOK:
+    - State "DONE"       from              [2023-12-15 Fri 15:03]
+    :END:
     For target to source, see the reasoning on create-call.
 
     For source to target this is the same reasoning.  Pick the highest
     superclass that defines the relationship and take all of its
     subclasses and itself.
 
-*** Inheritance
-    See inheritance of create-call
+*** DONE Inheritance
+    :LOGBOOK:
+    - State "DONE"       from              [2023-12-15 Fri 15:03]
+    :END:
+    See inheritance of create-call.
 
 *** TODO Future with knowledge on insert/delete triples
     If we know inserted and deleted triples then show-relation-call can
@@ -133,21 +198,61 @@ Which cache keys are used, and what do they mean?
     - ={ ld-resource, ld-relation }= :: must still be sent for more
       complex relations that can't define ={uri, ld-relation}=
 
-** delete-call                                                        :clear:
+** DONE delete-call                                                   :clear:
+   :LOGBOOK:
+   - State "DONE"       from              [2023-12-15 Fri 16:30]
+   :END:
    Same as update-call for all properties and relations.
+
+   Must also clear all relationships which point to this resource.
+   Relationships which originate from another ld-resource to this
+   resource may not have an inverse counterpart on this resource and
+   must also be cleared.
+
+   We can clear all of these by clearing ={ uri }= and by clearing ={
+   ld-resource }= because this conveys all listings in which the
+   resource may have been used.
 
 *** TODO Future with knowledge on insert/delete triples
     See update-call.
 
-** patch-relation-call                                                :clear:
-   Same as update-call, but without ={ uri }=.
+** DONE patch-relation-call                                           :clear:
+   :LOGBOOK:
+   - State "DONE"       from              [2023-12-15 Fri 16:31]
+   :END:
+   - ={ ld-resource, ld-relation }= :: Only updates the relationships itself, properties.
 
-   ={ uri }= is not needed because the individual properties cannot be
-   edited this way.
+   ={ uri }= and ={ ld-resource }= are not needed because the individual
+   properties cannot be edited this way.
 
-** add-relation-call                                                  :clear:
+** DONE add-relation-call                                             :clear:
+   :LOGBOOK:
+   - State "DONE"       from              [2023-12-15 Fri 16:31]
+   :END:
    Same as patch-relation-call.
 
-** delete-relation-call                                               :clear:
+** DONE delete-relation-call                                          :clear:
+   :LOGBOOK:
+   - State "DONE"       from              [2023-12-15 Fri 16:32]
+   :END:
    Same as patch-relation-call.
 
+** TODO delta messages
+   - ={ uri }= :: each subject or object uri which has a known type
+   - ={ ld-resource }= :: for each known type of subject or object and
+     each superclass of the known type.
+   - ={ld-resource, ld-relation}= :: for each known type and relation,
+     in any direction.  Also called for all subclasses of the most
+     broadest superclass of =ld-resource= specifying the relationship.
+
+*** What about deleted data?
+    Delta messages may include information about deleted data.  The
+    classes for this deleted data are likely included in the delta
+    message.  Lacking a temporal store for deleted types, we scan the
+    current message.
+
+*** Links
+    We have four cases
+    - s-p-o
+      - s-p-o
+      - o-^p-s
