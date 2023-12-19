@@ -7,3 +7,6 @@
 [submodule "dependencies/jsown"]
 	path = dependencies/jsown
 	url = https://github.com/madnificent/jsown
+[submodule "dependencies/luckless"]
+	path = dependencies/luckless
+	url = https://github.com/no-defun-allowed/luckless.git
