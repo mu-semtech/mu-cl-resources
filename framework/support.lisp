@@ -539,9 +539,7 @@ resource.  If there is no direct relation, nil is returned."
                     (super-resource (find-if (lambda (super-resource)
                                                (direct-json-relation super-resource relation))
                                              (reverse class-tree))))
-               (subseq class-tree
-                       0
-                       (1+ (position super-resource class-tree))))))
+               (subclass-resources super-resource))))
     (dolist (resource-to-clear (superclasses-where-relation-is-defined))
       (add-clear-key :ld-resource (expanded-ld-class resource-to-clear)
                      :ld-relation (expanded-ld-relation relation)))
