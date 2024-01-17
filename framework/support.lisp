@@ -488,8 +488,21 @@ TEST is a function which receives the current sub-list, possibly out of order."
   (add-cache-key :uri (node-url item-spec)))
 
 (defun cache-relation (resource relation)
-  (add-cache-key :ld-resource (expanded-ld-class resource)
-                 :ld-relation (expanded-ld-relation relation)))
+  (let ((keys (list
+               (list ; add current relation as a base, even if not
+                     ; explicitly defined
+                :ld-resource (expanded-ld-class resource)
+                :ld-relation (expanded-ld-relation relation)))))
+    ;; add all explicitly specified sub-relations with their respective
+    ;; type and predicate
+    (dolist (sub-resource (subclass-resources resource))
+      (alexandria:when-let ((sub-relation (direct-json-relation sub-resource relation)))
+        (push (list :ld-resource (expanded-ld-class sub-resource)
+                    :ld-relation (expanded-ld-relation sub-relation))
+              keys)))
+    ;; clear only non duplicates
+    (dolist (key (delete-duplicates keys :test #'equal))
+      (apply #'add-cache-key key))))
 
 (defun cache-clear-class (resource)
   "Clears the current class.
@@ -507,22 +520,24 @@ TEST is a function which receives the current sub-list, possibly out of order."
   (add-clear-key :uri (node-url item-spec))
   (clear-solution item-spec))
 
+(defun direct-json-relation (resource relation)
+  "Yield the relationship which shares the json name of relation in
+resource.  If there is no direct relation, nil is returned."
+  ;; TODO: move this function to domain model file
+  (find (json-property-name relation)
+        (all-direct-links resource)
+        :key #'json-property-name
+        :test #'string=))
+
 (defun cache-clear-relation (resource relation &key (include-inverse-p t))
   ;; find which (super-)type defines the relationship, then clear any
   ;; subtype of that (parent) type.
-  (labels ((direct-json-relation-p (super-resource relation)
-             "truthy iff the resource directly defines a relationship with json key of
-RELATION."
-             (find (json-property-name relation)
-                   (all-direct-links super-resource)
-                   :key #'json-property-name
-                   :test #'string=))
-           (superclasses-where-relation-is-defined (&optional
+  (labels ((superclasses-where-relation-is-defined (&optional
                                                       (source-resource resource)
                                                       (relation relation))
              (let* ((class-tree (flattened-class-tree source-resource))
                     (super-resource (find-if (lambda (super-resource)
-                                               (direct-json-relation-p super-resource relation))
+                                               (direct-json-relation super-resource relation))
                                              (reverse class-tree))))
                (subseq class-tree
                        0

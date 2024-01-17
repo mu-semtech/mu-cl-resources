@@ -282,7 +282,7 @@ ITEM-SPECS and which returns INCLUDED-TREE."
   (labels ((recursive-subtrees (tree resource)
              (do-subtrees (relation-json-key sub-tree) tree
                (let ((relationship (find-resource-link-by-json-key resource relation-json-key)))
-                 ;; todo: include inheritance for subtypes which override relation key
+                 ;; TODO: include inheritance for subtypes which override relation key
                  (cache-relation resource relationship)
                  (recursive-subtrees sub-tree (referred-resource relationship))))))
     (recursive-subtrees included-tree source-resource)))
