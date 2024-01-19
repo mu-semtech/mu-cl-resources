@@ -153,17 +153,19 @@
                                                    :order-info order-info))
             (resource-type (resource-name resource)))
         (multiple-value-bind (data-item-specs included-item-specs)
-            (augment-data-with-attached-info
-             (loop for uuid in uuids
-                   collect (make-item-spec :uuid uuid :type resource-type)))
+            (augment-data-with-attached-info (mapcar (lambda (uuid)
+                                                       ;; TODO: resource-type should be calculated, may need to be a sub class?
+                                                       (make-item-spec :uuid uuid :type resource-type))
+                                                     uuids)
+                                             resource)
           (let ((response
-                 (jsown:new-js ("data" (item-specs-to-jsown data-item-specs))
-                               ("links" (merge-jsown-objects
-                                         (build-pagination-links (webserver:script-name*)
-                                                                 :total-count uuid-count
-                                                                 :page-size page-size
-                                                                 :page-number page-number)
-                                         link-defaults)))))
+                  (jsown:new-js ("data" (item-specs-to-jsown data-item-specs))
+                    ("links" (merge-jsown-objects
+                              (build-pagination-links (webserver:script-name*)
+                                                      :total-count uuid-count
+                                                      :page-size page-size
+                                                      :page-number page-number)
+                              link-defaults)))))
             (when self
               (setf (jsown:val (jsown:val response "links") "self") self))
             (when (include-count-feature-p resource)

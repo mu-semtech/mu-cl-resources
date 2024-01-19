@@ -289,7 +289,7 @@ Assumes all objects are resources."
         when (find object (gethash k subject-db) :test #'equal)
           collect k))
 
-(defun augment-data-with-attached-info (item-specs)
+(defun augment-data-with-attached-info (item-specs source-resource)
   "Augments the current item-specs with extra information on which
    attached items to include in the relationships.
    Returns (values data-item-specs included-item-specs).
@@ -306,7 +306,23 @@ Assumes all objects are resources."
            (extra-item-specs (loop for item in all-item-specs
                                    unless (find item item-specs)
                                      collect item)))
+      (provide-cache-keys-for-included-tree-and-triples extra-item-specs included-tree source-resource)
       (values originating-item-specs extra-item-specs))))
+
+(defun provide-cache-keys-for-included-tree-and-triples (item-specs included-tree source-resource)
+  "Provides all cache keys necessary for the request which yields
+ITEM-SPECS and which returns INCLUDED-TREE."
+  ;; 1. cache key for each included object uri
+  (dolist (item-spec item-specs)
+    (cache-object item-spec))
+  ;; 2. cache key for each relationship
+  (labels ((recursive-subtrees (tree resource)
+             (do-subtrees (relation-json-key sub-tree) tree
+               (let ((relationship (find-resource-link-by-json-key resource relation-json-key)))
+                 ;; TODO: include inheritance for subtypes which override relation key
+                 (cache-relation resource relationship)
+                 (recursive-subtrees sub-tree (referred-resource relationship))))))
+    (recursive-subtrees included-tree source-resource)))
 
 (defun construct-included-items-for-included-tree-and-triples (item-specs included-tree triple-db included-items-store)
   "Creates a set of item-spec instances to be included based on
@@ -317,6 +333,7 @@ INCLUDED-TREE and TRIPLES."
       (with-all-resources-of-item-specs (source-resources) item-specs
         (do-resources-grouped-by-relationship-constraint (relationship originating-resources target-resource) (relation-json-key source-resources)
           (dolist (item-spec item-specs) (cache-relation item-spec relationship)) ; 0. cache clear the relationship in the response
+          (declaim (ignore target-resource))
           (let* ((ld-relation (expanded-ld-link relationship))
                  (subject-db (subject-db-for-predicate triple-db ld-relation)))
             (with-item-specs-for-resources (item-specs) (item-specs originating-resources)
@@ -347,9 +364,7 @@ INCLUDED-TREE and TRIPLES."
                                                                                           :node-url target))))
                           ;; 3. set up the included relation for each of these item-specs
                           (push new-item-spec (lhash:gethash relationship (related-items-table item-spec)))
-                          ;; 4. set up the the clear-key for each of these item-specs
-                          (cache-object new-item-spec)
-                          ;; 5. traverse into the nested included-tree
+                          ;; 4. traverse into the nested included-tree
                           ;; TODO: collect these item-specs and process at once
                           (construct-included-items-for-included-tree-and-triples (list new-item-spec)
                                                                                   included-tree

@@ -88,6 +88,15 @@
           (push `(:resource ,linked-resource :link ,inverse-link)
                 (inverse-links link)))))))
 
+(defun all-resources ()
+  "Yields a list of all known resources."
+  (let (resources)
+    (lhash:maphash (lambda (resource-name resource)
+                     (declare (ignore resource-name))
+                     (push resource resources))
+                   *resources*)
+    resources))
+
 (defgeneric authorization-token (resource operation)
   (:documentation "Yields the authorization token which grants
    access for <operation> on <resource>.  If this yields nil, no
@@ -294,6 +303,13 @@ superclasses.")
   (:method ((resource resource))
     (append (has-many-links resource) (has-one-links resource))))
 
+(defun all-defined-links-with-resource ()
+  "Yields all direct links and their resources as (cons RESOURCE LINK)."
+  (loop for resource in (all-resources)
+        append (mapcar (lambda (link)
+                         (cons resource link))
+                       (all-direct-links resource))))
+
 (defgeneric all-direct-links (resource)
   (:documentation "Retrieves all direct links for the supplied
     resource.  Both the has-many-links and has-one-links but only
@@ -308,7 +324,7 @@ superclasses.")
     (alexandria:if-let
         ((resource-slot (loop for slot in (ld-properties resource)
                               when (string= (json-property-name slot) key)
-                              return slot)))
+                                return slot)))
       resource-slot
       (error 'no-such-property :resource resource :path key))))
 
