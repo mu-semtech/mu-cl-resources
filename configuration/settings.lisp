@@ -84,3 +84,10 @@
 
 (defparameter *soft-max-sources-in-property-construct* 50
   "Soft maximum on the amount of source items used in construct for properties.")
+
+(defparameter *fetch-all-types-in-construct-queries* nil
+  "When non-nil the CONSTRUCT queries will fetch all types rather than only
+the possibly relevant types.  Fetching all types may result in a more
+expensive query.
+
+This setting should not have an impact on datasets which are fully correct.")

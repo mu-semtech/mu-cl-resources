@@ -67,6 +67,13 @@ which the CAR is the key and the CDR is the list of items matching KEY."
    (object :accessor sparql-object :initarg :object))
   (:documentation "A single s p o statement in a query."))
 
+(defclass sparql-constrained-triple-match ()
+  ((triple-match :accessor sparql-triple-match :initarg :triple-match)
+   (object-triple-match :accessor sparql-object-triple-match :initarg :object-triple-match)
+   (object-values-statement :accessor sparql-values-statement :initarg :object-values-statement))
+  (:documentation "A triple match in which the values (object of triple-match) should
+_also_ include one of the supplied values constrained in values-statement."))
+
 (defgeneric print-for-construct-where (object stream)
   (:documentation "Prints content for the WHERE part of a CONSTRUCT query.")
   (:method ((match sparql-triple-match) stream)
@@ -76,7 +83,12 @@ which the CAR is the key and the CDR is the list of items matching KEY."
   (:method ((union sparql-union) stream)
     (print-object union stream))
   (:method ((statement sparql-values-statement) stream)
-    (print-object statement stream)))
+    (print-object statement stream))
+  (:method ((statement sparql-constrained-triple-match) stream)
+    (format stream "~A~%FILTER EXISTS { ~A. ~A. }"
+            (print-for-construct-where (sparql-triple-match statement) nil)
+            (print-for-construct-where (sparql-object-triple-match statement) nil)
+            (print-for-construct-where (sparql-values-statement statement) nil))))
 
 (defgeneric print-for-construct-template (object stream)
   (:documentation "Prints content for the template part of a CONSTRUCT query.")
@@ -92,7 +104,9 @@ which the CAR is the key and the CDR is the list of items matching KEY."
                                         (sparql-union-options union))))
   (:method ((statement sparql-values-statement) stream)
     ;; no output
-    (format stream "")))
+    (format stream ""))
+  (:method ((statement sparql-constrained-triple-match) stream)
+    (print-for-construct-template (sparql-triple-match statement) stream)))
 
 (defun print-union-query (union stream)
   (format stream "CONSTRUCT {~%~A~%} WHERE {~%~A~%}"
@@ -115,6 +129,12 @@ which the CAR is the key and the CDR is the list of items matching KEY."
           (sparql-subject match)
           (sparql-predicate match)
           (sparql-object match)))
+(defmethod print-object ((statement sparql-constrained-triple-match) stream)
+  ;; this is repeated from print-for-construct-where
+  (format stream "~A~%FILTER EXISTS {~% ~A~& ~A~& }"
+          (print-for-construct-where (sparql-triple-match statement) nil)
+          (print-for-construct-where (sparql-object-triple-match statement) nil)
+          (print-for-construct-where (sparql-values-statement statement) nil)))
 
 (defun construct-set-of-trees-for-included ()
   (make-tree (extract-included-from-request) :test #'string=))
@@ -195,29 +215,46 @@ results as a list of '(relationship-constraint . resources)."
                  :predicate predicate
                  :object object))
 
+(defun make-sparql-constrained-triple-match (subject predicate object ld-classes)
+  "Constructs a match which requires the object to at least include one of the values of LD-CLASSES."
+  (let ((additional-type-variable (s-genvar "typeofconstraint")))
+    (make-instance 'sparql-constrained-triple-match
+                   :triple-match (make-sparql-triple-match subject predicate object)
+                   :object-triple-match (make-sparql-triple-match subject predicate additional-type-variable)
+                   :object-values-statement (make-values-statement-for-uris ld-classes additional-type-variable))))
+
 (defun make-relationship-constraints-statement (variable relationship &optional (target-var (s-genvar)))
   ;; construct a set of constraints for
   (let ((type-var (s-genvar "typeof"))
         (ld-subclasses (ld-subclasses (find-resource-by-name (resource-name relationship)))))
     (values
      (make-instance 'sparql-statements
-                    :statements (list (if (inverse-p relationship)
-                                          (make-sparql-triple-match target-var
-                                                                    (s-url (full-uri (ld-link relationship)))
-                                                                    variable)
-                                          (make-sparql-triple-match variable
-                                                                    (s-url (full-uri (ld-link relationship)))
-                                                                    target-var))
-                                      ;; make values statement for the classes
-                                      (make-values-statement-for-uris ld-subclasses type-var)
-                                      ;; use values statement for the type
+                    :statements (remove-if-not
+                                 #'identity
+                                 (list
+                                  (if (inverse-p relationship)
+                                      (make-sparql-triple-match target-var
+                                                                (s-url (full-uri (ld-link relationship)))
+                                                                variable)
+                                      (make-sparql-triple-match variable
+                                                                (s-url (full-uri (ld-link relationship)))
+                                                                target-var))
+                                  ;; make values statement for the classes
+                                  (unless *fetch-all-types-in-construct-queries*
+                                    (make-values-statement-for-uris ld-subclasses type-var))
+                                  ;; use values statement for the type
+                                  (if *fetch-all-types-in-construct-queries*
+                                      (make-sparql-constrained-triple-match target-var
+                                                                            (s-url "http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+                                                                            type-var
+                                                                            ld-subclasses)
                                       (make-sparql-triple-match target-var
                                                                 (s-url "http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
-                                                                type-var)
-                                      ;; ensure we have the uuid
-                                      (make-sparql-triple-match target-var
-                                                                (s-url "http://mu.semte.ch/vocabularies/core/uuid")
-                                                                (s-genvar "uuid"))))
+                                                                type-var))
+                                  ;; ensure we have the uuid
+                                  (make-sparql-triple-match target-var
+                                                            (s-url "http://mu.semte.ch/vocabularies/core/uuid")
+                                                            (s-genvar "uuid")))))
      target-var)))
 
 (defmacro with-resource-and-subtype-resources ((resources-var) source-resource-var &body body)
