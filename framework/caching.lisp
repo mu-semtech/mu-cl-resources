@@ -4,6 +4,9 @@
 (defparameter *uuid-uri-cache* (make-user-aware-hash-table :test #'equal)
   "Cache which connects UUIDs to URIs.")
 
+(defparameter *uri-uuid-cache* (make-user-aware-hash-table :test #'equal)
+  "Cache which connects URIs to UUIDs.")
+
 (defun cached-uri-for-uuid (uuid)
   "Returns the cached uri for the supplied resource"
   (get-ua-hash uuid *uuid-uri-cache*))
@@ -18,9 +21,6 @@
     (when uri
       (rem-ua-hash uri *uri-uuid-cache*)))
   (rem-ua-hash uuid *uuid-uri-cache*))
-
-(defparameter *uri-uuid-cache* (make-user-aware-hash-table :test #'equal)
-  "Cache which connects URIs to UUIDs.")
 
 (defun cached-uuid-for-uri (uri)
   "Returns the cached uuid for the supplied uri"
