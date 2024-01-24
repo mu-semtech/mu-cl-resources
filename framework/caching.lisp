@@ -1,5 +1,11 @@
 (in-package :mu-cl-resources)
 
+;; INVARIANT01: when creating resources, the cache will be populated
+;; with uuid -> uri and uri -> ld-classes.  If the cache does not
+;; contain this information then it must be available in the
+;; triplestore.  This invariant and the resulting partial queries become
+;; less of an issue as the delta-notifier becomes smarter.
+
 ;; UUID URI cache
 (defparameter *uuid-uri-cache* (make-user-aware-hash-table :test #'equal)
   "Cache which connects UUIDs to URIs.")
@@ -57,12 +63,14 @@
 (defun find-resource-for-uuid-through-sparql (item-spec)
   "retrieves the resource url through a sparql query.
    @see: you probably want to use node-url instead."
-  (let ((result (sparql:select (s-var "s")
-                               (if *allow-xsd-in-uuids*
-                                   (format nil (s+ "?s mu:uuid ?uuid. "
-                                                   "FILTER(~A = str(?uuid))")
-                                           (s-str (uuid item-spec)))
-                                   (format nil "?s mu:uuid ~A. " (s-str (uuid item-spec)))))))
+  (let ((result
+          (sparql:without-update-group
+            (sparql:select (s-var "s")
+                           (if *allow-xsd-in-uuids*
+                               (format nil (s+ "?s mu:uuid ?uuid. "
+                                               "FILTER(~A = str(?uuid))")
+                                       (s-str (uuid item-spec)))
+                               (format nil "?s mu:uuid ~A. " (s-str (uuid item-spec))))))))
     (unless result
       (error 'no-such-instance
              :id (uuid item-spec)))
@@ -71,8 +79,10 @@
 (defun find-uuid-for-uri-through-sparql (item-spec)
   "retrieves the uuid for a uri through a sparql query.
    @see: you probably want to use uuid instead."
-  (let ((result (sparql:select (s-var "uuid")
-                               (format nil "~A mu:uuid ?uuid. " (s-url (node-url item-spec))))))
+  (let ((result
+          (sparql:without-update-group
+            (sparql:select (s-var "uuid")
+                           (format nil "~A mu:uuid ?uuid. " (s-url (node-url item-spec)))))))
     (unless result
       (error 'no-such-instance
              :uri (node-url item-spec)))
@@ -142,10 +152,11 @@
         uris
         (setf (lhash:gethash uri *uri-classes-cache*)
               (jsown:filter
-               (sparql:select (s-distinct (s-var "target"))
-                              (format nil "~A a ?target."
-                                      (s-url uri))
-                              :no-graph t)
+               (sparql:without-update-group
+                 (sparql:select (s-distinct (s-var "target"))
+                                (format nil "~A a ?target."
+                                        (s-url uri))
+                                :no-graph t))
                map "target" "value")))))
 
 (defun (setf classes-for-uri) (value uri)

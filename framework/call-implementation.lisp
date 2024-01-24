@@ -102,7 +102,14 @@
              (s-resource-uri (s-url resource-uri)))
         (with-surrounding-hook (:create (resource-name resource))
             (json-input item-spec)
+          ;; INVARIANT01: other code assumes all relevant information
+          ;; regarding classes and URIs is available in the triplestore
+          ;; OR is available through a cache.  The following two lines
+          ;; ensures this happens.  Because this is a create, we assume
+          ;; no one talks about this same UUID and CLASS.
           (setf (classes-for-uri resource-uri) (ld-superclasses resource))
+          (setf (cached-uri-for-uuid uuid) resource-uri)
+          (setf (cached-uuid-for-uri resource-uri) uuid)
           (cache-clear-class resource)
           (sparql:insert-triples
            `((,s-resource-uri ,(s-prefix "mu:uuid") ,(s-str uuid))
