@@ -552,22 +552,6 @@ resource.  If there is no direct relation, nil is returned."
             (add-clear-key :ld-resource (expanded-ld-class resource-to-clear)
                            :ld-relation (expanded-ld-relation inverse-relation))))))))
 
-(defgeneric cache-on-class-list (resource)
-  (:documentation "Adds the cache class to the current cache-store")
-  (:method ((json-type string))
-    (add-cache-key :ld-class
-                   (expanded-ld-class (find-resource-by-path json-type)))))
-
-(defgeneric cache-on-resource (resource)
-  (:documentation "Caches on a specific resource, like an item-spec")
-  (:method ((item-spec item-spec))
-    (add-cache-key :uri (node-url item-spec))))
-
-(defun cache-on-resource-relation (item-spec link)
-  "Caches on the specified resource and its accompanying relationship."
-  (cache-relation item-spec link)
-  (cache-on-class-list (find-resource-by-name (resource-name link))))
-
 (defun cancel-cache ()
   "Cancel the cache.  Use this for resources which have access
    rights attached to them and which may not be shown to all

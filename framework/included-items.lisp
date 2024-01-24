@@ -319,7 +319,6 @@ ITEM-SPECS and which returns INCLUDED-TREE."
   (labels ((recursive-subtrees (tree resource)
              (do-subtrees (relation-json-key sub-tree) tree
                (let ((relationship (find-resource-link-by-json-key resource relation-json-key)))
-                 ;; TODO: include inheritance for subtypes which override relation key
                  (cache-relation resource relationship)
                  (recursive-subtrees sub-tree (referred-resource relationship))))))
     (recursive-subtrees included-tree source-resource)))
@@ -332,7 +331,6 @@ INCLUDED-TREE and TRIPLES."
     (do-subtrees (relation-json-key included-tree) included-tree
       (with-all-resources-of-item-specs (source-resources) item-specs
         (do-resources-grouped-by-relationship-constraint (relationship originating-resources target-resource) (relation-json-key source-resources)
-          (dolist (item-spec item-specs) (cache-relation item-spec relationship)) ; 0. cache clear the relationship in the response
           (declaim (ignore target-resource))
           (let* ((ld-relation (expanded-ld-link relationship))
                  (subject-db (subject-db-for-predicate triple-db ld-relation)))
@@ -396,87 +394,6 @@ INCLUDED-TREE and TRIPLES."
                   new-results-statement))))))
     (alexandria:appendf (sparql-statements results-statement)
                         (list new-union))))
-
-
-
-
-
-;; (defun augment-data-with-attached-info (item-specs)
-;;   "Augments the current item-specs with extra information on which
-;;    attached items to include in the relationships.
-;;    Returns (values data-item-specs included-item-specs).
-;;    data-item-specs: the current items of the main data portion.
-;;    included-item-specs: items in the included portion of the
-;;    response."
-;;   (let ((included-items-store (make-included-items-store-from-list item-specs)))
-;;     (dolist (included-spec (extract-included-from-request))
-;;       (include-items-for-included included-items-store item-specs included-spec))
-;;     (let ((items (included-items-store-list-items included-items-store)))
-;;       (values (loop for item in items
-;;                  if (find item item-specs)
-;;                  collect item)
-;;               (loop for item in items
-;;                  unless (find item item-specs)
-;;                  collect item)))))
-
-;; (defun include-items-for-included (included-items-store item-specs included-spec)
-;;   "Traverses the included-spec with the items in item-specs and ensures
-;;    they're recursively included.  The item-specs also get to know which
-;;    items have to be added."
-;;   (declare (special *cache-store*))
-;;   (let ((lparallel:*kernel* (lparallel:make-kernel
-;;                              8 :bindings `((*standard-output* . ,*standard-output*)
-;;                                            (*error-output* . ,*error-output*)
-;;                                            (*resources* . ,*resources*)
-;;                                            (*cache-store* . ,*cache-store*)
-;;                                            (*included-items-store* . ,included-items-store)
-;;                                            (hunchentoot:*catch-errors-p* . ,hunchentoot:*catch-errors-p*)
-;;                                            (hunchentoot:*request* . ,hunchentoot:*request*)
-;;                                            (hunchentoot:*reply* . ,hunchentoot:*reply*))))
-;;         (lparallel:*debug-tasks-p* nil))
-;;     (unwind-protect
-;;          (lparallel:pmap 'list
-;;                          (lambda (item)
-;;                            (let (linked-items)
-;;                              ;; fill in current path
-;;                              (setf linked-items
-;;                                    (union linked-items
-;;                                           (include-items-for-single-included item (first included-spec))))
-;;                              ;; traverse included-spec path
-;;                              (when (rest included-spec)
-;;                                (include-items-for-included included-items-store linked-items
-;;                                                            (rest included-spec)))))
-;;                          item-specs)
-;;       (lparallel:end-kernel))))
-
-;; (defun include-items-for-single-included (item-spec relation-string)
-;;   (declare (special *included-items-store*))
-;;   (let* ((included-items-store *included-items-store*)
-;;          (resource (resource item-spec))
-;;          (uuid (uuid item-spec))
-;;          (relation (find-resource-link-by-json-key resource relation-string))
-;;          (target-type (resource-name relation))
-;;          (related-objects
-;;           (loop for new-uuid
-;;              in (jsown:filter
-;;                  (sparql:select (s-distinct (s-var "target"))
-;;                                 (format nil (s+ "?s mu:uuid ~A. "
-;;                                                 "?s ~{~A/~}mu:uuid ?target. "
-;;                                                 "~@[~A~] ")
-;;                                         (s-str uuid)
-;;                                         (ld-property-list relation)
-;;                                         (authorization-query resource :show (s-var "s"))))
-;;                  map "target" "value")
-;;              collect (included-items-store-ensure included-items-store
-;;                                                   (make-item-spec :uuid new-uuid
-;;                                                                   :type target-type)))))
-;;     (setf (gethash relation (related-items-table item-spec))
-;;           related-objects)
-;;     (cache-relation item-spec relation)
-;;     (dolist (item-spec related-objects)
-;;       (cache-object item-spec))
-;;     related-objects))
-
 
 (defun extract-included-from-request (&optional (include-parameter (cdr (assoc "include" (webserver:get-parameters*) :test #'string=))))
   "Extracts the filters from the request.  The result is a list
