@@ -12,7 +12,8 @@
            #:insert-triples
            #:update-triples
            #:query
-           #:ask))
+           #:ask
+           #:without-update-group))
 
 (defpackage :mu-cl-resources
   (:use :cl :mu-support)

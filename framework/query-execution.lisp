@@ -4,34 +4,47 @@
 (defparameter *query-update-group* nil
   "Describes a group of queries to be executed in one go. The
    queries are executed when the query-update-group is ended. 
-   This is a special variable which is set by 
-   with-grouped-queries.")
+   This is a special variable which is set by with-grouped-queries.
+
+  The queries are represented as a reversed list.
+
+  The queries can be flushed using flush-query-update-group.")
 
 (defun query-log-stream (&optional (type :default))
   "Returns the stream to which errors should be logged."
   (when (find type *query-log-types*)
     *error-output*))
 
+(defun flush-update-group-queries ()
+  "Flushes update queries from the query update group."
+  (when (second *query-update-group*) ;; there are elements in the update group
+    (let ((queries (format nil "~{~A~^; ~%~}" (reverse (butlast *query-update-group*)))))
+      (fuseki:with-query-logging (query-log-stream :update-group)
+        (fuseki:update *repository* queries)))))
+
 (defmacro with-update-group (&body body)
   "Starts a new query-group.  The queries are executed when the
    group exits."
   `(let ((*query-update-group* (cons nil nil)))
      ,@body
-     (let ((queries (format nil "~{~A~^; ~%~}" (reverse (butlast *query-update-group*)))))
-       (fuseki:with-query-logging (query-log-stream :update-group)
-         (fuseki:update *repository* queries)))))
+     (flush-update-group-queries)))
+
+(defmacro without-update-group (&body body)
+  "Executes queries outside of the current update-group."
+  `(let ((*query-update-group* nil))
+     ,@body))
 
 (defun update (content)
-	"Executes a sparql update on the current repository, or pushes
+  "Executes a sparql update on the current repository, or pushes
    it on the set of queries to be executed in the query-group
    based on the current context.
 
    NOTE: see sparql:insert and sparql:delete for functions
          geared towards end-users."
-	(if *query-update-group*
-			(push content *query-update-group*)
-			(fuseki:with-query-logging (query-log-stream :update)
-				(fuseki:update *repository* content))))
+  (if *query-update-group*
+      (push content *query-update-group*)
+      (fuseki:with-query-logging (query-log-stream :update)
+        (fuseki:update *repository* content))))
 
 (defun query (content)
   "Executes a sparql query on the current repository, or pushes
@@ -40,10 +53,9 @@
 
    NOTE: see sparql:select, sparql:insert and sparql:delete for
          functions geared towards end-users."
-  (if *query-update-group*
-      (push content *query-update-group*)
-      (fuseki:with-query-logging (query-log-stream :query)
-        (fuseki:query *repository* content))))
+  (flush-update-group-queries)
+  (fuseki:with-query-logging (query-log-stream :query)
+    (fuseki:query *repository* content)))
 
 (defun ask (body)
   "Executes a SPARQL ASK query on the current graph."
