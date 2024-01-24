@@ -157,7 +157,9 @@ TEST is a function which receives the current sub-list, possibly out of order."
 
 (defclass item-spec ()
   ((uuid :initarg :uuid)
-   (type :accessor resource-name :initarg :type)
+   (type :accessor resource-name
+         :initarg :type
+         :type symbol)
    (related-items :accessor related-items-table
                   :initform (lhash:make-castable :test 'equal)
                   :initarg :related-items)

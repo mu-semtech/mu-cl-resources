@@ -242,7 +242,7 @@
             ;; update content
             (let* ((new-linked-uuids (jsown:filter resource-specification map "id"))
                    (new-linked-item-specs (loop for uuid in new-linked-uuids
-                                                collect (make-item-spec :type linked-resource
+                                                collect (make-item-spec :type (resource-name linked-resource)
                                                                         :uuid uuid))))
               (sparql:with-update-group
                 (delete-query (s-url resource-uri)
@@ -985,7 +985,7 @@ split up resources in order to make the fetching less bulky per query."
                   ;; update content
                   (let* ((new-linked-uuids (jsown:filter body "data" map "id"))
                          (new-linked-resources (loop for uuid in new-linked-uuids
-                                                  for spec = (make-item-spec :type linked-resource
+                                                  for spec = (make-item-spec :type (resource-name linked-resource)
                                                                              :uuid uuid)
                                                   collect
                                                     (node-url spec))))
@@ -1013,7 +1013,7 @@ split up resources in order to make the fetching less bulky per query."
           (let* ((linked-resource (referred-resource link))
                  (resources (loop for uuid in
                                  (remove-if-not #'identity (jsown:filter body "data" map "id"))
-                               for spec = (make-item-spec :type linked-resource
+                               for spec = (make-item-spec :type (resource-name linked-resource)
                                                           :uuid uuid)
                                collect (node-url spec))))
             (when resources
