@@ -178,38 +178,53 @@
 
 (defun cache-clear-relation-json-path (resource json-relations)
   "Creates clear keys for the relation as followed through relationships specified by json keys."
-  (let ((current-resource resource))
+  (loop for (resource . link)
+          in (resource-link-combinations-for-json-path resource json-relations)
+        do (cache-relation resource link)))ys
+
+(defun resource-link-combinations-for-json-path (resource json-relations)
+  "Collects source resource and link combinations for the source resource and json relations. 
+Yields the last target resource as second value."
+  (let ((current-resource resource)
+        resource-link-list)
     (dolist (json-relation json-relations)
-      (let ((link (find-resource-link-by-json-key resource json-relation)))
-        (cache-relation current-resource link)
-        (setf current-resource (referred-resource link))))))
+      (let ((link (find-resource-link-by-json-key current-resource json-relation)))
+        (push (cons current-resource link) resource-link-list)
+        (setf current-resource (referred-resource link))))
+    (values (reverse resource-link-list) current-resource)))
 
 (defun sparql-pattern-filter-string (resource source-variable &key components search)
   "Constructs the sparql pattern for a filter constraint."
   (let ((search-var (s-genvar "search"))
         (last-component (car (last components))))
-    (flet ((smart-filter-p (pattern)
-             "Returns non-nil if the supplied match is the operation specified
+    (labels ((smart-filter-p (pattern)
+               "Returns non-nil if the supplied match is the operation specified
               in the last filter component."
-             (eql 0 (search pattern last-component)))
-           (comparison-filter (pattern comparator)
-             (cache-clear-relation-json-path resource (butlast components))
-             (let ((new-components (append (butlast components)
-                                           (list (subseq last-component (length pattern))))))
-               (multiple-value-bind (pattern target-variable last-slot slots)
-                   (sparql-pattern-for-filter-components source-variable resource new-components nil)
-                 (declare (ignore slots))
-                 (format nil "~A FILTER (~A ~A ~A)~&"
-                         pattern
-                         target-variable
-                         comparator
-                         (interpret-json-string last-slot search))))))
+               (eql 0 (search pattern last-component)))
+             (comparison-filter (pattern comparator)
+               (cache-clear-json-path resource (butlast components))
+               (let ((new-components (append (butlast components)
+                                             (list (subseq last-component (length pattern))))))
+                 (multiple-value-bind (pattern target-variable last-slot slots)
+                     (sparql-pattern-for-filter-components source-variable resource new-components nil)
+                   (declare (ignore slots))
+                   (format nil "~A FILTER (~A ~A ~A)~&"
+                           pattern
+                           target-variable
+                           comparator
+                           (interpret-json-string last-slot search)))))
+             (cache-clear-json-path (resource json-components)
+               (cache-clear-relation-json-path resource json-components)
+               (multiple-value-bind (resource-link-list target-resource)
+                   (resource-link-combinations-for-json-path resource json-components)
+                 (declare (ignore resource-link-list))
+                 (cache-class target-resource))))
       (cond
         ;; search for ids
         ((and (or (deprecated (:silent "Use [:id:] instead.")
                     (string= "id" last-component))
                   (string= ":id:" last-component)))
-         (cache-clear-relation-json-path resource (butlast components))
+         (cache-clear-json-path resource (butlast components))
          (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search))))
            (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
@@ -220,7 +235,7 @@
                      search-var search-components))))
         ;; search for url
         ((string= ":uri:" last-component)
-         (cache-clear-relation-json-path resource (butlast components))
+         (cache-clear-json-path resource (butlast components))
          (if (> (length components) 1)
              (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                  (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
@@ -232,7 +247,7 @@
                      source-variable (s-url search))))
         ;; exact search
         ((smart-filter-p ":exact:")
-         (cache-clear-relation-json-path resource (butlast components))
+         (cache-clear-json-path resource (butlast components))
          (let ((last-property (subseq last-component (length ":exact:"))))
            (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
@@ -251,16 +266,20 @@
         ((smart-filter-p ":has-no:")
          (let ((new-components (append (butlast components)
                                        (list (subseq last-component (length ":has-no:"))))))
-           ;; TODO: figure out if the last component is a property, then construct
-           ;; (cache-clear-relation-json-path resource (butlast components))
+           ;; :has-no: is currently only explicitly supported for
+           ;; relationships and not for properties.  The caching must
+           ;; change when properties become allowed.
+           (cache-clear-json-path resource new-components)
            (format nil "FILTER( NOT EXISTS {~&~T~T~A~&~T} )~&"
                    (sparql-pattern-for-filter-components source-variable resource new-components nil))))
         ;; has
         ((smart-filter-p ":has:")
          (let ((new-components (append (butlast components)
                                        (list (subseq last-component (length ":has:"))))))
-           ;; TODO: figure out if the last component is a property, then construct
-           ;; (cache-clear-relation-json-path resource (butlast components))
+           ;; :has: is currently only explicitly supported for
+           ;; relationships and not for properties.  The caching must
+           ;; change when properties become allowed.
+           (cache-clear-json-path resource new-components)
            (format nil "FILTER( EXISTS {~&~T~T~A~&~T} )~&"
                    (sparql-pattern-for-filter-components source-variable resource new-components nil))))
         ;; not
@@ -279,9 +298,11 @@
         (t
          (multiple-value-bind (sparql-pattern target-variable last-slot slots)
              (sparql-pattern-for-filter-components source-variable resource components t)
-           (declare (ignore last-slot slots))
-           ;; TODO: figure out if the last component is a property, then construct
-           ;; (cache-clear-relation-json-path resource (butlast components))
+           (declare (ignore slots))
+           (cache-clear-json-path resource
+                                  (if (typep last-slot 'has-link)
+                                      components
+                                      (butlast components)))
            (format nil "~A FILTER CONTAINS(LCASE(str(~A)), LCASE(~A)) ~&"
                    sparql-pattern
                    target-variable (s-str search))))))))
