@@ -180,7 +180,7 @@
   "Creates clear keys for the relation as followed through relationships specified by json keys."
   (loop for (resource . link)
           in (resource-link-combinations-for-json-path resource json-relations)
-        do (cache-relation resource link)))ys
+        do (cache-relation resource link)))
 
 (defun resource-link-combinations-for-json-path (resource json-relations)
   "Collects source resource and link combinations for the source resource and json relations. 
@@ -224,7 +224,10 @@ Yields the last target resource as second value."
         ((and (or (deprecated (:silent "Use [:id:] instead.")
                     (string= "id" last-component))
                   (string= ":id:" last-component)))
-         (cache-clear-json-path resource (butlast components))
+         ;; NOTE: id can't change and will exist from the get-go, hence
+         ;; the relation must be set for this to yield a different
+         ;; answer
+         (cache-clear-relation-json-path resource (butlast components))
          (let ((search-components (mapcar #'s-str (split-sequence:split-sequence #\, search))))
            (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
@@ -235,7 +238,10 @@ Yields the last target resource as second value."
                      search-var search-components))))
         ;; search for url
         ((string= ":uri:" last-component)
-         (cache-clear-json-path resource (butlast components))
+         ;; NOTE: URI can't change and will exist from the get-go, hence
+         ;; the relation must be set for this to yield a different
+         ;; answer
+         (cache-clear-relation-json-path resource (butlast components))
          (if (> (length components) 1)
              (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                  (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
@@ -266,22 +272,32 @@ Yields the last target resource as second value."
         ((smart-filter-p ":has-no:")
          (let ((new-components (append (butlast components)
                                        (list (subseq last-component (length ":has-no:"))))))
-           ;; :has-no: is currently only explicitly supported for
-           ;; relationships and not for properties.  The caching must
-           ;; change when properties become allowed.
-           (cache-clear-json-path resource new-components)
-           (format nil "FILTER( NOT EXISTS {~&~T~T~A~&~T} )~&"
-                   (sparql-pattern-for-filter-components source-variable resource new-components nil))))
+           ;; NOTE: although the readme currently indicates this is only
+           ;; supported for relations, the last element is in practice
+           ;; sometimes an attribute.
+           (multiple-value-bind (sparql-pattern target-variable last-slot slots)
+               (sparql-pattern-for-filter-components source-variable resource new-components nil)
+             (declare (ignore target-variable slots))
+             (cache-clear-relation-json-path resource
+                                             (if (typep last-slot 'has-link)
+                                                 new-components
+                                                 (butlast new-components)))
+             (format nil "FILTER( NOT EXISTS {~&~T~T~A~&~T} )~&" sparql-pattern))))
         ;; has
         ((smart-filter-p ":has:")
          (let ((new-components (append (butlast components)
                                        (list (subseq last-component (length ":has:"))))))
-           ;; :has: is currently only explicitly supported for
-           ;; relationships and not for properties.  The caching must
-           ;; change when properties become allowed.
-           (cache-clear-json-path resource new-components)
-           (format nil "FILTER( EXISTS {~&~T~T~A~&~T} )~&"
-                   (sparql-pattern-for-filter-components source-variable resource new-components nil))))
+           ;; NOTE: although the readme currently indicates this is only
+           ;; supported for relations, the last element is in practice
+           ;; sometimes an attribute.
+           (multiple-value-bind (sparql-pattern target-variable last-slot slots)
+               (sparql-pattern-for-filter-components source-variable resource new-components nil)
+             (declare (ignore target-variable slots))
+             (cache-clear-relation-json-path resource
+                                             (if (typep last-slot 'has-link)
+                                                 new-components
+                                                 (butlast new-components)))
+             (format nil "FILTER( EXISTS {~&~T~T~A~&~T} )~&" sparql-pattern))))
         ;; not
         ((smart-filter-p ":not:")
          (let ((last-property (subseq last-component (length ":not:"))))
