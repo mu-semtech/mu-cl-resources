@@ -278,10 +278,9 @@ Yields the last target resource as second value."
            (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                (sparql-pattern-for-filter-components source-variable resource new-components nil)
              (declare (ignore target-variable slots))
-             (cache-clear-relation-json-path resource
-                                             (if (typep last-slot 'has-link)
-                                                 new-components
-                                                 (butlast new-components)))
+             (if (typep last-slot 'has-link)
+                 (cache-clear-relation-json-path resource new-components)
+                 (cache-clear-json-path resource (butlast new-components)))
              (format nil "FILTER( NOT EXISTS {~&~T~T~A~&~T} )~&" sparql-pattern))))
         ;; has
         ((smart-filter-p ":has:")
@@ -293,10 +292,9 @@ Yields the last target resource as second value."
            (multiple-value-bind (sparql-pattern target-variable last-slot slots)
                (sparql-pattern-for-filter-components source-variable resource new-components nil)
              (declare (ignore target-variable slots))
-             (cache-clear-relation-json-path resource
-                                             (if (typep last-slot 'has-link)
-                                                 new-components
-                                                 (butlast new-components)))
+             (if (typep last-slot 'has-link)
+                 (cache-clear-relation-json-path resource new-components)
+                 (cache-clear-json-path resource (butlast new-components)))
              (format nil "FILTER( EXISTS {~&~T~T~A~&~T} )~&" sparql-pattern))))
         ;; not
         ((smart-filter-p ":not:")
