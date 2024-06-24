@@ -191,9 +191,18 @@
           (cache-clear-object item-spec)
           (respond-no-content))))))
 
-(labels ((delete-query (resource-uri link-uri)
-           (sparql:delete-triples
-            `((,resource-uri ,@link-uri ,(s-var "s")))))
+(labels ((delete-query (resource-uri link)
+           (let ((pattern (if (inverse-p link)
+                              (list (s-var "s")
+                                    (ld-link link)
+                                    resource-uri)
+                              (list resource-uri
+                                    (ld-link link)
+                                    (s-var "s")))))
+             (sparql:update (format nil "DELETE { ~{~A~,^ ~} } WHERE { ~{~A~,^ ~}. VALUES ?type { ~{~A ~}}. ?s a ?type. }"
+                                    pattern
+                                    pattern
+                                    (ld-subclasses (referred-resource link))))))
          (insert-query (resource-uri link-uri new-linked-uris)
            (sparql:insert-triples
             (loop for new-link-uri in new-linked-uris
@@ -209,7 +218,8 @@
                         (loop for target-super in target-resource-super-tree
                               when (find inverse-link (direct-has-one-links target-super))
                                 do
-                                   (delete-query (s-url (node-url new-item-spec)) (ld-property-list inverse-link)))))))
+                                   (delete-query (s-url (node-url new-item-spec))
+                                                 inverse-link))))))
   (defgeneric update-resource-relation (item-spec source-resource relation resource-specification)
     (:documentation "updates the specified relation with the given specification.")
     (:method ((item-spec item-spec) source-resource (relation string) resource-specification)
@@ -229,15 +239,13 @@
                                                          :uuid new-linked-uuid))
                    (new-linked-uri (node-url new-linked-item-spec)))
               (sparql:with-update-group
-                (delete-query (s-url resource-uri)
-                              (ld-property-list link))
+                (delete-query (s-url resource-uri) link)
                 (clear-inverse-has-one-relationships new-linked-item-spec link)
                 (insert-query (s-url resource-uri)
                               (ld-property-list link)
                               (list (s-url new-linked-uri)))))
             ;; delete content
-            (delete-query (s-url resource-uri)
-                          (ld-property-list link))))
+            (delete-query (s-url resource-uri) link)))
       ;; reset the cache after updating the triplestore
       (cache-clear-relation source-resource link))
     (:method ((item-spec item-spec) (source-resource resource) (link has-many-link) resource-specification)
@@ -252,16 +260,14 @@
                                                 collect (make-item-spec :type (resource-name linked-resource)
                                                                         :uuid uuid))))
               (sparql:with-update-group
-                (delete-query (s-url resource-uri)
-                              (ld-property-list link))
+                (delete-query (s-url resource-uri) link)
                 (dolist (new-linked-item-spec new-linked-item-specs)
                   (clear-inverse-has-one-relationships new-linked-item-spec link))
                 (insert-query (s-url resource-uri)
                               (ld-property-list link)
                               (mapcar (alexandria:compose #'s-url #'node-url) new-linked-item-specs))))
             ;; delete content
-            (delete-query (s-url resource-uri)
-                          (ld-property-list link))))
+            (delete-query (s-url resource-uri) link)))
       ;; reset the cache after updating the triplestore
       (cache-clear-relation source-resource link))))
 

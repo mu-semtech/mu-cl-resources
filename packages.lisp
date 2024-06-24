@@ -13,7 +13,8 @@
            #:update-triples
            #:query
            #:ask
-           #:without-update-group))
+           #:without-update-group
+           #:update))
 
 (defpackage :mu-cl-resources
   (:use :cl :mu-support)
