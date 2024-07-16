@@ -201,26 +201,51 @@ TEST is a function which receives the current sub-list, possibly out of order."
   (:method ((spec item-spec))
     ;; TODO: cache the types for the resources and clear that cache on
     ;; delta messages about the resource.
-    (let ((specified-ld-classes (mapcar #'s-url (item-spec-current-ld-classes spec)))
-          (subresources (subclass-resources (find-resource-by-name (slot-value spec 'type)))))
-      ;; Subresources are ordered most broad to most specific.  As
-      ;; such, we need to find the last subresource for which we have
-      ;; the class in our set of specified-ld-classes.
-      (or
-       (loop for resource in (reverse subresources)
-             for resource-class = (s-url (full-uri (ld-class resource)))
-             if (find resource-class specified-ld-classes
-                      :test (lambda (a b)
-                              (string= (princ-to-string a) (princ-to-string b))))
-               return resource)
-       (error 'resource-type-not-found-for-item-spec
-              :item-spec spec
-              :url (and (slot-boundp spec 'node-url)
-                        (slot-value spec 'node-url))
-              :type (and (slot-boundp spec 'type)
-                         (slot-value spec 'type))
-              :uuid (and (slot-boundp spec 'uuid)
-                         (slot-value spec 'uuid)))))))
+    (restart-case
+        (let ((specified-ld-classes (mapcar #'s-url (item-spec-current-ld-classes spec)))
+              (subresources (subclass-resources (find-resource-by-name (slot-value spec 'type)))))
+          ;; Subresources are ordered most broad to most specific.  As
+          ;; such, we need to find the last subresource for which we have
+          ;; the class in our set of specified-ld-classes.
+          (or
+           (loop for resource in (reverse subresources)
+                 for resource-class = (s-url (full-uri (ld-class resource)))
+                 if (find resource-class specified-ld-classes
+                          :test (lambda (a b)
+                                  (string= (princ-to-string a) (princ-to-string b))))
+                   return resource)
+           (error 'resource-type-not-found-for-item-spec
+                  :item-spec spec
+                  :url (and (slot-boundp spec 'node-url)
+                            (slot-value spec 'node-url))
+                  :type (and (slot-boundp spec 'type)
+                             (slot-value spec 'type))
+                  :uuid (and (slot-boundp spec 'uuid)
+                             (slot-value spec 'uuid)))))
+      (retry-after-clearing-ld-classes ()
+        (clear-cached-classes-for-uri (node-url spec))
+        (resource spec)))))
+
+(defmacro with-single-itemspec-classes-retry (&body body)
+  `(try-to-restart-once-when-classes-not-found
+    (lambda () ,@body)))
+
+(defun try-to-restart-once-when-classes-not-found (functor)
+  (let ((failed-specs nil))
+    (handler-case
+        (funcall functor)
+      (resource-type-not-found-for-item-spec (e)
+        (if (find (item-spec e) failed-specs)
+            (format t
+                    "Not restarting to find info for ~A in error ~A because we tried already."
+                    (item-spec e) e)
+            (progn
+              (format t
+                      "Will try to fetch types for ~A URI ~A because of error ~A"
+                      (item-spec e) (node-url (item-spec e)) e)
+              (push (item-spec e) failed-specs)
+              (invoke-restart 'retry-after-clearing-ld-classes)))
+        (error e)))))
 
 (defgeneric related-items (item-spec relation)
   (:documentation "Returns the related items for the given relation")
@@ -519,7 +544,9 @@ TEST is a function which receives the current sub-list, possibly out of order."
     (add-clear-key :ld-resource (expanded-ld-class super-resource))))
 
 (defun cache-clear-object (item-spec)
-  (add-clear-key :uri (node-url item-spec))
+  (restart-case
+      (add-clear-key :uri (node-url item-spec))
+    (ignore-clear-key () nil))
   (clear-solution item-spec))
 
 (defun direct-json-relation (resource relation)

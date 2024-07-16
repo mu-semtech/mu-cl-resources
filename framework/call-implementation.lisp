@@ -282,11 +282,16 @@
            (rest (find key (webserver:get-parameters*) :test #'string= :key #'car))))
     (cond ((or (get-parameter-key "filter[id]")
                (get-parameter-key "filter[:id:]"))
-           (dolist (uuid (split-sequence:split-sequence
-                          #\,
-                          (or (get-parameter-key "filter[id]")
-                              (get-parameter-key "filter[:id:]"))))
-             (cache-object (make-item-spec :uuid uuid :type (resource-name resource)))))
+           (handler-case
+               (dolist (uuid (split-sequence:split-sequence
+                              #\,
+                              (or (get-parameter-key "filter[id]")
+                                  (get-parameter-key "filter[:id:]"))))
+                 (cache-object (make-item-spec :uuid uuid :type (resource-name resource))))
+             (no-such-instance (e)
+               (format t "~&Could not find instance during caching of list call, caching class instead. ~A~%"
+                       e)
+               (cache-class resource))))
           ((get-parameter-key "filter[:uri:]")
            (cache-object (make-item-spec :node-url (get-parameter-key "filter[:uri:]"))))
           (t (cache-class resource)))))
