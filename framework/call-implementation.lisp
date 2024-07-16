@@ -461,7 +461,7 @@
                     do (if (and (single-value-slot-p slot)
                                 (> (length objects) 1))
                            (format t "~&[WARNING] ~A has single-valued property ~A which contains more than one value in the triplestore: ~{~A ~}.~%"
-                                   resource-url json-var objects))
+                                   resource-url json-var (mapcar #'jsown:to-json objects)))
                        (if (single-value-slot-p slot)
                            (setf (solution-value solution json-var)
                                  (when (first objects)
@@ -598,7 +598,7 @@ split up resources in order to make the fetching less bulky per query."
                               do (if (and (single-value-slot-p slot)
                                           (> (length objects) 1))
                                      (format t "~&[WARNING] ~A has single-valued property ~A which contains more than one value in the triplestore: ~{~A ~}.~%"
-                                             resource-url json-var objects))
+                                             resource-url json-var (mapcar #'jsown:to-json objects)))
                                  (if (single-value-slot-p slot)
                                      (setf (solution-value solution json-var)
                                            (when (first objects)

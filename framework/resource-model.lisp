@@ -18,6 +18,10 @@
   (:documentation "Describes a link to another resource.
    You should use one of its subclasses."))
 
+(defmethod print-object ((link has-link) stream)
+  (print-unreadable-object (link stream :type (string-downcase (string (class-name (class-of link)))))
+    (format stream "~A from ~A" (request-path link) (resource-name link))))
+
 (defclass has-many-link (has-link)
   ()
   (:documentation "Describes a has-many link to another resource"))
@@ -52,6 +56,10 @@
    (resource-subclass-cache :documentation
                             "A cache for faster calculation of a
                             resource's children")))
+
+(defmethod print-object ((resource resource) stream)
+  (print-unreadable-object (resource stream :type "resource")
+    (format stream "~A" (resource-name resource))))
 
 (defparameter *resources* (lhash:make-castable)
   "contains all currently known resources")

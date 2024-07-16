@@ -166,6 +166,14 @@ TEST is a function which receives the current sub-list, possibly out of order."
    (node-url :initarg :node-url))
   (:documentation "Represents an item that should be loaded."))
 
+(defmethod print-object ((item-spec item-spec) stream)
+  (flet ((slot-name-and-value (name)
+           (if (slot-boundp item-spec name)
+               (list name t (slot-value item-spec name))
+               (list name nil))))
+    (print-unreadable-object (item-spec stream :type "item-spec")
+      (format stream "~{~{~A: ~:[?~;~A~]~}~,^ ~}" (mapcar #'slot-name-and-value '(uuid type node-url))))))
+
 (defun make-item-spec (&rest args &key uuid type node-url)
   "Creates a new item-spec instance."
   (declare (ignore uuid type node-url))

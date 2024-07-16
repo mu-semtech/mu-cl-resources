@@ -12,7 +12,8 @@
   ((type :initarg :type :reader target-type)
    (id :initarg :id :reader target-id)
    (resource :initarg :resource :reader resource)
-   (uri :initarg :uri :reader uri))
+   (uri :initarg :uri :reader uri)
+   (allowed-groups :initarg :allowed-groups))
   (:documentation "Indicates the resource could not be found"))
 
 (define-condition resource-type-not-found-for-item-spec (error)

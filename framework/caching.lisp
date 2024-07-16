@@ -85,7 +85,8 @@
                            (format nil "~A mu:uuid ?uuid. " (s-url (node-url item-spec)))))))
     (unless result
       (error 'no-such-instance
-             :uri (node-url item-spec)))
+             :uri (node-url item-spec)
+             :allowed-groups (hunchentoot:header-in* :mu-auth-allowed-groups)))
     (jsown:filter (first result) "uuid" "value")))
 
 
