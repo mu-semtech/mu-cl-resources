@@ -1172,10 +1172,10 @@ split up resources in order to make the fetching less bulky per query."
                        (cache-clear-object item-spec)
                      (no-such-instance (e)
                        (declare (ignore e))
-                       ;; this is a feasible case, skip it
-                       )
+                       (when (find-restart 'ignore-clear-key)
+                         (invoke-restart 'ignore-clear-key)))
                      (error (e)
-                       (format t "AN ERROR OCCURRED PROCESSING A DELTA MESSAGE ~A" e)))))
+                       (format t "~&AN ERROR OCCURRED PROCESSING A DELTA MESSAGE ~A~%" e)))))
                (handle-class-clear (resources)
                  (dolist (resource resources)
                    (cache-clear-class resource)))
