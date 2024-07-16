@@ -240,15 +240,21 @@ Yields the last target resource as second value."
         ((string= ":uri:" last-component)
          ;; NOTE: URI can't change and will exist from the get-go, hence
          ;; the relation must be set for this to yield a different
-         ;; answer
-         (cache-clear-relation-json-path resource (butlast components))
+         ;; answer.  Extra complexity occurs in order to match url
+         ;; properties.
          (if (> (length components) 1)
-             (multiple-value-bind (sparql-pattern target-variable last-slot slots)
-                 (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
-               (declare (ignore last-slot slots))
-               (format nil "~A VALUES ~A { ~A } ~&"
-                       sparql-pattern
-                       target-variable (s-url search)))
+             (let* ((slots (slots-for-filter-components resource (butlast components)))
+                    (last-slot (first (reverse slots)))
+                    (last-slot-attribute-p (typep last-slot 'resource-slot)))
+               (if last-slot-attribute-p
+                   (cache-clear-json-path resource (nbutlast components 2))
+                   (cache-clear-relation-json-path resource (butlast components)))
+               (multiple-value-bind (sparql-pattern target-variable last-slot slots)
+                   (sparql-pattern-for-filter-components source-variable resource (butlast components) nil)
+                 (declare (ignore last-slot slots))
+                 (format nil "~A VALUES ~A { ~A } ~&"
+                         sparql-pattern
+                         target-variable (s-url search))))
              (format nil "VALUES ~A { ~A } ~&"
                      source-variable (s-url search))))
         ;; exact search
