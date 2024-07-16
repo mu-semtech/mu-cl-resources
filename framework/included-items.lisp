@@ -331,7 +331,6 @@ INCLUDED-TREE and TRIPLES."
     (do-subtrees (relation-json-key included-tree) included-tree
       (with-all-resources-of-item-specs (source-resources) item-specs
         (do-resources-grouped-by-relationship-constraint (relationship originating-resources target-resource) (relation-json-key source-resources)
-          (declaim (ignore target-resource))
           (let* ((ld-relation (expanded-ld-link relationship))
                  (subject-db (subject-db-for-predicate triple-db ld-relation)))
             (with-item-specs-for-resources (item-specs) (item-specs originating-resources)
