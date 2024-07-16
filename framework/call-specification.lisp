@@ -15,7 +15,8 @@
   (handler-case
       (progn
         (verify-json-api-request-accept-header)
-        (list-call (find-resource-by-path base-path)))
+        (with-single-itemspec-classes-retry
+          (list-call (find-resource-by-path base-path))))
     (no-such-resource ()
       (respond-not-found))
     (access-denied (condition)
@@ -49,7 +50,8 @@
   (handler-case
       (progn
         (verify-json-api-request-accept-header)
-        (show-call (find-resource-by-path base-path) id))
+        (with-single-itemspec-classes-retry
+          (show-call (find-resource-by-path base-path) id)))
     (no-such-resource ()
       (respond-not-found))
     (access-denied (condition)
@@ -91,7 +93,8 @@
           (verify-request-contains-no-id body)
           (verify-request-type-matches-path base-path body)
           (verify-request-required-properties base-path body)
-          (create-call (find-resource-by-path base-path)))
+          (with-single-itemspec-classes-retry
+            (create-call (find-resource-by-path base-path))))
       (no-such-resource ()
         (respond-forbidden (jsown:new-js
                              ("errors" (jsown:new-js
@@ -168,7 +171,8 @@
           (verify-request-type-matches-path base-path body)
           (verify-request-id-matches-path id body)
           (verify-request-required-properties-not-removed base-path body)
-          (update-call (find-resource-by-path base-path) id))
+          (with-single-itemspec-classes-retry
+            (update-call (find-resource-by-path base-path) id)))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
@@ -222,8 +226,8 @@
                                         (path-defined-id condition))))))))
       (no-such-property (condition)
         (let ((message
-               (format nil "Could not find property (~A) on resource (~A)."
-                       (path condition) (json-type (resource condition)))))
+                (format nil "Could not find property (~A) on resource (~A)."
+                        (path condition) (json-type (resource condition)))))
           (respond-not-acceptable (jsown:new-js
                                     ("errors" (jsown:new-js
                                                 ("title" message)))))))
@@ -232,7 +236,8 @@
 
 (defcall :delete (base-path id)
   (handler-case
-      (delete-call (find-resource-by-path base-path) id)
+      (with-single-itemspec-classes-retry
+        (delete-call (find-resource-by-path base-path) id))
     (configuration-error (condition)
       (respond-server-error
        (jsown:new-js
@@ -300,10 +305,12 @@
       (respond-general-server-error))))
 
 (defcall :get (base-path id relation)
-  (handle-relation-get-call base-path id relation))
+  (with-single-itemspec-classes-retry
+    (handle-relation-get-call base-path id relation)))
 
 (defcall :get (base-path id :links relation)
-  (handle-relation-get-call base-path id relation))
+  (with-single-itemspec-classes-retry
+    (handle-relation-get-call base-path id relation)))
 
 (defcall :patch (base-path id :links relation)
   (let ((body (jsown:parse (post-body))))
@@ -314,7 +321,8 @@
           (let* ((resource (find-resource-by-path base-path))
                  (link (find-resource-link-by-path resource relation)))
             (verify-link-patch-body-format link body)
-            (patch-relation-call resource id link)))
+            (with-single-itemspec-classes-retry
+              (patch-relation-call resource id link))))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
@@ -381,7 +389,8 @@
           (let* ((resource (find-resource-by-path base-path))
                  (link (find-resource-link-by-path resource relation)))
             (verify-link-patch-body-format link body) ; same as post body
-            (add-relation-call resource id link)))
+            (with-single-itemspec-classes-retry
+              (add-relation-call resource id link))))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
@@ -448,7 +457,8 @@
           (let* ((resource (find-resource-by-path base-path))
                  (link (find-resource-link-by-path resource relation)))
             (verify-link-patch-body-format link body) ; same as delete body
-            (delete-relation-call resource id link)))
+            (with-single-itemspec-classes-retry
+              (delete-relation-call resource id link))))
       (incorrect-accept-header (condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
