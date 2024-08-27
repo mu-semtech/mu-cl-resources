@@ -17,11 +17,14 @@
         (verify-json-api-request-accept-header)
         (with-single-itemspec-classes-retry
           (list-call (find-resource-by-path base-path))))
-    (no-such-resource ()
+    (no-such-resource (e)
+      (trivial-backtrace:print-backtrace e)
       (respond-not-found))
     (access-denied (condition)
+      (trivial-backtrace:print-backtrace condition)
       (response-for-access-denied-condition condition))
     (no-such-property (condition)
+      (trivial-backtrace:print-backtrace condition)
       (let ((message
              (format nil "Could not find property (~A) on resource (~A)."
                      (path condition) (json-type (resource condition)))))
@@ -29,21 +32,24 @@
                                   ("errors" (jsown:new-js
                                               ("title" message)))))))
     (cl-fuseki:sesame-exception (exception)
-      (declare (ignore exception))
+      (trivial-backtrace:print-backtrace exception)
       (respond-server-error
        (jsown:new-js
          ("errors" (jsown:new-js
                      ("title" (s+ "Could not execute SPARQL query.")))))))
     (configuration-error (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-server-error
        (jsown:new-js
          ("errors" (jsown:new-js
                      ("title" (s+ "Server configuration issue: " (description condition))))))))
     (incorrect-accept-header (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-not-acceptable (jsown:new-js
                                 ("errors" (jsown:new-js
                                            ("title" (description condition)))))))
     (error (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-general-server-error))))
 
 (defcall :get (base-path id)
@@ -52,28 +58,34 @@
         (verify-json-api-request-accept-header)
         (with-single-itemspec-classes-retry
           (show-call (find-resource-by-path base-path) id)))
-    (no-such-resource ()
+    (no-such-resource (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-not-found))
     (access-denied (condition)
+      (trivial-backtrace:print-backtrace condition)
       (response-for-access-denied-condition condition))
     (cl-fuseki:sesame-exception (exception)
-      (declare (ignore exception))
+      (trivial-backtrace:print-backtrace exception)
       (respond-server-error
        (jsown:new-js
          ("errors" (jsown:new-js
                      ("title" (s+ "Could not execute SPARQL query.")))))))
     (configuration-error (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-server-error
        (jsown:new-js
          ("errors" (jsown:new-js
                      ("title" (s+ "Server configuration issue: " (description condition))))))))
-    (no-such-instance ()
+    (no-such-instance (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-not-found))
     (incorrect-accept-header (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-not-acceptable (jsown:new-js
                                 ("errors" (jsown:new-js
                                             ("title" (description condition)))))))
     (no-such-property (condition)
+      (trivial-backtrace:print-backtrace condition)
       (let ((message
              (format nil "Could not find property (~A) on resource (~A)."
                      (path condition) (json-type (resource condition)))))
@@ -81,6 +93,7 @@
                                   ("errors" (jsown:new-js
                                               ("title" message)))))))
     (error (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-general-server-error))))
 
 (defcall :post (base-path)
@@ -95,15 +108,18 @@
           (verify-request-required-properties base-path body)
           (with-single-itemspec-classes-retry
             (create-call (find-resource-by-path base-path))))
-      (no-such-resource ()
+      (no-such-resource (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-forbidden (jsown:new-js
                              ("errors" (jsown:new-js
                                          ("title" (format nil
                                                           "Resource for path (~A) not found"
                                                           base-path)))))))
       (access-denied (condition)
+        (trivial-backtrace:print-backtrace condition)
         (response-for-access-denied-condition condition))
       (required-field-missing (condition)
+        (trivial-backtrace:print-backtrace condition)
         (let ((missing-properties (missing-properties condition)))
           (respond-unprocessable-entity
            (jsown:new-js
@@ -112,33 +128,39 @@
                                           (mapcar #'json-property-name
                                                   missing-properties)))))))))
       (configuration-error (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-server-error
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Server configuration issue: " (description condition))))))))
       (incorrect-accept-header (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
       (incorrect-content-type (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
-      (no-type-in-data ()
+      (no-type-in-data (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "No type found in primary data."))))))
-      (id-in-data ()
+      (id-in-data (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "Not allow to supply id in primary data."))))))
       (cl-fuseki:sesame-exception (exception)
-        (declare (ignore exception))
+        (trivial-backtrace:print-backtrace exception)
         (respond-server-error
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Could not execute SPARQL query.")))))))
       (request-type-mismatch (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict
          (jsown:new-js
            ("errors" (jsown:new-js
@@ -146,6 +168,7 @@
                                         (content-defined-type condition)
                                         (path-defined-type condition))))))))
       (no-such-property (condition)
+        (trivial-backtrace:print-backtrace condition)
         (let ((message
                (format nil "Could not find property (~A) on resource (~A)."
                        (path condition) (json-type (resource condition)))))
@@ -153,11 +176,7 @@
                                     ("errors" (jsown:new-js
                                                 ("title" message)))))))
       (error (condition)
-        (format t "~&~%Error occurred (~A), error stack trace:~%" condition)
-        (trivial-backtrace:print-backtrace condition :verbose nil)
-        (format t "~&~%Error occurred (~A), error meta:~%" condition)
-        (describe condition)
-        (print-object condition *standard-output*)
+        (trivial-backtrace:print-backtrace condition)
         (respond-general-server-error)))))
 
 (defcall :patch (base-path id)
@@ -174,23 +193,27 @@
           (with-single-itemspec-classes-retry
             (update-call (find-resource-by-path base-path) id)))
       (incorrect-accept-header (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
       (access-denied (condition)
+        (trivial-backtrace:print-backtrace condition)
         (response-for-access-denied-condition condition))
       (cl-fuseki:sesame-exception (exception)
-        (declare (ignore exception))
+        (trivial-backtrace:print-backtrace exception)
         (respond-server-error
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Could not execute SPARQL query.")))))))
       (configuration-error (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-server-error
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Server configuration issue: " (description condition))))))))
       (required-field-missing (condition)
+        (trivial-backtrace:print-backtrace condition)
         (let ((missing-properties (missing-properties condition)))
           (respond-unprocessable-entity
            (jsown:new-js
@@ -199,18 +222,22 @@
                                           (mapcar #'json-property-name
                                                   missing-properties)))))))))
       (incorrect-content-type (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
-      (no-type-in-data ()
+      (no-type-in-data (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "No type found in primary data."))))))
-      (no-id-in-data ()
+      (no-id-in-data (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "Must supply id in primary data."))))))
       (request-type-mismatch (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict
          (jsown:new-js
            ("errors" (jsown:new-js
@@ -218,6 +245,7 @@
                                         (content-defined-type condition)
                                         (path-defined-type condition))))))))
       (request-id-mismatch (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict
          (jsown:new-js
            ("errors" (jsown:new-js
@@ -225,6 +253,7 @@
                                         (content-defined-id condition)
                                         (path-defined-id condition))))))))
       (no-such-property (condition)
+        (trivial-backtrace:print-backtrace condition)
         (let ((message
                 (format nil "Could not find property (~A) on resource (~A)."
                         (path condition) (json-type (resource condition)))))
@@ -232,6 +261,7 @@
                                     ("errors" (jsown:new-js
                                                 ("title" message)))))))
       (error (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-general-server-error)))))
 
 (defcall :delete (base-path id)
@@ -239,25 +269,29 @@
       (with-single-itemspec-classes-retry
         (delete-call (find-resource-by-path base-path) id))
     (configuration-error (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-server-error
        (jsown:new-js
          ("errors" (jsown:new-js
                      ("title" (s+ "Server configuration issue: " (description condition))))))))
     (access-denied (condition)
+      (trivial-backtrace:print-backtrace condition)
       (response-for-access-denied-condition condition))
     (cl-fuseki:sesame-exception (exception)
-      (declare (ignore exception))
+      (trivial-backtrace:print-backtrace exception)
       (respond-server-error
        (jsown:new-js
          ("errors" (jsown:new-js
                      ("title" (s+ "Could not execute SPARQL query.")))))))
-    (no-such-resource ()
+    (no-such-resource (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-forbidden (jsown:new-js
                            ("errors" (jsown:new-js
                                        ("title" (format nil
                                                         "Resource for path (~A) not found"
                                                         base-path)))))))
     (error (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-general-server-error))))
 
 ;;;;;;;;;;;;;;;
@@ -271,17 +305,21 @@
                (link (find-resource-link-by-path resource relation)))
           (show-relation-call resource id link)))
     (incorrect-accept-header (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-not-acceptable (jsown:new-js
                                 ("errors" (jsown:new-js
                                             ("title" (description condition)))))))
     (configuration-error (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-server-error
        (jsown:new-js
          ("errors" (jsown:new-js
                      ("title" (s+ "Server configuration issue: " (description condition))))))))
-    (no-such-resource ()
+    (no-such-resource (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-not-found))
     (no-such-property (condition)
+      (trivial-backtrace:print-backtrace condition)
       (let ((message
              (format nil "Could not find property (~A) on resource (~A)."
                      (path condition) (json-type (resource condition)))))
@@ -289,12 +327,13 @@
                                   ("errors" (jsown:new-js
                                               ("title" message)))))))
     (cl-fuseki:sesame-exception (exception)
-      (declare (ignore exception))
+      (trivial-backtrace:print-backtrace exception)
       (respond-server-error
        (jsown:new-js
          ("errors" (jsown:new-js
                      ("title" (s+ "Could not execute SPARQL query.")))))))
     (no-such-link (condition)
+      (trivial-backtrace:print-backtrace condition)
       (let ((message
              (format nil "Could not find link (~A) on resource (~A)."
                      (path condition) (json-type (resource condition)))))
@@ -302,6 +341,7 @@
                                   ("errors" (jsown:new-js
                                               ("title" message)))))))
     (error (condition)
+      (trivial-backtrace:print-backtrace condition)
       (respond-general-server-error))))
 
 (defcall :get (base-path id relation)
@@ -324,31 +364,39 @@
             (with-single-itemspec-classes-retry
               (patch-relation-call resource id link))))
       (incorrect-accept-header (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
       (access-denied (condition)
+        (trivial-backtrace:print-backtrace condition)
         (response-for-access-denied-condition condition))
       (configuration-error (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-server-error
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Server configuration issue: " (description condition))))))))
       (incorrect-content-type (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
-      (no-type-in-data ()
+      (no-type-in-data (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "No type found in primary data."))))))
-      (no-id-in-data ()
+      (no-id-in-data (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "Must supply id in primary data."))))))
-      (no-such-resource ()
+      (no-such-resource (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-found))
       (no-such-property (condition)
+        (trivial-backtrace:print-backtrace condition)
         (let ((message
                (format nil "Could not find property (~A) on resource (~A)."
                        (path condition) (json-type (resource condition)))))
@@ -356,6 +404,7 @@
                                     ("errors" (jsown:new-js
                                                 ("title" message)))))))
       (no-such-link (condition)
+        (trivial-backtrace:print-backtrace condition)
         (let ((message
                (format nil "Could not find link (~A) on resource (~A)."
                        (path condition) (json-type (resource condition)))))
@@ -363,16 +412,18 @@
                                     ("errors" (jsown:new-js
                                                 ("title" message)))))))
       (invalid-link-patch-body-format (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
       (cl-fuseki:sesame-exception (exception)
-        (declare (ignore exception))
+        (trivial-backtrace:print-backtrace exception)
         (respond-server-error
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Could not execute SPARQL query.")))))))
       (no-such-instance (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable
          (jsown:new-js ("errors"
                         (jsown:new-js
@@ -392,31 +443,39 @@
             (with-single-itemspec-classes-retry
               (add-relation-call resource id link))))
       (incorrect-accept-header (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
       (access-denied (condition)
+        (trivial-backtrace:print-backtrace condition)
         (response-for-access-denied-condition condition))
       (configuration-error (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-server-error
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Server configuration issue: " (description condition))))))))
       (incorrect-content-type (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
-      (no-type-in-data ()
+      (no-type-in-data (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "No type found in primary data."))))))
-      (no-id-in-data ()
+      (no-id-in-data (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "Must supply id in primary data."))))))
-      (no-such-resource ()
+      (no-such-resource (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-found))
       (no-such-property (condition)
+        (trivial-backtrace:print-backtrace condition)
         (let ((message
                (format nil "Could not find property (~A) on resource (~A)."
                        (path condition) (json-type (resource condition)))))
@@ -424,6 +483,7 @@
                                     ("errors" (jsown:new-js
                                                 ("title" message)))))))
       (no-such-link (condition)
+        (trivial-backtrace:print-backtrace condition)
         (let ((message
                (format nil "Could not find link (~A) on resource (~A)."
                        (path condition) (json-type (resource condition)))))
@@ -431,16 +491,18 @@
                                     ("errors" (jsown:new-js
                                                 ("title" message)))))))
       (invalid-link-patch-body-format (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
       (cl-fuseki:sesame-exception (exception)
-        (declare (ignore exception))
+        (trivial-backtrace:print-backtrace exception)
         (respond-server-error
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Could not execute SPARQL query.")))))))
       (no-such-instance (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable
          (jsown:new-js ("errors"
                         (jsown:new-js
@@ -460,29 +522,36 @@
             (with-single-itemspec-classes-retry
               (delete-relation-call resource id link))))
       (incorrect-accept-header (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
       (access-denied (condition)
+        (trivial-backtrace:print-backtrace condition)
         (response-for-access-denied-condition condition))
       (configuration-error (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-server-error
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Server configuration issue: " (description condition))))))))
       (incorrect-content-type (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
-      (no-type-in-data ()
+      (no-type-in-data (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "No type found in primary data."))))))
-      (no-id-in-data ()
+      (no-id-in-data (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-conflict (jsown:new-js
                             ("errors" (jsown:new-js
                                         ("title" "Must supply id in primary data."))))))
-      (no-such-resource ()
+      (no-such-resource (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-found))
       (no-such-link (condition)
         (let ((message
@@ -492,16 +561,18 @@
                                     ("errors" (jsown:new-js
                                                 ("title" message)))))))
       (invalid-link-patch-body-format (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable (jsown:new-js
                                   ("errors" (jsown:new-js
                                               ("title" (description condition)))))))
       (cl-fuseki:sesame-exception (exception)
-        (declare (ignore exception))
+        (trivial-backtrace:print-backtrace exception)
         (respond-server-error
          (jsown:new-js
            ("errors" (jsown:new-js
                        ("title" (s+ "Could not execute SPARQL query.")))))))
       (no-such-instance (condition)
+        (trivial-backtrace:print-backtrace condition)
         (respond-not-acceptable
          (jsown:new-js ("errors"
                         (jsown:new-js
