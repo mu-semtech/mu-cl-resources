@@ -23,6 +23,10 @@
     (access-denied (condition)
       (trivial-backtrace:print-backtrace condition)
       (response-for-access-denied-condition condition))
+    (no-such-link (condition)
+      (trivial-backtrace:print-backtrace condition)
+      (respond-not-acceptable (jsown:new-js
+                                ("errors" (jsown:new-js ("title" "Request invalid"))))))
     (no-such-property (condition)
       (trivial-backtrace:print-backtrace condition)
       (let ((message
@@ -595,4 +599,5 @@
     ;; we can execute the cache clearing locally, read the
     ;; cache_clear_keys from the header and push the necessary changes
     ;; to the mu-cache.
-    (delta-call body)))
+    (with-single-itemspec-classes-retry
+      (delta-call body))))
