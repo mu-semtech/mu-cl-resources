@@ -1174,6 +1174,10 @@ split up resources in order to make the fetching less bulky per query."
                        (declare (ignore e))
                        (when (find-restart 'ignore-clear-key)
                          (invoke-restart 'ignore-clear-key)))
+                     (resource-type-not-found-for-item-spec (e)
+                       (declare (ignore e))
+                       ;; this is likely fine, it's a resource we don't know
+                       t)
                      (error (e)
                        (format t "~&AN ERROR OCCURRED PROCESSING A DELTA MESSAGE ~A~%" e)))))
                (handle-class-clear (resources)

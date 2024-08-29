@@ -135,7 +135,7 @@
     (clear-solution (make-item-spec :uuid uuid)))
   (:method ((item-spec item-spec))
     ;; In each of these cases, if the item-spec could not be found, it
-    ;; does not exist in our cache and it does not exist in the story
+    ;; does not exist in our cache and it does not exist in the store
     ;; anymore.  The best we can do is ignore the clear.
     (handler-case
         (rem-ua-hash (uuid item-spec) *cached-resources*)
@@ -144,20 +144,20 @@
         (clear-uri-cache-for-uuid (uuid item-spec))
       (no-such-instance () nil))
     (let (retried-p)
-      (handler-case
-          (clear-cached-count-queries (resource item-spec))
-        ;; try the restart once, then skip on failures
-        (resource-type-not-found-for-item-spec (e)
-          (unless retried-p
-            (setf retried-p t)
-            ;; (format t "~&Could not find resource-type for ~A when clearing cached count, fetching and retrying~%"
-            ;;         item-spec)
-            (handler-case
-                (invoke-restart 'retry-after-clearing-ld-classes)
-              (error (re)
-                nil
-                ;; (format t "~&Failed to invoke retry-after-clearing-ld-classes in clear-solution because it does not exist for ~A when erroring as ~A then ~A~%" item-spec e re)
-                ))))))))
+      (handler-bind
+          ((resource-type-not-found-for-item-spec
+             (lambda (e)
+               (unless retried-p
+                 (setf retried-p t)
+                 ;; (format t "~&Could not find resource-type for ~A when clearing cached count, fetching and retrying~%"
+                 ;;         item-spec)
+                 (handler-case
+                     (invoke-restart 'retry-after-clearing-ld-classes)
+                   (error (re)
+                     nil
+                     ;; (format t "~&Failed to invoke retry-after-clearing-ld-classes in clear-solution because it does not exist for ~A when erroring as ~A then ~A~%" item-spec e re)
+                     ))))))
+        (clear-cached-count-queries (resource item-spec))))))
 
 (defvar *uri-classes-cache* (lhash:make-castable :test 'equal)
   "Contains a mapping from URI strings to the URI classes belonging to the URI.")

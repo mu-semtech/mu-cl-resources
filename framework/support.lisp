@@ -239,21 +239,36 @@ TEST is a function which receives the current sub-list, possibly out of order."
     (lambda () ,@body)))
 
 (defun try-to-restart-once-when-classes-not-found (functor)
-  (let ((failed-specs nil))
-    (handler-case
-        (funcall functor)
-      (resource-type-not-found-for-item-spec (e)
-        (if (find (item-spec e) failed-specs)
-            (format t
-                    "Not restarting to find info for ~A in error ~A because we tried already."
-                    (item-spec e) e)
-            (progn
-              (format t
-                      "Will try to fetch types for ~A URI ~A because of error ~A"
-                      (item-spec e) (node-url (item-spec e)) e)
-              (push (item-spec e) failed-specs)
-              (invoke-restart 'retry-after-clearing-ld-classes)))
-        (error e)))))
+  (let ((failed-specs nil)
+        (failed-specs-after-timeout nil))
+    (handler-bind
+        ((resource-type-not-found-for-item-spec
+           (lambda (e)
+             (cond ((not (find (item-spec e) failed-specs))
+                    ;; something may have gone wrong, let's retry
+                    (format t
+                            "Will try to fetch types for ~A URI ~A, retrying"
+                            (item-spec e) (node-url (item-spec e)))
+                    (trivial-backtrace:print-backtrace e)
+                    (push (item-spec e) failed-specs)
+                    (invoke-restart 'retry-after-clearing-ld-classes))
+                   ((not (find (item-spec e) failed-specs-after-timeout))
+                    ;; we tried again already, but perhaps we just need to give it some time
+                    (format t
+                            "Will try to fetch types for ~A URI ~A, retrying after 0.5s"
+                            (item-spec e) (node-url (item-spec e)))
+                    (sleep 0.5)
+                    (trivial-backtrace:print-backtrace e)
+                    (push (item-spec e) failed-specs-after-timeout)
+                    (invoke-restart 'retry-after-clearing-ld-classes))
+                   (t
+                    ;; enough is enough, we've tried too much
+                    (format t
+                            "Not restarting to find info for ~A in error ~A because we tried twice already."
+                            (item-spec e) e)
+                    (trivial-backtrace:print-backtrace e)
+                    (error e))))))
+      (funcall functor))))
 
 (defgeneric related-items (item-spec relation)
   (:documentation "Returns the related items for the given relation")
