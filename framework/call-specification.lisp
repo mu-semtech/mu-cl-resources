@@ -302,62 +302,59 @@
 ;;;; link calls
 
 (defun handle-relation-get-call (base-path id relation)
-  (handler-bind
-      ((incorrect-accept-header (lambda (condition)
-                                  (trivial-backtrace:print-backtrace condition)
-                                  (respond-not-acceptable (jsown:new-js
-                                                            ("errors" (jsown:new-js
-                                                                        ("title" (description condition))))))))
-       (configuration-error (lambda (condition)
-                              (trivial-backtrace:print-backtrace condition)
-                              (respond-server-error
-                               (jsown:new-js
-                                 ("errors" (jsown:new-js
-                                             ("title" (s+ "Server configuration issue: " (description condition)))))))))
-       (no-such-resource (lambda (condition)
-                           (trivial-backtrace:print-backtrace condition)
-                           (respond-not-found)))
-       ;; (resource-type-not-found-for-item-spec (condition)
-       ;;   Should we handle this?  This happened in Kaleidos
-       ;;   (trivial-backtrace:print-backtrace condition)
-       ;;   )
-       (no-such-property (lambda (condition)
-                           (trivial-backtrace:print-backtrace condition)
-                           (let ((message
-                                   (format nil "Could not find property (~A) on resource (~A)."
-                                           (path condition) (json-type (resource condition)))))
-                             (respond-not-acceptable (jsown:new-js
-                                                       ("errors" (jsown:new-js
-                                                                   ("title" message))))))))
-       (cl-fuseki:sesame-exception (lambda (exception)
-                                     (trivial-backtrace:print-backtrace exception)
-                                     (respond-server-error
-                                      (jsown:new-js
-                                        ("errors" (jsown:new-js
-                                                    ("title" (s+ "Could not execute SPARQL query."))))))))
-       (no-such-link (lambda (condition)
-                       (trivial-backtrace:print-backtrace condition)
-                       (let ((message
-                               (format nil "Could not find link (~A) on resource (~A)."
-                                       (path condition) (json-type (resource condition)))))
-                         (respond-not-acceptable (jsown:new-js
-                                                   ("errors" (jsown:new-js
-                                                               ("title" message))))))))
-       (error (lambda (condition)
-                (trivial-backtrace:print-backtrace condition)
-                (respond-general-server-error))))
-    (verify-json-api-request-accept-header)
-    (let* ((resource (find-resource-by-path base-path))
-           (link (find-resource-link-by-path resource relation)))
-      (show-relation-call resource id link))))
+    (handler-case
+        (handler-bind
+            ((error #'trivial-backtrace:print-backtrace))
+          (with-single-itemspec-classes-retry
+            (verify-json-api-request-accept-header)
+            (let* ((resource (find-resource-by-path base-path))
+                   (link (find-resource-link-by-path resource relation)))
+              (show-relation-call resource id link))))
+      (incorrect-accept-header (condition)
+        (respond-not-acceptable (jsown:new-js
+                                  ("errors" (jsown:new-js
+                                              ("title" (description condition)))))))
+      (configuration-error (condition)
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Server configuration issue: " (description condition))))))))
+      (no-such-resource (condition)
+        (declare (ignore condition))
+        (respond-not-found))
+      ;; (resource-type-not-found-for-item-spec (condition)
+      ;;   Should we handle this?  This happened in Kaleidos
+      ;;   (trivial-backtrace:print-backtrace condition)
+      ;;   )
+      (no-such-property (condition)
+        (let ((message
+                (format nil "Could not find property (~A) on resource (~A)."
+                        (path condition) (json-type (resource condition)))))
+          (respond-not-acceptable (jsown:new-js
+                                    ("errors" (jsown:new-js
+                                                ("title" message)))))))
+      (cl-fuseki:sesame-exception (exception)
+        (declare (ignore exception))
+        (respond-server-error
+         (jsown:new-js
+           ("errors" (jsown:new-js
+                       ("title" (s+ "Could not execute SPARQL query.")))))))
+      (no-such-link (condition)
+        (let ((message
+                (format nil "Could not find link (~A) on resource (~A)."
+                        (path condition) (json-type (resource condition)))))
+          (respond-not-acceptable (jsown:new-js
+                                    ("errors" (jsown:new-js
+                                                ("title" message)))))))
+      (error (condition)
+        (declare (ignore condition))
+        (respond-general-server-error))))
 
 (defcall :get (base-path id relation)
-  (with-single-itemspec-classes-retry
-    (handle-relation-get-call base-path id relation)))
+  (handle-relation-get-call base-path id relation))
 
 (defcall :get (base-path id :links relation)
-  (with-single-itemspec-classes-retry
-    (handle-relation-get-call base-path id relation)))
+  (handle-relation-get-call base-path id relation))
 
 (defcall :patch (base-path id :links relation)
   (let ((body (jsown:parse (post-body))))
