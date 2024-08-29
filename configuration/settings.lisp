@@ -91,3 +91,9 @@ the possibly relevant types.  Fetching all types may result in a more
 expensive query.
 
 This setting should not have an impact on datasets which are fully correct.")
+
+(defparameter *backtrace-on-call-error-types* '(error)
+  "This is a list of error types.  Any error which is caught toplevel which
+is a subtype of one of these types, will cause a stacktrace to be
+printed.  This stacktrace does not interfere with the handling of the
+error, it is merely there as debugging information.")

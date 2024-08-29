@@ -152,6 +152,21 @@ TEST is a function which receives the current sub-list, possibly out of order."
            append (list k v))
         (list* key new-value place))))
 
+;;;;;;;;;;;;;;;;;;
+;; printing errors
+
+(defun maybe-print-backtrace-for-toplevel-error (e)
+  "Prints a stacktrace for error E if the user has requested the
+system to do so."
+  (when (some (lambda (type) (subtypep e type)) *backtrace-on-call-error-types*)
+    (trivial-backtrace:print-backtrace e)))
+
+(defmacro with-user-configurable-backtrace (&body body)
+  "Executes BODY in a scope in which errors will be logged when needed
+based on *BACKTRACE-ON-CALL-ERROR-TYPES*."
+  `(handler-bind ((t #'maybe-print-backtrace-for-toplevel-error))
+     ,@body))
+
 ;;;;
 ;; item specs
 
