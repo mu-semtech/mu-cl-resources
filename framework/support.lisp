@@ -158,7 +158,7 @@ TEST is a function which receives the current sub-list, possibly out of order."
 (defun maybe-print-backtrace-for-toplevel-error (e)
   "Prints a stacktrace for error E if the user has requested the
 system to do so."
-  (when (some (lambda (type) (subtypep e type)) *backtrace-on-call-error-types*)
+  (when (some (lambda (type) (typep e type)) *backtrace-on-call-error-types*)
     (trivial-backtrace:print-backtrace e)))
 
 (defmacro with-user-configurable-backtrace (&body body)
@@ -253,6 +253,11 @@ based on *BACKTRACE-ON-CALL-ERROR-TYPES*."
   `(try-to-restart-once-when-classes-not-found
     (lambda () ,@body)))
 
+(defparameter *print-backtrace-on-first-classes-not-found-restart* nil
+  "When t, the first time classes are not found will also print the
+backtrace.  This is a feasible case though so it probably shouldn't
+print too much.")
+
 (defun try-to-restart-once-when-classes-not-found (functor)
   (let ((failed-specs nil)
         (failed-specs-after-timeout nil))
@@ -264,7 +269,8 @@ based on *BACKTRACE-ON-CALL-ERROR-TYPES*."
                     (format t
                             "Will try to fetch types for ~A URI ~A, retrying"
                             (item-spec e) (node-url (item-spec e)))
-                    (trivial-backtrace:print-backtrace e)
+                    (when *print-backtrace-on-first-classes-not-found-restart*
+                      (trivial-backtrace:print-backtrace e))
                     (push (item-spec e) failed-specs)
                     (invoke-restart 'retry-after-clearing-ld-classes))
                    ((not (find (item-spec e) failed-specs-after-timeout))
