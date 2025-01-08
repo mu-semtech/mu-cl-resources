@@ -843,6 +843,8 @@ split up resources in order to make the fetching less bulky per query."
                                            (format nil "~4t~A ~A ~A.~%"
                                                    subject predicate object))))
                   (concatenate 'string
+                   (format nil "VALUES ?s { ~A }~%"
+                           (s-url (node-url item-spec)))
                    (format nil "~{~&~4t~{~A ~A ~A~}.~%~}"
                            `((,(s-var "s") ,(s-prefix "mu:uuid") ,(s-str uuid))))
                    (format nil "~{~&~4tOPTIONAL {~{~A ~A ~A~}.}~%~}"
