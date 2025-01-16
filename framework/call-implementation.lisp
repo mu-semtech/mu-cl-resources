@@ -460,7 +460,7 @@
                     for objects = (objects-for-subject subject-db resource-url)
                     do (if (and (single-value-slot-p slot)
                                 (> (length objects) 1))
-                           (format t "~&[WARNING] ~A has single-valued property ~A which contains more than one value in the triplestore: ~{~A ~}.~%"
+                           (format t "~&[WARNING] ~A has single-valued property ~A which contains more than one value in the triplestore: ~{~&  - ~A ~}~%"
                                    resource-url json-var (mapcar #'jsown:to-json objects)))
                        (if (single-value-slot-p slot)
                            (setf (solution-value solution json-var)
