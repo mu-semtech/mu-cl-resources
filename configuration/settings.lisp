@@ -97,3 +97,6 @@ This setting should not have an impact on datasets which are fully correct.")
 is a subtype of one of these types, will cause a stacktrace to be
 printed.  This stacktrace does not interfere with the handling of the
 error, it is merely there as debugging information.")
+
+(defparameter *treat-uknown-literal-datatypes-from-sparql-as-string-p* nil
+  "When truethy, treat unknown typed literals as strings in the triplestore.")

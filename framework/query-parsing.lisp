@@ -57,18 +57,15 @@
          (lambda (,@variables)
            ,@body)))
 
-(defparameter *import-uknown-literal-datatypes-as-string-p* nil
-  "When truethy, treat unknown typed literals as strings in the triplestore.")
-
 (defun import-typed-literal-value-from-sparql-result (type value object)
   "imports a typed-literal-value from a sparql result."
   (let ((import-functor (lhash:gethash type *typed-literal-importers*)))
     (if import-functor
         (funcall (lhash:gethash type *typed-literal-importers*)
                  value object)
-        (if  *import-uknown-literal-datatypes-as-string-p*
+        (if *treat-uknown-literal-datatypes-from-sparql-as-string-p*
             value
-            (error 'simple-error :format-control "Do not know how to import:~%  - type ~A~%  - from ~A.~%Define typed literal through experimental~%  (define-typed-literal-importer \"http://www.w3.org/2001/XMLSchema#decimal\"~%      (value object)~%    (declare (ignore object))~%    value)~%or (setf *import-unknown-literal-datatypes-as-string-p* t) in domain.lisp~%" :format-arguments (list type object))))))
+            (error 'simple-error :format-control "Do not know how to interpret query response:~%  - type ~A~%  - from ~A.~%Define typed literal through experimental~%  (define-typed-literal-importer ~S~%      (value object)~%    (declare (ignore object))~%    value)~%or~%  (setf *treat-uknown-literal-datatypes-from-sparql-as-string-p* t) in domain.lisp~%" :format-arguments (list type object type))))))
 
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#decimal"
     (value object)
