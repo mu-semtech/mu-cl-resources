@@ -16,7 +16,7 @@ Add the following snippet to the services block of your `docker-compose.yml`:
 ```yml
 services:
   resource:
-    image: semtech/mu-cl-resources:1.20.0
+    image: semtech/mu-cl-resources:1.26.0
     links:
       - db:database
     volumes:
@@ -1034,7 +1034,7 @@ Update the `docker-compose.yml` so the wiring contains the following (we only di
 ``` yaml
   services:
     resourcebackend:
-      image: semtech/mu-cl-resources:1.20.0
+      image: semtech/mu-cl-resources:1.26.0
       environment:
         CACHE_CLEAR_PATH: "http://resourcecache/.mu/clear-keys"
     resourcecache:
@@ -1075,7 +1075,7 @@ To ensure mu-cl-resources sends its updates back to the resourcecache, it needs 
 ``` yaml
   services:
     resourcebackend:
-      image: semtech/mu-cl-resources:1.20.0
+      image: semtech/mu-cl-resources:1.26.0
       environment:
         CACHE_CLEAR_PATH: "http://resourcecache/.mu/clear-keys"
 ```
