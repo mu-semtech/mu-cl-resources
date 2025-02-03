@@ -117,9 +117,9 @@
    per 's-var.
    If a triple pattern isn't available, the whole deletion will
    not stop working."
-  (let ((patterns (mapcar #'format-triple-pattern-clause triple-clauses)))
+  (alexandria:when-let ((patterns (mapcar #'format-triple-pattern-clause triple-clauses)))
     (delete (apply #'concatenate 'string patterns)
-        (format nil "~{~4tOPTIONAL { ~A }~%~}" patterns))))
+        (format nil "~{~4t{ ~A }~,^~%~4tUNION~%~}" patterns))))
 
 (defun update-triples (&key old-triples new-triples where resource)
   "Deletes the triples in old-triples and inserts
