@@ -818,6 +818,32 @@ split up resources in order to make the fetching less bulky per query."
                   (calculate-resource-and-links-to-clear resource)))
         (calculate-resource-and-links-to-clear resource))))
 
+(defparameter *delete-call-additional-inverse-links-to-clear-cache* (lhash:make-castable :test 'eq)
+  "Cache containing the relations to delete which don't originate from our end for a specific resource.")
+
+(defparameter *cache-delete-call-additional-inverse-links-to-clear-p* t
+  "Whether we may cache the relations to delete which don't originate from our end for executing a delete call.")
+
+(defun cache-delete-call-additional-inverse-links-to-clear (resource)
+  "Returns a list of all links which point to our resource but which are not accessible from our resource."
+  (flet ((calculate-links-without-inverse ()
+           (let* ((superclasses (flattened-class-tree resource))
+                  (all-our-links (all-links resource)))
+             (loop for any-resource in (all-resources) ; we must also consider ourselves
+                   append
+                   (loop for link in (all-links any-resource)
+                         when (and (find (referred-resource link) superclasses)
+                                   (notany (lambda (ourlink)
+                                             (find ourlink (inverse-links link)
+                                                   :key (lambda (il) (getf il :link))))
+                                           all-our-links))
+                           collect link)))))
+    (if *cache-delete-call-additional-inverse-links-to-clear-p*
+        (or (gethash resource *delete-call-additional-inverse-links-to-clear-cache*)
+            (setf (gethash resource *delete-call-additional-inverse-links-to-clear-cache*)
+                  (calculate-links-without-inverse)))
+        (calculate-links-without-inverse))))
+
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
    handles the deletion of a single resource")
@@ -847,37 +873,19 @@ split up resources in order to make the fetching less bulky per query."
                              relation-content))
               (setf relation-content (reverse relation-content))
               (cache-clear-for-delete-call)
-              ;; Also check if any other resource which links to us or any of our subtypes and cache-clear and delete
-              ;; that inverse relationship
-
-              ;; We need to take our superclass tree into consideration because we have all of the relationships of our
-              ;; superclasses and so these may apply to us.  We do not need to take our subclasses into consideration
-              ;; because if something would point to one of our subclasses, this delete would be triggered against that
-              ;; specific subclass.
-
-              ;; TODO: cache these extra inverse relationships
-              (let* ((superclasses (flattened-class-tree resource))
-                     (all-our-links (all-links resource))
-                     (additional-inverse-links
-                       (loop for any-resource in (all-resources) ; we must also consider ourselves
-                             append
-                             (loop for link in (all-links any-resource)
-                                   when (and (find (referred-resource link) superclasses)
-                                             (notany (lambda (ourlink)
-                                                       (find ourlink (inverse-links link)
-                                                             :key (lambda (il) (getf il :link))))
-                                                     all-our-links))
-                                     collect link)))
-                     (additional-incoming-relations
-                       (loop for additional-link in additional-inverse-links
-                             for external-link-number from 0
-                             for ld-link = (if (inverse-p additional-link)
-                                               ;; this looks wrong, but we're on the receiving end
-                                               (ld-link additional-link)
-                                               (s-inv (ld-link additional-link)))
-                             collect ;; TODO: also constrain on the target class of the incoming link
-                             (list ld-link
-                                   (s-var (format nil "incoming_link_~A" external-link-number))))))
+              (let ((additional-incoming-relations
+                      ;; Also check if any other resource which links to us or any of our subtypes and cache-clear and delete
+                      ;; that inverse relationship
+                      (loop for additional-link
+                              in (cache-delete-call-additional-inverse-links-to-clear (resource item-spec))
+                            for external-link-number from 0
+                            for ld-link = (if (inverse-p additional-link)
+                                              ;; this looks wrong, but we're on the receiving end
+                                              (ld-link additional-link)
+                                              (s-inv (ld-link additional-link)))
+                            collect ;; TODO: also constrain on the target class of the incoming link
+                            (list ld-link
+                                  (s-var (format nil "incoming_link_~A" external-link-number))))))
                 ;; aside from adding these links to the delete query, we must also add them tot he cache-clear-for-delete-call
                 (sparql:delete
                     (apply #'concatenate 'string
