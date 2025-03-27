@@ -784,6 +784,12 @@ split up resources in order to make the fetching less bulky per query."
                                        uuid
                                        (request-path link)))))))
 
+(defparameter *delete-call-relations-to-delete-cache* (lhash:make-castable :test 'eq)
+  "Cache containing the relations to delete for a specific resource.")
+
+(defparameter *cache-delete-call-relations-to-delete-cache-p* t
+  "Whether we may cache the relations to delete for executing a delete call.")
+
 (defgeneric delete-call (resource uuid)
   (:documentation "implementation of the DELETE request which
    handles the deletion of a single resource")
@@ -800,18 +806,29 @@ split up resources in order to make the fetching less bulky per query."
           (flet ((cache-clear-for-delete-call ()
                    (cache-clear-class (resource item-spec))
                    (cache-clear-object item-spec)
-                   ;; in our inheritance tree, find all defined relations
-                   (let ((super-resources (flattened-class-tree (resource item-spec))))
-                     ;; TODO: optimize this scenario, these can be precalculated.
-                     (dolist (super-resource super-resources)
-                       ;; we pick direct links because cache-clear-relation clears for all relevant subclasses
-                       (dolist (link (all-direct-links super-resource))
-                         (cache-clear-relation resource link :include-inverse-p nil)))
-                     ;; from all resources, find all relations filter those who point to us or any of our superclasses
-                     (loop for (source-resource . link)
-                             in (all-defined-links-with-resource)
-                           when (find (referred-resource link) super-resources)
-                             do (cache-clear-relation source-resource link :include-inverse-p nil)))))
+                   (flet ((calculate-resource-and-links-to-clear (real-resource)
+                            (let ((resource-and-links-to-clear nil))
+                              ;; in our inheritance tree, find all defined relations
+                              (let ((super-resources (flattened-class-tree real-resource)))
+                                (dolist (super-resource super-resources)
+                                  ;; we pick direct links because cache-clear-relation clears for all relevant subclasses
+                                  (dolist (link (all-direct-links super-resource))
+                                    (push (list resource link) resource-and-links-to-clear)))
+                                ;; from all resources, find all relations filter those who point to us or any of our superclasses
+                                (loop for (source-resource . link)
+                                        in (all-defined-links-with-resource)
+                                      when (find (referred-resource link) super-resources)
+                                        do (push (list source-resource link)
+                                                 resource-and-links-to-clear)))
+                              (reverse resource-and-links-to-clear))))
+                     (let ((resource-and-link-to-kill
+                             (if *cache-delete-call-relations-to-delete-cache-p*
+                                 (or (gethash (resource item-spec) *delete-call-relations-to-delete-cache*)
+                                     (setf (gethash (resource item-spec) *delete-call-relations-to-delete-cache*)
+                                           (calculate-resource-and-links-to-clear (resource item-spec))))
+                                 (calculate-resource-and-links-to-clear (resource item-spec)))))
+                       (loop for (resource-to-clear link-to-clear) in resource-and-link-to-kill
+                             do (cache-clear-relation resource-to-clear link-to-clear :include-inverse-p nil))))))
             (let (relation-content)
               (loop for slot in (ld-properties resource)
                     do (push (list (ld-property-list slot)
