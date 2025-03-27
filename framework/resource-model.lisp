@@ -184,6 +184,12 @@
             (mapcar (alexandria:compose #'s-url #'full-uri)
                     (ld-property-list relation)))))
 
+(defparameter *flatten-class-tree-cache* (lhash:make-castable :test 'eq)
+  "Cache for flattened class tree calculations.")
+
+(defparameter *flatten-class-tree-cache-p* t
+  "Whether or not to cache the flattened class tree.")
+
 (defgeneric flattened-class-tree (resource)
   (:documentation "Yields an ordered list of all types which apply to
   this resource, most specific type first.
@@ -193,10 +199,16 @@
   The superclass-names are reversed from their original definition, as
   later names are assumed to be of less importance.")
   (:method ((resource resource))
-    (cons resource
-          (loop for resource-name in (reverse (superclass-names resource))
-                append (flattened-class-tree
-                        (find-resource-by-name resource-name))))))
+    (flet ((calculate-flattened-class-tree ()
+             (cons resource
+                   (loop for resource-name in (reverse (superclass-names resource))
+                         append (flattened-class-tree
+                                 (find-resource-by-name resource-name))))))
+      (if *flatten-class-tree-cache-p*
+          (or (lhash:gethash resource *flatten-class-tree-cache*)
+              (setf (lhash:gethash resource *flatten-class-tree-cache*)
+                    (calculate-flattened-class-tree)))
+          (calculate-flattened-class-tree)))))
 
 (defgeneric features (resource)
   (:documentation "Features for the current resource, being the features specified at any level.")
