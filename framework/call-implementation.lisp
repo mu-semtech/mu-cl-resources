@@ -813,8 +813,8 @@ split up resources in order to make the fetching less bulky per query."
                                 resource-and-links-to-clear)))
              (reverse resource-and-links-to-clear))))
     (if *cache-delete-call-relations-to-delete-cache-p*
-        (or (gethash resource *delete-call-relations-to-delete-cache*)
-            (setf (gethash resource *delete-call-relations-to-delete-cache*)
+        (or (lhash:gethash resource *delete-call-relations-to-delete-cache*)
+            (setf (lhash:gethash resource *delete-call-relations-to-delete-cache*)
                   (calculate-resource-and-links-to-clear resource)))
         (calculate-resource-and-links-to-clear resource))))
 
