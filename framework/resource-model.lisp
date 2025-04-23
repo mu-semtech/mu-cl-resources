@@ -575,7 +575,7 @@ superclasses.")
                    last-slot
                    slots)))))
 
-(defun define-resource* (name superclass-names &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization features)
+(defun define-resource* (name superclass-names &key ld-class ld-properties ld-resource-base has-many has-one on-path authorization features (json-type on-path))
   "defines a resource for which get and set requests exist"
   (let* ((properties (loop for (key type prop . options) in ld-properties
                         collect (make-instance 'resource-slot
@@ -594,13 +594,13 @@ superclasses.")
                    :ld-resource-base ld-resource-base
                    :has-many has-many-links
                    :has-one has-one-links
-                   :json-type on-path ; (symbol-to-camelcase name :cap-first t)
+                   :json-type json-type
                    :request-path on-path
                    :authorization authorization
                    :features features
                    :resource-name name)))
 
-(defmacro define-resource (name superclass-names &key class properties resource-base has-many has-one on-path authorization features)
+(defmacro define-resource (name superclass-names &key class properties resource-base has-many has-one on-path authorization features (json-type on-path))
   `(define-resource* ',name ',superclass-names
        :ld-class ,class
        :ld-properties ,properties
@@ -608,6 +608,7 @@ superclasses.")
        :has-many ,has-many
        :has-one ,has-one
        :on-path ,on-path
+       :json-type ,json-type
        :features ,features
        :authorization ,authorization))
 
