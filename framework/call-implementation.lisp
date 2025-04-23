@@ -650,7 +650,7 @@ split up resources in order to make the fetching less bulky per query."
                (setf (jsown:val attributes "uri") (node-url item-spec)))
              ;; fill in relationships object
              (loop for link in requested-links
-                   for json-var = (json-key link)
+                   for json-var = (json-property-name link)
                    do (setf (jsown:val relationships-object json-var)
                             (build-relationships-object item-spec link)))
              ;; collect the result
@@ -700,7 +700,7 @@ split up resources in order to make the fetching less bulky per query."
           (loop for link in (all-links resource)
                 if (field-requested-p link)
                   do
-                     (setf (jsown:val relationships-object (json-key link))
+                     (setf (jsown:val relationships-object (json-property-name link))
                            (build-relationships-object item-spec link)))
           ;; ensure we have a mu-auth-allowed-groups in case the full
           ;; response could be answered by a cache

@@ -314,7 +314,7 @@ superclasses.")
   (:documentation "find a has-many link by resource and json-link of the link")
   (:method ((resource resource) json-link)
     (loop for link in (all-links resource)
-       if (string= (json-key link) json-link)
+       if (string= (json-property-name link) json-link)
        return link)))
 
 (defgeneric all-links (resource)
