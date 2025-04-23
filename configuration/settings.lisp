@@ -5,6 +5,13 @@
 
 (defparameter *camelcase-json-variables* nil
   "when non-nil, json variable names should be camelcased, rather than dasherized.")
+(defparameter *resource-json-type-transformation* nil
+  "[EXPERIMENTAL] If (and how) the path should be transformed into a type, can be one of the following:
+  - :camelcase :: example LinkedData
+  - :lower-camelcase :: example linkedData
+  - nil (do nothing) :: example linked-data
+  - a function which is called with the original symbol.")
+
 (defparameter *verify-accept-header* nil
   "when non-nil, the application/vndi+json ACCEPT header is checked.")
 (defparameter *verify-content-type-header* t

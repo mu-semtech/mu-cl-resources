@@ -1,6 +1,4 @@
-
 (in-package :mu-cl-resources)
-
 
 (defclass resource-slot ()
   ((json-key :initarg :json-key :reader json-key)
@@ -40,7 +38,7 @@
                         "A cache for faster calculation of the
                         existing properties of a resource.")
    (ld-resource-base :initarg :ld-resource-base :reader ld-resource-base)
-   (json-type :initarg :json-type :reader json-type)
+   (json-type :initarg :json-type) ; EXPERIMENTAL: the reader is defined below and can transform the json-type, might be moved to at compiletime transformation
    (has-many-links :initarg :has-many
                    :reader direct-has-many-links)
                                         ; used for uml generators etc
@@ -612,6 +610,26 @@ superclasses.")
        :on-path ,on-path
        :features ,features
        :authorization ,authorization))
+
+(defgeneric json-type (resource)
+  (:documentation "Yields the (possibly transformed) json-type.  Transformation is EXPERIMENTAL as per *resource-json-type-transformation*.")
+  (:method ((resource resource))
+    (transform-path-to-json-type (slot-value resource 'json-type))))
+
+(defun transform-path-to-json-type (path)
+  "The path is normally the json type.  This function transforms a path to a json type based on current configuration."
+  (let ((transform *resource-json-type-transformation*))
+    (cond ((null transform)
+           path)
+          ((eq :lower-camelcase transform)
+           (symbol-to-camelcase path :cap-first nil))
+          ((eq :camelcase transform)
+           (symbol-to-camelcase path :cap-first t))
+          ((functionp transform)
+           (funcall transform path))
+          (t (error 'configuration-error
+                    :description (format nil "~A is not a valid value for *RESOURCE-JSON-TYPE-TRANSFORMATION*"
+                                         *resource-json-type-transformation*))))))
 
 (defun property-paths-format-component (resource)
   (declare (ignore resource))
