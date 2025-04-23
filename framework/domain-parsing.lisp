@@ -70,6 +70,7 @@
         (path                           ; default to primary key
          (or (jsown:val-safe resource-description "path")
              path))
+        (json-type (jsown:val-safe resource-description "type"))
         (properties (jsown:val-safe resource-description "attributes"))
         (relationships (map-jsown-object
                         (jsown:val-safe resource-description "relationships")
@@ -81,19 +82,21 @@
                           (jsown:val-safe resource-description "features")))
         (superclass-names (mapcar (lambda (str) (intern (string-upcase str)))
                                   (jsown:val-safe resource-description "super"))))
-    (define-resource* resource-name superclass-names
-        :ld-class (read-uri-from-json class)
-        :ld-properties (map-jsown-object properties
-                                         #'import-jsown-domain-property)
-        :has-many (loop for (type . relationship) in relationships
-                     when (eq type 'has-many)
-                     collect relationship)
-        :has-one (loop for (type . relationship) in relationships
-                    when (eq type 'has-one)
-                    collect relationship)
-        :ld-resource-base (s-url resource-base)
-        :on-path path
-        :features features)))
+    (apply #'define-resource*
+           `( ,resource-name ,superclass-names
+              :ld-class ,(read-uri-from-json class)
+              :ld-properties ,(map-jsown-object properties
+                                                #'import-jsown-domain-property)
+              :has-many ,(loop for (type . relationship) in relationships
+                               when (eq type 'has-many)
+                                 collect relationship)
+              :has-one ,(loop for (type . relationship) in relationships
+                              when (eq type 'has-one)
+                                collect relationship)
+              :ld-resource-base ,(s-url resource-base)
+              ,@(and json-type (list :json-type json-type))
+              :on-path ,path
+              :features ,features))))
 
 (defun read-uri-from-json (value)
   "Reads a URI as specified in the JSON format.  Value
