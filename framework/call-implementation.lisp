@@ -988,18 +988,23 @@ split up resources in order to make the fetching less bulky per query."
     This yields the high-level description of the items, not
     their contents.
     Note that this method does not support pagination.")
+  ;; TODO: check if this is now only used for has-one and limit implementation if it is
   (:method ((item-spec item-spec) (link string))
     (retrieve-relation-items item-spec (find-link-by-json-name (resource item-spec) link)))
   (:method ((item-spec item-spec) (link has-one-link))
     (let* ((resource-url (s-url (node-url item-spec)))
            (query-results
-            (first (sparql:select (s-var "uuid")
-                                  (format nil (s+ "~A ~{~A~,^/~} ?resource. "
-                                                  "?resource mu:uuid ?uuid. "
-                                                  "~@[~A~] ")
-                                          resource-url
-                                          (ld-property-list link)
-                                          (authorization-query item-spec :show resource-url)))))
+             (first (sparql:select (s-var "uuid")
+                                   (format nil
+                                           (s+ "~A ~{~A~,^/~} ?resource. "
+                                               "VALUES ?class {~{~A~^ ~}}."
+                                               "?resource mu:uuid ?uuid; "
+                                               "          a ?class. "
+                                               "~@[~A~] ")
+                                           resource-url
+                                           (ld-property-list link)
+                                           (ld-subclasses (find-resource-by-name (resource-name link)))
+                                           (authorization-query (resource item-spec) :show resource-url)))))
            (linked-resource (resource-name (referred-resource link))))
       (and query-results
          (list
