@@ -839,8 +839,8 @@ split up resources in order to make the fetching less bulky per query."
                                            all-our-links))
                            collect link)))))
     (if *cache-delete-call-additional-inverse-links-to-clear-p*
-        (or (gethash resource *delete-call-additional-inverse-links-to-clear-cache*)
-            (setf (gethash resource *delete-call-additional-inverse-links-to-clear-cache*)
+        (or (lhash:gethash resource *delete-call-additional-inverse-links-to-clear-cache*)
+            (setf (lhash:gethash resource *delete-call-additional-inverse-links-to-clear-cache*)
                   (calculate-links-without-inverse)))
         (calculate-links-without-inverse))))
 
