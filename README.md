@@ -880,7 +880,7 @@ This filter can be combined with the other filters to provide very extensive sea
 
 Aside from regular text searches, a set of custom filters have been added.  These filters are the last component of a search, and are easy to identify as they start with a colon (:).  Following is a brief list of filters which exist.  This list may be extended over time.
 
-- *:uri:* Search for the URL of a relationship.
+- *:uri:* Search for the URL of a relationship. This does not work correctly inside an `:or:` filter!
 
     GET /people?filter[accounts][:uri:]=http://my-application.com/people/42
 
@@ -902,9 +902,9 @@ Aside from regular text searches, a set of custom filters have been added.  Thes
 
 - *:has:* The inverse of `:has-no:` forces the relationship to exist.  Syntax may be subject to change.
 
-- *:or:* Filters are normally combined using AND, this allows a set of filters to be defined as OR instead.
+- *:or:* Filters are normally combined using AND, this allows one set of filters (those used with `:or:`) to be defined as OR instead.
 
-    GET /people?filter[:or:][name]=John&[:or:][owner][name]=Jack
+    GET /people?filter[:or:][name]=John&filter[:or:][owner][name]=Jack
 
 #### Including results
 
