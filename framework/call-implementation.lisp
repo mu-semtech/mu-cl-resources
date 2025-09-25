@@ -1177,125 +1177,168 @@ split up resources in order to make the fetching less bulky per query."
             for uri = (jsown:filter triple "subject" "value")
             do (clear-cached-classes-for-uri uri)))))
 
+
+;;;; Processing delta messages
+
+(defparameter *delta-write-lock* (bt:make-lock "delta-files-write-lock")
+  "Lock for writing to the file containing deltas to be processed.")
+
+(defparameter *delta-process-queue* nil
+  "Current queue of delta messages to process.")
+
+(defparameter *log-delta-processing-information-p* nil
+  "Log information about the processing of delta messages.")
+
+(defun process-delta-messages-loop ()
+  "Fetches the current delta messages from the queue and processes them in a loop."
+  (let (queue-to-process)
+    (loop
+      do (sleep 1)
+         (bt:with-lock-held (*delta-write-lock*)
+           (setf queue-to-process *delta-process-queue*)
+           (setf *delta-process-queue* nil))
+         (when queue-to-process
+           (format t "~&Processing delta messages, ~A delta packages on the queue.~%"
+                   (length queue-to-process)))
+         (loop for (delta hunchentoot:*request* hunchentoot:*reply*)
+                 in (reverse queue-to-process)
+               do
+                  (when *log-delta-processing-information-p*
+                    (format t "~&Processing delta ~A ~A ~A~%"
+                            hunchentoot:*request* hunchentoot:*reply*
+                            delta))
+                  (handler-case (process-delta-message delta)
+                    (error (e)
+                      (declare (ignore e))
+                      (format t "~&Could not process delta~%")))))))
+
+(bt:make-thread #'process-delta-messages-loop)
+
+(defun process-delta-message (body)
+  "Process an individually received delta message."
+  ;; TODO: consume and progress MU_AUTH_ALLOWED_GROUPS.  This could
+  ;; be done automatically with the right changes in the DELTA
+  ;; service.
+  ;;
+  ;; TODO: cope with MU_AUTH_SUDO specified through delta-service or
+  ;; by corresponding sudo setting in MU_AUTH_ALLOWED_GROUPS.
+  (let* ((inserts (loop for diff in body
+                        append (jsown:val diff "inserts")))
+         (deletes (loop for diff in body
+                        append (jsown:val diff "deletes")))
+         ;; note that something can fall through the cracks with this
+         ;; calculation.  support from mu-authorization would help in
+         ;; these cases.
+         (effective-inserts (set-difference inserts deletes
+                                            :test (lambda (a b)
+                                                    (string= (jsown:to-json a)
+                                                             (jsown:to-json b)))))
+         (effective-deletes (set-difference deletes inserts
+                                            :test (lambda (a b)
+                                                    (string= (jsown:to-json a)
+                                                             (jsown:to-json b)))))
+         (triples (append effective-inserts effective-deletes))
+         (types-per-uri (let ((uri-type-hash (lhash:make-castable :test 'equal)))
+                          (dolist (triple triples)
+                            (when (string= (jsown:filter triple "predicate" "value")
+                                           "http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+                              (let ((subject (jsown:filter triple "subject" "value"))
+                                    (object (jsown:filter triple "object" "value")))
+                                (pushnew object (lhash:gethash subject uri-type-hash)
+                                         :test #'string=))))
+                          uri-type-hash)))
+    (labels ((classes-for-uri-in-delta (uri)
+               (lhash:gethash uri types-per-uri))
+             (resources-and-item-specs (jsown-term)
+               (if (string= (jsown:val jsown-term "type") "uri")
+                   ;; it's a URI
+                   (let* ((uri (jsown:val jsown-term "value"))
+                          (resource-classes
+                            ;; we determine the resource classes also
+                            ;; based on the triples that are in the
+                            ;; delta but might not be in the
+                            ;; triplestore.  code that uses the
+                            ;; item-specs to find the classes will not
+                            ;; discover those based on the
+                            ;; triplestore.  care should be taken to
+                            ;; ensure cache clearing code has the
+                            ;; right constraints.
+                            (union (classes-for-uri-in-delta uri)
+                                   (classes-for-uri uri)
+                                   :test #'string=))
+                          (resources (remove-if-not
+                                      #'identity
+                                      (mapcar (lambda (resource-class)
+                                                (handler-case
+                                                    (find-resource-by-class-uri resource-class)
+                                                  (no-such-instance (err)
+                                                    (declare (ignore err))
+                                                    nil)))
+                                              resource-classes)))
+                          (item-specs (mapcar (lambda (resource)
+                                                (make-item-spec :node-url uri
+                                                                :type (resource-name resource)))
+                                              resources)))
+                     (values resources item-specs))
+                   (values nil nil)))
+             (handle-object-clear (item-specs)
+               (dolist (item-spec item-specs)
+                 (handler-case
+                     (cache-clear-object item-spec)
+                   (no-such-instance (e)
+                     (declare (ignore e))
+                     (when (find-restart 'ignore-clear-key)
+                       (invoke-restart 'ignore-clear-key)))
+                   (resource-type-not-found-for-item-spec (e)
+                     (declare (ignore e))
+                     ;; this is likely fine, it's a resource we don't know
+                     t)
+                   (error (e)
+                     (format t "~&AN ERROR OCCURRED PROCESSING A DELTA MESSAGE ~A~%" e)))))
+             (handle-class-clear (resources)
+               (dolist (resource resources)
+                 (cache-clear-class resource)))
+             (handle-relation-clear (resources predicate inverse-p)
+               (loop for resource in resources
+                     do (loop for relation in (all-links resource)
+                              when (and (eq (inverse-p relation) inverse-p)
+                                        (string= (full-uri (ld-link relation))
+                                                 predicate))
+                                do
+                                   (cache-clear-relation resource relation)))))
+      (with-cache-store
+        (loop for triple in triples
+              for predicate = (jsown:filter triple "predicate" "value")
+              do
+                 (multiple-value-bind (subject-resources subject-item-specs)
+                     (resources-and-item-specs (jsown:val triple "subject"))
+                   (handle-object-clear subject-item-specs)
+                   (handle-class-clear subject-resources)
+                   (handle-relation-clear subject-resources predicate nil))
+                 (multiple-value-bind (object-resources object-item-specs)
+                     (resources-and-item-specs (jsown:val triple "object"))
+                   (handle-object-clear object-item-specs)
+                   (handle-class-clear object-resources)
+                   (handle-relation-clear object-resources predicate t)))
+        ;; it used to be that these had to be executed at the end
+        ;; because we depended on cached URIs to clear what we knew of
+        ;; the world, that is not fully the case anymore but it makes
+        ;; most sense down here.
+        (handle-uri-class-changes effective-inserts effective-deletes)))
+    (let ((out-headers (cdr (assoc :clear-keys  (hunchentoot:headers-out*)))))
+      (when (and *cache-clear-path* out-headers)
+        (when *log-delta-clear-keys*
+          (format t "~&Sending clear keys: ~A~%" out-headers))
+        (drakma:http-request *cache-clear-path*
+                             :method :post
+                             :additional-headers `(("clear-keys" . ,out-headers)))))
+    ;; (setf (hunchentoot:header-out :clear-keys) "null")
+    (jsown:new-js ("message" "processed delta"))))
+
 (defgeneric delta-call (body)
   (:documentation "Performs removal of data based on the received
     delta messages.")
   (:method (body)
-    ;; TODO: consume and progress MU_AUTH_ALLOWED_GROUPS.  This could
-    ;; be done automatically with the right changes in the DELTA
-    ;; service.
-    ;;
-    ;; TODO: cope with MU_AUTH_SUDO specified through delta-service or
-    ;; by corresponding sudo setting in MU_AUTH_ALLOWED_GROUPS.
-    (let* ((inserts (loop for diff in body
-                          append (jsown:val diff "inserts")))
-           (deletes (loop for diff in body
-                          append (jsown:val diff "deletes")))
-           ;; note that something can fall through the cracks with this
-           ;; calculation.  support from mu-authorization would help in
-           ;; these cases.
-           (effective-inserts (set-difference inserts deletes
-                                              :test (lambda (a b)
-                                                      (string= (jsown:to-json a)
-                                                               (jsown:to-json b)))))
-           (effective-deletes (set-difference deletes inserts
-                                              :test (lambda (a b)
-                                                      (string= (jsown:to-json a)
-                                                               (jsown:to-json b)))))
-           (triples (append effective-inserts effective-deletes))
-           (types-per-uri (let ((uri-type-hash (lhash:make-castable :test 'equal)))
-                            (dolist (triple triples)
-                              (when (string= (jsown:filter triple "predicate" "value")
-                                             "http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
-                                (let ((subject (jsown:filter triple "subject" "value"))
-                                      (object (jsown:filter triple "object" "value")))
-                                  (pushnew object (lhash:gethash subject uri-type-hash)
-                                           :test #'string=))))
-                            uri-type-hash)))
-      (labels ((classes-for-uri-in-delta (uri)
-                 (lhash:gethash uri types-per-uri))
-               (resources-and-item-specs (jsown-term)
-                 (if (string= (jsown:val jsown-term "type") "uri")
-                     ;; it's a URI
-                     (let* ((uri (jsown:val jsown-term "value"))
-                            (resource-classes
-                              ;; we determine the resource classes also
-                              ;; based on the triples that are in the
-                              ;; delta but might not be in the
-                              ;; triplestore.  code that uses the
-                              ;; item-specs to find the classes will not
-                              ;; discover those based on the
-                              ;; triplestore.  care should be taken to
-                              ;; ensure cache clearing code has the
-                              ;; right constraints.
-                              (union (classes-for-uri-in-delta uri)
-                                     (classes-for-uri uri)
-                                     :test #'string=))
-                            (resources (remove-if-not
-                                        #'identity
-                                        (mapcar (lambda (resource-class)
-                                                  (handler-case
-                                                      (find-resource-by-class-uri resource-class)
-                                                    (no-such-instance (err)
-                                                      (declare (ignore err))
-                                                      nil)))
-                                                resource-classes)))
-                            (item-specs (mapcar (lambda (resource)
-                                                  (make-item-spec :node-url uri
-                                                                  :type (resource-name resource)))
-                                                resources)))
-                       (values resources item-specs))
-                     (values nil nil)))
-               (handle-object-clear (item-specs)
-                 (dolist (item-spec item-specs)
-                   (handler-case
-                       (cache-clear-object item-spec)
-                     (no-such-instance (e)
-                       (declare (ignore e))
-                       (when (find-restart 'ignore-clear-key)
-                         (invoke-restart 'ignore-clear-key)))
-                     (resource-type-not-found-for-item-spec (e)
-                       (declare (ignore e))
-                       ;; this is likely fine, it's a resource we don't know
-                       t)
-                     (error (e)
-                       (format t "~&AN ERROR OCCURRED PROCESSING A DELTA MESSAGE ~A~%" e)))))
-               (handle-class-clear (resources)
-                 (dolist (resource resources)
-                   (cache-clear-class resource)))
-               (handle-relation-clear (resources predicate inverse-p)
-                 (loop for resource in resources
-                       do (loop for relation in (all-links resource)
-                                when (and (eq (inverse-p relation) inverse-p)
-                                          (string= (full-uri (ld-link relation))
-                                                   predicate))
-                                  do
-                                     (cache-clear-relation resource relation)))))
-        (with-cache-store
-          (loop for triple in triples
-                for predicate = (jsown:filter triple "predicate" "value")
-                do
-                   (multiple-value-bind (subject-resources subject-item-specs)
-                       (resources-and-item-specs (jsown:val triple "subject"))
-                     (handle-object-clear subject-item-specs)
-                     (handle-class-clear subject-resources)
-                     (handle-relation-clear subject-resources predicate nil))
-                   (multiple-value-bind (object-resources object-item-specs)
-                       (resources-and-item-specs (jsown:val triple "object"))
-                     (handle-object-clear object-item-specs)
-                     (handle-class-clear object-resources)
-                     (handle-relation-clear object-resources predicate t)))
-          ;; it used to be that these had to be executed at the end
-          ;; because we depended on cached URIs to clear what we knew of
-          ;; the world, that is not fully the case anymore but it makes
-          ;; most sense down here.
-          (handle-uri-class-changes effective-inserts effective-deletes)))
-      (let ((out-headers (cdr (assoc :clear-keys (hunchentoot:headers-out*)))))
-        (when (and *cache-clear-path* out-headers)
-          (when *log-delta-clear-keys*
-            (format t "~&Sending clear keys: ~A~%" out-headers))
-          (drakma:http-request *cache-clear-path*
-                               :method :post
-                               :additional-headers `(("clear-keys" . ,out-headers)))))
-      (setf (hunchentoot:header-out :clear-keys) "null")
-      (jsown:new-js ("message" "processed delta")))))
+    (bt:with-lock-held (*delta-write-lock*)
+      (push (list body hunchentoot:*request* hunchentoot:*reply*) *delta-process-queue*))
+    (jsown:new-js ("message" "scheduled delta"))))
