@@ -1,5 +1,8 @@
 (in-package :mu-cl-resources)
 
+(defparameter *warn-on-single-valued-slot-with-multiple-values* t
+  "Whether or not to warn when a slot which should have a single value now gets multiple values.")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;; authorization support
 (defun session-uri ()
@@ -458,7 +461,8 @@
                     for json-var = (json-property-name slot)
                     for subject-db = (subject-db-for-predicate triple-db pred-string)
                     for objects = (objects-for-subject subject-db resource-url)
-                    do (if (and (single-value-slot-p slot)
+                    do (if (and *warn-on-single-valued-slot-with-multiple-values*
+                                (single-value-slot-p slot)
                                 (> (length objects) 1))
                            (format t "~&[WARNING] ~A has single-valued property ~A which contains more than one value in the triplestore: ~{~&  - ~A ~}~%"
                                    resource-url json-var (mapcar #'jsown:to-json objects)))
@@ -595,7 +599,8 @@ split up resources in order to make the fetching less bulky per query."
                               for solution in solutions
                               for resource-url in resource-urls
                               for objects = (objects-for-subject subject-db resource-url)
-                              do (if (and (single-value-slot-p slot)
+                              do (if (and *warn-on-single-valued-slot-with-multiple-values*
+                                          (single-value-slot-p slot)
                                           (> (length objects) 1))
                                      (format t "~&[WARNING] ~A has single-valued property ~A which contains more than one value in the triplestore: ~{~A ~}.~%"
                                              resource-url json-var (mapcar #'jsown:to-json objects)))
