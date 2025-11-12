@@ -144,11 +144,13 @@ _also_ include one of the supplied values constrained in values-statement."))
             :test #'eq))
 (defun all-resources-of-itemspecs (item-specs)
   "Yields all the resources for the supplied item-specs."
-  (loop for item-spec in item-specs
-        for resource = (resource item-spec)
-        for result = (list resource)
-          then (pushnew resource result)
-        finally (return result)))
+  (with-single-itemspec-classes-retry
+    (loop for item-spec in item-specs
+          for resource = (resource item-spec)
+          for result = (list resource)
+            then (pushnew resource result)
+          finally (return result))))
+
 (defun group-resources-by-relationship-constraint (resources relation-json-key)
   "Groups all resources by their relationship constraint and returns
 results as a list of '(relationship-constraint . resources)."
