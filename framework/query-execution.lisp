@@ -69,7 +69,7 @@
   (remf args :no-graph)
   (if (or no-graph
           (and *experimental-no-application-graph-for-sudo-select-queries*
-               (string= (string-downcase (hunchentoot:header-in* :mu-auth-allowed-groups))
+               (string= (string-downcase (webserver:header-in* :mu-auth-allowed-groups))
                         "sudo")))
       (query
        (s-select variables args body))

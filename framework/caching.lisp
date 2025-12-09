@@ -86,7 +86,7 @@
     (unless result
       (error 'no-such-instance
              :uri (node-url item-spec)
-             :allowed-groups (hunchentoot:header-in* :mu-auth-allowed-groups)))
+             :allowed-groups (webserver:header-in* :mu-auth-allowed-groups)))
     (jsown:filter (first result) "uuid" "value")))
 
 

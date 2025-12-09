@@ -410,17 +410,15 @@ print too much.")
   (declare (special *user-allowed-groups*))
   (if (boundp '*user-allowed-groups*)
       *user-allowed-groups*
-      (let ((out-headers (hunchentoot:headers-out*))
-            (in-headers (hunchentoot:headers-in*)))
-        (let ((allowed-groups-out-header (assoc :mu-auth-allowed-groups out-headers))
-              (allowed-groups-in-header (assoc :mu-auth-allowed-groups in-headers)))
-          (cond
-            ;; if we received new mu-auth-allowed-groups from the database, return them
-            (allowed-groups-out-header (cdr allowed-groups-out-header))
-            ;; otherwise see if we have received the headers from the client
-            (allowed-groups-in-header (cdr allowed-groups-in-header))
-            ;; if nothing is available, yield nil as the key
-            (t nil))))))
+      ;; this logic could depend on the header existing, however with header values being strings there should be no
+      ;; "nil" as a header value.
+      (or
+       ;; if we received new mu-auth-allowed-groups from the database, return them
+       (webserver:header-out :mu-auth-allowed-groups)
+       ;; otherwise see if we have received the headers from the client
+       (webserver:header-in* :mu-auth-allowe-groups)
+       ;; if nothing is available, yield nil as the key
+       nil)))
 
 (defun get-ua-hash (key user-aware-hash-table &optional default)
   "Equivalent of gethash."
@@ -440,7 +438,7 @@ print too much.")
             (multiple-value-bind (value value-p)
                 (lhash:gethash allowed-groups nested-hash default)
               (when value-p
-                (setf (hunchentoot:header-out :mu-auth-used-groups)
+                (setf (webserver:header-out :mu-auth-used-groups)
                       allowed-groups))
               value)
             (values default nil))))))

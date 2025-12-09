@@ -477,10 +477,10 @@
 
 (defun ensure-out-allowed-groups ()
   "Ensures out allowed groups are set, possibly copying them over from the input headers."
-  (unless (or (hunchentoot:header-out :mu-auth-allowed-groups)
-              (not (hunchentoot:header-in* :mu-auth-allowed-groups)))
-    (setf (hunchentoot:header-out :mu-auth-allowed-groups)
-          (hunchentoot:header-in* :mu-auth-allowed-groups))))
+  (unless (or (webserver:header-out :mu-auth-allowed-groups)
+              (not (webserver:header-in* :mu-auth-allowed-groups)))
+    (setf (webserver:header-out :mu-auth-allowed-groups)
+          (webserver:header-in* :mu-auth-allowed-groups))))
 
 (defun field-requested-p (item-spec field &optional (requested-fields nil requested-fields-p) (sparse-fields-p nil sparse-fields-p-supplied-p))
   "Checks if the supplied field was requested.
@@ -1331,14 +1331,14 @@ split up resources in order to make the fetching less bulky per query."
         ;; the world, that is not fully the case anymore but it makes
         ;; most sense down here.
         (handle-uri-class-changes effective-inserts effective-deletes)))
-    (let ((out-headers (cdr (assoc :clear-keys  (hunchentoot:headers-out*)))))
+    (let ((out-headers (webserver:header-out :clear-keys)))
       (when (and *cache-clear-path* out-headers)
         (when *log-delta-clear-keys*
           (format t "~&Sending clear keys: ~A~%" out-headers))
         (drakma:http-request *cache-clear-path*
                              :method :post
                              :additional-headers `(("clear-keys" . ,out-headers)))))
-    ;; (setf (hunchentoot:header-out :clear-keys) "null")
+    ;; (setf (webserver:header-out :clear-keys) "null")
     (jsown:new-js ("message" "processed delta"))))
 
 (defgeneric delta-call (body)
