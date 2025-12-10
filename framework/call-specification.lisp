@@ -507,8 +507,7 @@
   ;; This call is positioned at the end of the stack, as calls at the
   ;; end are checked first.  We need to ensure we run first-hand as
   ;; other calls might overlap in future versions of the jsonapi spec.
-  (let* ((raw-body (post-body))
-         (body (jsown:parse raw-body)))
+  (let* ((raw-body (post-body)))
     ;; our goal should be to clear everything that might be impacted
     ;; by the changes here.  in the future we could intelligently
     ;; merge.
@@ -518,4 +517,4 @@
     ;; to the mu-cache.
     (with-user-configurable-backtrace
       (with-single-itemspec-classes-retry
-        (delta-call body)))))
+        (delta-call raw-body)))))

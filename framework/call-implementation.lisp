@@ -1219,7 +1219,7 @@ split up resources in order to make the fetching less bulky per query."
 
 (bt:make-thread #'process-delta-messages-loop)
 
-(defun process-delta-message (body)
+(defun process-delta-message (raw-body)
   "Process an individually received delta message."
   ;; TODO: consume and progress MU_AUTH_ALLOWED_GROUPS.  This could
   ;; be done automatically with the right changes in the DELTA
@@ -1227,7 +1227,8 @@ split up resources in order to make the fetching less bulky per query."
   ;;
   ;; TODO: cope with MU_AUTH_SUDO specified through delta-service or
   ;; by corresponding sudo setting in MU_AUTH_ALLOWED_GROUPS.
-  (let* ((inserts (loop for diff in body
+  (let* ((body (jsown:parse raw-body))
+         (inserts (loop for diff in body
                         append (jsown:val diff "inserts")))
          (deletes (loop for diff in body
                         append (jsown:val diff "deletes")))
