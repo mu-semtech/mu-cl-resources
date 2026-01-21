@@ -9,6 +9,7 @@ The documentation offered here is not exhaustive.  This component handles a wide
 The domain.json format is still growing, some configuration parameters can only be set in the lisp variant.  You can combine both formats, see Tutorial: Combining domain.lisp and domain.json.
 
 ## Tutorials
+(Also check out the [JSONAPI tutorial of mu-project](https://github.com/mu-semtech/mu-project#creating-a-json-api), as it is also based on mu-cl-resources)
 
 ### Add mu-cl-resources to a stack
 Add the following snippet to the services block of your `docker-compose.yml`:
@@ -187,7 +188,7 @@ The domain.json contains resource definitions for each resource type in the appl
 
 Each resource definition is a combination of these three views.  Let us assume an example using [foaf](http://xmlns.com/foaf/0.1/).  In our example, we will model a Person, having one or more online accounts.  This model can be vizualised using [WebVOWL](http://visualdataweb.de/webvowl/#).
 
-```javascript
+```json
 {
   "version": "0.1",
   "resources": {
@@ -216,7 +217,7 @@ A simple definition of a person uses the foaf vocabulary to write the person and
 
 Assuming the `foaf` prefix is defined, we can make this example slightly easier to read.
 
-```javascript
+```json
 {
   "version": "0.1",
   "prefixes": {
@@ -242,7 +243,7 @@ This code sample implements the same functionality as the example above, yet it 
 
 We can insert multiple attributes if desired. We can update our example to also contain the age of the person, expressed as a number.
 
-```javascript
+```json
 {
   "version": "0.1",
   "prefixes": {
@@ -272,7 +273,7 @@ With this minor change, our person supports the name and age attributes.
 
 Most resources link to other resources.  Let's first define a second resouce, an [OnlineAccount](http://xmlns.com/foaf/0.1/OnlineAccount).
 
-```javascript
+```json
 {
   "version": "0.1",
   "prefixes": {
@@ -298,7 +299,7 @@ Most resources link to other resources.  Let's first define a second resouce, an
 The definition of this `account` resource is very similar to that of the `person` resource.  How do we link a person to an account?  Assuming the person has many accounts, we link by defining a `relationships` block on the `person` resource.
 
 
-```javascript
+```json
 {
   ...
   "resources": {
@@ -343,7 +344,7 @@ The `relationships` object specifies that a `person` may link to many resources 
 
 How about getting the person which links to this account.  There is only a single person connected to an account.  Hence we can specify a relationship with cardinality `one` on the `account` resource.  In the semantic model of the triplestore, the relationship uses the [foaf:account](http://xmlns.com/foaf/0.1/account) property going from the person to the account.  Finding the person for an account therefore means we have to follow the same relationship in the other direction.  We can add the property `"inverse": true` to any relationship to make the semantic model follow the inverse arrow.  Here, the key in the json body will be `owner` rather than person.
 
-```javascript
+```json
 {
   ...
   "resources": {
@@ -374,7 +375,7 @@ How about getting the person which links to this account.  There is only a singl
 
 The complete setup of our user and account looks as follows:
 
-```javascript
+```json
 {
   "version": "0.1",
   "prefixes": {
@@ -478,6 +479,73 @@ Next, add the following contents to the `domain.lisp` file:
 Add your settings in `domain.lisp`.
 
 Restart the service. The newly configured settings will be picked up by mu-cl-resources.
+
+### Building a 'model creator' for mu-cl-resources
+#### creating models can be tedious
+
+Since creating models is generally writing a lot of text it can be tedious and time consuming. Therefor we are writing a little helper ember.js application that helps facilitating the creation of models for mu-cl-resources.
+
+The ‘model creator’ (for lack of a better name) will produce sources for the repository.lisp file and for the domain.lisp file.
+
+#### repository.lisp
+As you can see in the screen shots getting repositories is rather easy. There is a small optimization that was inspired by Aad Versteden’s currently soon to be published emacs plug-in for automatically obtaining prefix expansions from prefix.cc.
+
+![](http://mu.semte.ch/wp-content/uploads/2017/09/dc1.png)
+
+#### domain.lisp
+Generating resources isn’t that much harder, it all boils down to a list of resource elements, each of which has a name, a class a resourceBase and a path.
+
+There are of course also properties and one-on-one relations as shown in the next screenshot
+
+![](http://mu.semte.ch/wp-content/uploads/2017/09/dc2.png)
+
+#### the generated  code
+This eventually produces the source code for the repository.lisp and the domain.lisp files. For now the formatting in the ember handlebars is ignoring the newlines, that is something that should be fixed.
+
+![](http://mu.semte.ch/wp-content/uploads/2017/09/dc3.png)
+
+#### conclusion
+
+Obviously this is not a finished application but it is slowly showing already the potential for a repository.lisp and domain.lisp generator.
+
+The next steps include:
+
+- adding one-on-many relations
+- being more smart about when to add a prefixed url and when a regular url
+- displaying the new lines properly so the code can really be copy pasted to the respective files
+- loading existing domain.lisp files
+- adding semantic (and contextual) hints
+- a drop down to hint possible types
+- a standard base url for the application
+- adding automatic pluralization
+
+*This part has been adapted from Jonathan Langens' mu.semte.ch article. You can view it [here](https://mu.semte.ch/2017/09/28/building-a-model-creator-for-mu-cl-resources-part-1/)*
+
+## How-To's
+
+### Mounting the config files
+#### Option 1: In a docker-compose
+```yaml
+# docker-compose.yml
+services:
+  resource:
+    image: semtech/mu-cl-resources:1.15.0
+    links:
+      - db:database
+    volumes:
+      - /path/to/your/config:/config
+```
+
+#### Option 2: In a Docker image
+```dockerfile
+FROM semtech/mu-cl-resources:1.15.0
+
+COPY domain.lisp /config/domain.lisp
+COPY repository.lisp /config/repository.lisp
+
+# ...
+```
+
 
 ## Reference
 ### Defining resources in Lisp
@@ -589,7 +657,7 @@ Used types may change over time as the SPARQL endpoint evolves.  The following i
 As the integration with the frontend data-store is handled automatically, most of your time with mu-cl-resources will be spent configuring resources. This overview provides a non-exhaustive list of the most common features of mu-cl-resources in JSON format.
 
 The base structure of the JSON configuration file looks like this:
-```javascript
+```json
 {
   "version": "0.1",
   "prefixes": {
@@ -610,7 +678,7 @@ The following keys are valid at the root level of the JSON configuration:
 The `prefixes` key contains an object mapping RDF prefixes to a namespace URI.
 
 E.g.
-```javascript
+```json
   "prefixes": {
     "schema": "http://schema.org/",
     "foaf": "http://xmlns.com/foaf/0.1/"
@@ -622,7 +690,7 @@ The prefixes can be used to shorten URIs in the resource definitions as explaine
 #### Resource definitions
 A example resource definition looks as follows:
 
-```javascript
+```json
 {
   ...
   "resources": {
@@ -682,7 +750,7 @@ The attributes section in the resource definition corresponds to the attributes 
 
 The attributes section in our example looks like:
 
-```javascript
+```json
       "attributes": {
         "name": {
           "type": "string",
@@ -722,7 +790,7 @@ The relationships section in the resource definition corresponds to the relation
 
 The relationships section in our example looks like:
 
-```javascript
+```json
       "relationships": {
         "location": {
           "predicate": "foaf:based_near",
@@ -752,7 +820,7 @@ Each relationship is a key/object pair in the relationships object. The key refl
 
 Superclasses may be specified as a list after the resource name.  If a person is both an animal as well as an agent, we would write it as such:
 
-```javascript
+```json
 {
   ...
   "resources": {
