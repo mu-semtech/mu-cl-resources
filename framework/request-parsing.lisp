@@ -19,6 +19,8 @@
    of the slot is supplied is the second parameter to dispatch on.")
   (:method ((slot resource-slot) type value)
     (s-from-json value))
+  (:method ((slot resource-slot) (type (eql :html)) value)
+    (s-typed value (s-prefix "rdf:HTML")))
   (:method ((slot resource-slot) (type (eql :url)) value)
     (s-url value))
   (:method ((slot resource-slot) (type (eql :datetime)) value)
