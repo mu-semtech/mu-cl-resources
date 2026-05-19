@@ -9,4 +9,4 @@
 	url = https://github.com/madnificent/jsown
 [submodule "dependencies/luckless"]
 	path = dependencies/luckless
-	url = https://github.com/no-defun-allowed/luckless.git
+	url = https://github.com/madnificent/luckless.git
