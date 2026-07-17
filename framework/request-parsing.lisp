@@ -21,6 +21,8 @@
     (s-from-json value))
   (:method ((slot resource-slot) (type (eql :html)) value)
     (s-typed value (s-prefix "rdf:HTML")))
+  (:method ((slot resource-slot) (type (eql :base64)) value)
+    (s-typed value (s-prefix "xsd:base64Binary")))
   (:method ((slot resource-slot) (type (eql :url)) value)
     (s-url value))
   (:method ((slot resource-slot) (type (eql :datetime)) value)

@@ -549,6 +549,7 @@ A wide set of types is supported.  Extensions are necessary in order to implemen
   - *g-year* Experimental: A specific representation of a year
   - *geometry* Experimental: A geometry-string in a format your triplestore understands
   - *html* Experimental: An HTML string, typed as [rdf:HTML][https://www.w3.org/1999/02/22-rdf-syntax-ns#HTML]
+  - *base64* Experimental: A BASE64 binary, typed as [xsd:base64Binary][https://www.w3.org/TR/xmlschema-2/#base64Binary]
 
 #### Relationships
 
@@ -718,6 +719,7 @@ A wide set of types is supported.  Extensions are necessary in order to implemen
   - *g-year* Experimental: A specific representation of a year
   - *geometry* Experimental: A geometry-string in a format your triplestore understands
   - *html* Experimental: An HTML string, typed as [rdf:HTML][https://www.w3.org/1999/02/22-rdf-syntax-ns#HTML]
+  - *base64* Experimental: A BASE64 binary, typed as [xsd:base64Binary][https://www.w3.org/TR/xmlschema-2/#base64Binary]
 
 ##### Relationships
 The relationships section in the resource definition corresponds to the relationships in the JSON payload.  This section describes how to define relationships.

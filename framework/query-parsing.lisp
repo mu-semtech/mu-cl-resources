@@ -84,6 +84,11 @@
   (declare (ignore object))
   value)
 
+(define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#base64Binary"
+    (value object)
+  (declare (ignore object))
+  value)
+
 (define-typed-literal-importer "http://www.w3.org/2001/XMLSchema#float"
     (value object)
   (declare (ignore object))
