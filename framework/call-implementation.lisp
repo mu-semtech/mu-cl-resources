@@ -1194,6 +1194,9 @@ split up resources in order to make the fetching less bulky per query."
 (defparameter *log-delta-processing-information-p* nil
   "Log information about the processing of delta messages.")
 
+(defparameter *assume-sudo-for-missing-mu-auth-allowed-groups-in-delta-p* t
+  "If we have not received the mu-auth-allowed-groups header, then assume it was a sudo call in the delta messages.")
+
 (defun process-delta-messages-loop ()
   "Fetches the current delta messages from the queue and processes them in a loop."
   (let (queue-to-process)
@@ -1212,7 +1215,8 @@ split up resources in order to make the fetching less bulky per query."
                     (format t "~&Processing delta ~A ~A ~A~%"
                             hunchentoot:*request* hunchentoot:*reply*
                             delta))
-                  (handler-case (process-delta-message delta)
+                  (handler-case
+                      (process-delta-message delta)
                     (error (e)
                       (declare (ignore e))
                       (format t "~&Could not process delta~%")))))))
@@ -1227,14 +1231,17 @@ split up resources in order to make the fetching less bulky per query."
   ;;
   ;; TODO: cope with MU_AUTH_SUDO specified through delta-service or
   ;; by corresponding sudo setting in MU_AUTH_ALLOWED_GROUPS.
-  (let* ((body (jsown:parse raw-body))
+  (let* ((mu-support:*mu-auth-sudo*
+           (and *assume-sudo-for-missing-mu-auth-allowed-groups-in-delta-p*
+                (not (webserver:header-in* :mu-auth-allowed-groups))))
+         (body (jsown:parse raw-body))
          (inserts (loop for diff in body
                         append (jsown:val diff "inserts")))
          (deletes (loop for diff in body
                         append (jsown:val diff "deletes")))
-         ;; note that something can fall through the cracks with this
-         ;; calculation.  support from mu-authorization would help in
-         ;; these cases.
+         ;; NOTE: that something can fall through the cracks with this
+         ;; calculation when we don't have effective changes.  with the
+         ;; current support in sparql-parser this calculation is redundant.
          (effective-inserts (set-difference inserts deletes
                                             :test (lambda (a b)
                                                     (string= (jsown:to-json a)
