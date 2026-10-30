@@ -1,3 +1,3 @@
 #!/bin/bash
 
-cp -R /config/* /app/configuration/
+cp -R /config/..data/* /app/configuration/

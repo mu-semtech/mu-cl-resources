@@ -1,4 +1,3 @@
-
 (asdf:defsystem :mu-cl-resources
                 :name "mu-cl-resources"
                 :author "Aad Versteden <madnificent@gmail.com>"
